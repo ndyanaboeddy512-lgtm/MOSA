@@ -28,21 +28,18 @@ export function sanitizeReceiptText(rawText: string): { text: string; hasRedacti
 
   // Mask 16-digit credit/debit card numbers or spaced 4x4 digits
   const cardRegex = /\b(?:\d{4}[ -]?){3}\d{4}\b/g;
-  if (cardRegex.test(text)) {
-    text = text.replace(cardRegex, (match) => {
-      const clean = match.replace(/[- ]/g, "");
-      return `****-****-****-${clean.slice(-4)}`;
-    });
-    hasRedactions = true;
-  }
+  const textBeforeCard = text;
+  text = text.replace(cardRegex, (match) => {
+    const clean = match.replace(/[- ]/g, "");
+    return `****-****-****-${clean.slice(-4)}`;
+  });
+  if (text !== textBeforeCard) hasRedactions = true;
 
-  // Mask customer phone numbers (Rwanda pattern: 07[2389]\d{7} or +2507[2389]\d{7})
-  // We allow business contact headers to remain if identified as merchant, but mask customer lines
-  const customerPhoneRegex = /(?:Customer|Client|Kasitoma|Tel|Phone|P:)\s*(?:\+?250|0)?(7[2389]\d{7})\b/gi;
-  if (customerPhoneRegex.test(text)) {
-    text = text.replace(customerPhoneRegex, "Client: +250 78* *** *** (Redacted for Privacy)");
-    hasRedactions = true;
-  }
+  // Mask customer phone numbers (Rwanda pattern: 07[2389]... or +250 7[2389]...)
+  const customerPhoneRegex = /(?:Customer|Client|Kasitoma|User|Tel|Phone|P)\s*[:：\-]?\s*(?:\+?250\s*|0)?\s*(7[2389][0-9\s-]{6,10})\b/gi;
+  const textBeforePhone = text;
+  text = text.replace(customerPhoneRegex, "Client: +250 78* *** *** (Redacted for Privacy)");
+  if (text !== textBeforePhone) hasRedactions = true;
 
   return { text, hasRedactions };
 }
@@ -90,8 +87,8 @@ export function parsePhysicalDocument(rawInputText: string, docType: "RECEIPT" |
   // "Chapati Ishyushye: 300 FRW"
   // "Umuceri Gorillaz (1kg) - 1,800"
   // "1. Fade Haircut ........... 2000"
-  const itemPriceRegex = /(?:^|\d+[\.\)]\s*)(.+?)(?::|\s+|-|\.{2,})\s*(\d{1,3}(?:[,\.]\d{3})*|\d+)\s*(?:RWF|FRW|FR|F)?$/i;
-  const totalLineRegex = /(?:TOTAL|SUBTOTAL|NET|YOSE|HAMWE)\s*(?::|\s+)?\s*(\d{1,3}(?:[,\.]\d{3})*|\d+)/i;
+  const itemPriceRegex = /(?:^|\d+[\.\)]\s*)(.+?)(?::|\s+|-|\.{2,})\s*(\d{1,3}(?:[,\.]\d{3})+|\d+)\s*(?:RWF|FRW|FR|F)?$/i;
+  const totalLineRegex = /(?:TOTAL|SUBTOTAL|NET|YOSE|HAMWE)\s*(?::|\s+)?\s*(\d{1,3}(?:[,\.]\d{3})+|\d+)/i;
 
   let itemIdCounter = 1;
 
