@@ -1,0 +1,340 @@
+// MOSA Database Schema
+// Scalable relational architecture supporting PostgreSQL / Supabase / Neon / SQLite
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  SUPER_ADMIN
+  COMMUNITY_ADMIN
+  COMMUNITY_AGENT
+  BUSINESS_OWNER
+  CUSTOMER
+  MODERATOR
+}
+
+enum VerificationStatus {
+  UNVERIFIED
+  AGENT_VERIFIED
+  COMMUNITY_VERIFIED
+  BUSINESS_VERIFIED
+  HIGH_CONFIDENCE
+}
+
+enum DocumentType {
+  RECEIPT
+  MENU
+  PRICE_BOARD
+  STOREFRONT_SIGN
+}
+
+enum ExtractionStatus {
+  PENDING_VERIFICATION
+  VERIFIED
+  REJECTED
+}
+
+enum ReportReason {
+  FAKE_BUSINESS
+  WRONG_PRICE
+  CLOSED_PERMANENTLY
+  WRONG_LOCATION
+  SPAM
+}
+
+enum ReportStatus {
+  OPEN
+  REVIEWED
+  RESOLVED
+  DISMISSED
+}
+
+model User {
+  id              String         @id @default(cuid())
+  phone           String         @unique
+  name            String
+  role            Role           @default(CUSTOMER)
+  community       String?
+  assignedCell    String?
+  points          Int            @default(0)
+  referralCode    String         @unique
+  referredById    String?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  businessesOwned Business[]     @relation("OwnerBusinesses")
+  businessesAgent Business[]     @relation("AgentBusinesses")
+  captures        ReceiptCapture[]
+  verifications   VerificationRecord[]
+  reviews         Review[]
+  reports         Report[]
+  auditLogs       AuditLog[]
+  notifications   Notification[]
+}
+
+model Community {
+  id           String      @id @default(cuid())
+  name         String
+  nameRw       String
+  country      String      @default("Rwanda")
+  province     String      // Kigali City
+  district     String      // Nyarugenge
+  sector       String      // Nyamirambo
+  cell         String      // Biryogo
+  latitude     Float
+  longitude    Float
+  createdAt    DateTime    @default(now())
+
+  businesses   Business[]
+  demands      CommunityDemand[]
+}
+
+model Business {
+  id                 String             @id @default(cuid())
+  name               String
+  nameRw             String?
+  category           String
+  description        String
+  descriptionRw      String?
+  phone              String
+  whatsapp           String?
+  communityId        String?
+  community          Community?         @relation(fields: [communityId], references: [id])
+  cell               String             @default("Biryogo")
+  sector             String             @default("Nyamirambo")
+  district           String             @default("Nyarugenge")
+  addressNote        String?
+  latitude           Float
+  longitude          Float
+  verificationStatus VerificationStatus @default(UNVERIFIED)
+  isOpenNow          Boolean            @default(true)
+  coverImage         String?
+  priceRange         String             @default("MODERATE")
+  viewsCount         Int                @default(0)
+  contactClicksCount Int                @default(0)
+  searchCount        Int                @default(0)
+  
+  ownerId            String?
+  owner              User?              @relation("OwnerBusinesses", fields: [ownerId], references: [id])
+  agentId            String?
+  agent              User?              @relation("AgentBusinesses", fields: [agentId], references: [id])
+  
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  products           Product[]
+  businessHours      BusinessHour[]
+  media              BusinessMedia[]
+  captures           ReceiptCapture[]
+  verifications      VerificationRecord[]
+  reviews            Review[]
+  reports            Report[]
+  offers             Offer[]
+  claims             BusinessClaim[]
+  viewEvents         BusinessViewEvent[]
+}
+
+model BusinessClaim {
+  id          String    @id @default(cuid())
+  businessId  String
+  business    Business  @relation(fields: [businessId], references: [id])
+  userId      String
+  claimPhone  String
+  status      String    @default("PENDING") // PENDING, APPROVED, REJECTED
+  claimedAt   DateTime  @default(now())
+}
+
+model Product {
+  id              String        @id @default(cuid())
+  businessId      String
+  business        Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  name            String
+  nameRw          String?
+  description     String?
+  price           Float
+  currency        String        @default("RWF")
+  unit            String?       @default("item")
+  isAvailable     Boolean       @default(true)
+  category        String?
+  extractedFrom   DocumentType?
+  confidenceScore Float?
+  verifiedByAgent Boolean       @default(false)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  receiptItemId   String?       @unique
+  receiptItem     ReceiptItem?  @relation(fields: [receiptItemId], references: [id])
+}
+
+model BusinessHour {
+  id          String    @id @default(cuid())
+  businessId  String
+  business    Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  day         String
+  dayRw       String
+  open        String
+  close       String
+  isClosed    Boolean   @default(false)
+}
+
+model BusinessMedia {
+  id          String    @id @default(cuid())
+  businessId  String
+  business    Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  url         String
+  caption     String?
+  isCover     Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+}
+
+model ReceiptCapture {
+  id               String           @id @default(cuid())
+  businessId       String?
+  business         Business?        @relation(fields: [businessId], references: [id])
+  agentId          String
+  agent            User             @relation(fields: [agentId], references: [id])
+  documentType     DocumentType     @default(RECEIPT)
+  imageUrl         String
+  rawOcrText       String?
+  merchantDetected String?
+  dateDetected     String?
+  totalAmount      Float?
+  currency         String           @default("RWF")
+  status           ExtractionStatus @default(PENDING_VERIFICATION)
+  sanitized        Boolean          @default(true)
+  uploadedAt       DateTime         @default(now())
+  verifiedAt       DateTime?
+
+  items            ReceiptItem[]
+}
+
+model ReceiptItem {
+  id           String          @id @default(cuid())
+  captureId    String
+  capture      ReceiptCapture  @relation(fields: [captureId], references: [id], onDelete: Cascade)
+  name         String
+  price        Float
+  quantity     Float           @default(1)
+  category     String?
+  confidence   Float           @default(0.9)
+  
+  product      Product?
+}
+
+model VerificationRecord {
+  id          String    @id @default(cuid())
+  businessId  String
+  business    Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User      @relation(fields: [userId], references: [id])
+  type        String    // AGENT_AUDIT, LOCATION_GPS, COMMUNITY_CONFIRMATION, OWNER_CLAIM
+  notes       String?
+  createdAt   DateTime  @default(now())
+}
+
+model Review {
+  id            String    @id @default(cuid())
+  businessId    String
+  business      Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  userId        String
+  user          User      @relation(fields: [userId], references: [id])
+  rating        Int
+  comment       String
+  commentRw     String?
+  verifiedVisit Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+}
+
+model Report {
+  id          String        @id @default(cuid())
+  businessId  String
+  business    Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User          @relation(fields: [userId], references: [id])
+  reason      ReportReason
+  details     String
+  status      ReportStatus  @default(OPEN)
+  createdAt   DateTime      @default(now())
+}
+
+model Offer {
+  id          String    @id @default(cuid())
+  businessId  String
+  business    Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  title       String
+  titleRw     String
+  discount    String
+  validUntil  DateTime
+  createdAt   DateTime  @default(now())
+}
+
+model Mission {
+  id          String    @id @default(cuid())
+  title       String
+  titleRw     String
+  description String
+  descriptionRw String
+  targetArea  String
+  pointsReward Int
+  badgeReward String?
+  category    String
+  createdAt   DateTime  @default(now())
+}
+
+model CommunityDemand {
+  id                    String      @id @default(cuid())
+  communityId           String?
+  community             Community?  @relation(fields: [communityId], references: [id])
+  sector                String
+  cell                  String
+  category              String
+  queryTerm             String
+  searchCount           Int         @default(1)
+  activeBusinessesCount Int         @default(0)
+  opportunityScore      String      @default("HIGH")
+  updatedAt             DateTime    @updatedAt
+}
+
+model SearchEvent {
+  id          String    @id @default(cuid())
+  query       String
+  sector      String?
+  cell        String?
+  resultsCount Int
+  createdAt   DateTime  @default(now())
+}
+
+model BusinessViewEvent {
+  id          String    @id @default(cuid())
+  businessId  String
+  business    Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  referrer    String?
+  createdAt   DateTime  @default(now())
+}
+
+model Notification {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  message   String
+  isRead    Boolean   @default(false)
+  createdAt DateTime  @default(now())
+}
+
+model AuditLog {
+  id        String    @id @default(cuid())
+  userId    String?
+  user      User?     @relation(fields: [userId], references: [id])
+  action    String
+  entity    String
+  entityId  String
+  metadata  String?
+  createdAt DateTime  @default(now())
+}
