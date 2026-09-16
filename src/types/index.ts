@@ -186,11 +186,21 @@ export interface Business {
   searchAppearancesCount: number;
   claimedByUserId?: string;
   createdByAgentId?: string;
+  subCategory?: string;
+  lastConfirmedAt?: string;
+  confirmationIntervalDays?: number;
+  healthScore?: number;
+  claimedAt?: string;
+  claimPhone?: string;
+  isClaimed?: boolean;
   featuredOffer?: {
+    id?: string;
     title: string;
     titleRw: string;
+    description?: string;
     discount: string;
     validUntil: string;
+    status?: string;
   };
   createdAt: string;
   updatedAt: string;
@@ -288,3 +298,63 @@ export interface UserSession {
   referralCode: string;
   assignedCell?: string;
 }
+
+export interface BusinessChangeHistoryItem {
+  id: string;
+  businessId: string;
+  productId?: string;
+  actorId?: string;
+  actorName?: string;
+  action: string;
+  fieldChanged?: string;
+  previousValue?: string;
+  newValue?: string;
+  approvalStatus: string;
+  source: string;
+  metadata?: string;
+  createdAt: string;
+}
+
+export interface BusinessReminderItem {
+  id: string;
+  businessId: string;
+  type: string;
+  title: string;
+  titleRw: string;
+  message: string;
+  messageRw: string;
+  severity: "INFO" | "WARNING" | "URGENT";
+  actionUrl?: string;
+  isResolved: boolean;
+  createdAt: string;
+}
+
+export interface SMSMessageRecord {
+  id: string;
+  businessId?: string;
+  recipientPhone: string;
+  templateId: string;
+  language: string;
+  messageBody: string;
+  provider: string;
+  status: string;
+  sentAt?: string;
+  createdAt: string;
+}
+
+export interface BusinessClaimRecord {
+  id: string;
+  businessId: string;
+  businessName?: string;
+  userId: string;
+  userName?: string;
+  claimPhone: string;
+  ownerName?: string;
+  nationalIdOrDoc?: string;
+  verificationNotes?: string;
+  status: "PENDING" | "APPROVED" | "REJECTED";
+  reviewedBy?: string;
+  reviewedAt?: string;
+  claimedAt: string;
+}
+

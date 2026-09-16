@@ -32,6 +32,9 @@ import {
   Check,
   Building,
   MapPin,
+  HeartHandshake,
+  Smartphone,
+  Activity,
   X
 } from "lucide-react";
 
@@ -64,6 +67,8 @@ interface AdminMetrics {
   totalProducts: number;
   estimatedProductsCount: number;
   potentialDuplicatesCount: number;
+  pendingClaimsCount?: number;
+  totalSMSCount?: number;
 }
 
 const CATEGORY_OPTIONS = [
@@ -83,8 +88,13 @@ export default function AdminPanelPage() {
   const { lang, t } = useLanguage();
   const { user, switchDemoRole } = useAuth();
 
-  const [activeTab, setActiveTab] = useState<"businesses" | "captures" | "reports" | "demands" | "audit">("businesses");
+  const [activeTab, setActiveTab] = useState<
+    "businesses" | "claims" | "sms" | "history" | "captures" | "reports" | "demands" | "audit"
+  >("businesses");
   const [businesses, setBusinesses] = useState<Business[]>([]);
+  const [claims, setClaims] = useState<any[]>([]);
+  const [smsMessages, setSmsMessages] = useState<any[]>([]);
+  const [changeHistories, setChangeHistories] = useState<any[]>([]);
   const [captures, setCaptures] = useState<PhysicalCaptureRecord[]>([]);
   const [reports, setReports] = useState<ModerationReport[]>([]);
   const [demands, setDemands] = useState<CommunityDemandSignal[]>([]);
@@ -194,11 +204,40 @@ export default function AdminPanelPage() {
         if (data.captures && data.captures.length > 0) setCaptures(data.captures);
         if (data.reports && data.reports.length > 0) setReports(data.reports);
         if (data.demands && data.demands.length > 0) setDemands(data.demands);
+        if (data.claims) setClaims(data.claims);
+        if (data.smsMessages) setSmsMessages(data.smsMessages);
+        if (data.changeHistories) setChangeHistories(data.changeHistories);
       }
     } catch (err) {
       console.warn("[Admin Fetch Fallback]:", err);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleApproveClaim = async (claimId: string) => {
+    try {
+      const res = await fetch("/api/admin", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "APPROVE_CLAIM", claimId }),
+      });
+      if (res.ok) fetchAdminData();
+    } catch (err) {
+      console.warn("Approve claim error:", err);
+    }
+  };
+
+  const handleRejectClaim = async (claimId: string) => {
+    try {
+      const res = await fetch("/api/admin", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "REJECT_CLAIM", claimId }),
+      });
+      if (res.ok) fetchAdminData();
+    } catch (err) {
+      console.warn("Reject claim error:", err);
     }
   };
 
@@ -492,6 +531,9 @@ export default function AdminPanelPage() {
       <div className="flex items-center gap-2 border-b border-slate-200 pb-3 mb-6 overflow-x-auto no-scrollbar">
         {[
           { id: "businesses", label: t.admin.tabs.businesses, count: businesses.length, icon: StoreIcon },
+          { id: "claims", label: "Ownership Claims", count: claims.filter((c) => c.status === "PENDING").length, icon: HeartHandshake },
+          { id: "sms", label: "SMS Queue & Status", count: smsMessages.length, icon: Smartphone },
+          { id: "history", label: "Price & Change Audits", count: changeHistories.length, icon: Activity },
           { id: "captures", label: t.admin.tabs.ocrCaptures, count: captures.length, icon: FileText },
           { id: "reports", label: t.admin.tabs.moderation, count: reports.length, icon: AlertTriangle },
           { id: "demands", label: t.admin.tabs.demand, count: demands.length, icon: TrendingUp },
@@ -954,6 +996,203 @@ export default function AdminPanelPage() {
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* Ownership Claims Tab */}
+      {activeTab === "claims" && (
+        <div className="bg-white rounded-3xl border border-slate-200 shadow-card p-6 space-y-6">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+            <div>
+              <h3 className="font-bold text-slate-900 text-base">Business Ownership Claims Queue ({claims.length})</h3>
+              <p className="text-xs text-slate-500">
+                Proprietors claiming existing business profiles. Approving binds account ownership and grants Business Dashboard control.
+              </p>
+            </div>
+            <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-amber-100 text-amber-800">
+              {claims.filter((c) => c.status === "PENDING").length} Pending Review
+            </span>
+          </div>
+
+          {claims.length === 0 ? (
+            <div className="py-12 text-center text-slate-400 text-xs">
+              No ownership claims submitted yet.
+            </div>
+          ) : (
+            <div className="divide-y divide-slate-100 text-xs">
+              {claims.map((claim) => (
+                <div key={claim.id} className="py-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-extrabold text-slate-900 text-sm">{claim.businessName}</span>
+                      <span
+                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                          claim.status === "APPROVED"
+                            ? "bg-emerald-100 text-emerald-800"
+                            : claim.status === "REJECTED"
+                            ? "bg-red-100 text-red-800"
+                            : "bg-amber-100 text-amber-800"
+                        }`}
+                      >
+                        {claim.status}
+                      </span>
+                    </div>
+
+                    <div className="text-slate-600 flex flex-wrap items-center gap-2">
+                      <span>Location: <strong>{claim.businessLocation}</strong></span>
+                      <span>•</span>
+                      <span>Registered Phone: <code>{claim.businessPhone}</code></span>
+                      <span>•</span>
+                      <span>Claimant Phone: <code>{claim.claimPhone}</code></span>
+                    </div>
+
+                    <div className="text-[11px] text-slate-500">
+                      Claimant: <strong>{claim.claimantName}</strong> ({new Date(claim.claimedAt).toLocaleString()})
+                    </div>
+                    {claim.verificationNotes && (
+                      <div className="text-[11px] text-slate-400 italic">Notes: {claim.verificationNotes}</div>
+                    )}
+                  </div>
+
+                  {claim.status === "PENDING" && (
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        onClick={() => handleApproveClaim(claim.id)}
+                        className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs"
+                      >
+                        Approve Ownership
+                      </button>
+                      <button
+                        onClick={() => handleRejectClaim(claim.id)}
+                        className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs"
+                      >
+                        Reject
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* SMS Queue & Carrier Status Tab */}
+      {activeTab === "sms" && (
+        <div className="bg-white rounded-3xl border border-slate-200 shadow-card p-6 space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+            <div>
+              <h3 className="font-bold text-slate-900 text-base">SMS Notification Dispatch Logs ({smsMessages.length})</h3>
+              <p className="text-xs text-slate-500">
+                Real-time delivery status of transactional SMS messages across Rwanda telecom networks (MTN, Airtel).
+              </p>
+            </div>
+
+            <div className="p-2.5 rounded-2xl bg-amber-50 border border-amber-200 text-xs text-amber-900 flex items-center gap-2">
+              <Smartphone className="w-4 h-4 text-amber-700 shrink-0" />
+              <span>
+                Carrier Status: <strong>{process.env.NEXT_PUBLIC_SMS_CONFIGURED === "true" ? "CONNECTED" : "CONFIGURATION REQUIRED (Africa's Talking)"}</strong>
+              </span>
+            </div>
+          </div>
+
+          <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-xs text-slate-600 leading-relaxed">
+            <strong>Production Architecture Principle:</strong> MOSA never produces fake delivery confirmations. If <code>AFRICAS_TALKING_API_KEY</code> is not provided in environment variables, dispatch is recorded as <code>CONFIGURATION_REQUIRED</code> with the rendered multilingual message.
+          </div>
+
+          {smsMessages.length === 0 ? (
+            <div className="py-12 text-center text-slate-400 text-xs">
+              No SMS notifications logged in database yet.
+            </div>
+          ) : (
+            <div className="divide-y divide-slate-100 text-xs">
+              {smsMessages.map((msg) => (
+                <div key={msg.id} className="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono font-bold text-slate-900">{msg.recipientPhone}</span>
+                      <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-slate-100 text-slate-700">
+                        {msg.templateId} ({msg.language})
+                      </span>
+                      <span
+                        className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+                          msg.status === "DELIVERED" || msg.status === "SENT"
+                            ? "bg-emerald-100 text-emerald-800"
+                            : msg.status === "CONFIGURATION_REQUIRED"
+                            ? "bg-amber-100 text-amber-900 border border-amber-300"
+                            : "bg-red-100 text-red-800"
+                        }`}
+                      >
+                        {msg.status}
+                      </span>
+                    </div>
+
+                    <p className="text-slate-700 bg-white p-2 rounded-xl border border-slate-100 font-mono text-[11px]">
+                      "{msg.messageBody}"
+                    </p>
+
+                    <div className="text-[10px] text-slate-400">
+                      Entity: {msg.businessName} • Provider: {msg.provider}
+                    </div>
+                  </div>
+
+                  <div className="text-[11px] text-slate-400 font-mono self-end sm:self-center shrink-0">
+                    {new Date(msg.createdAt).toLocaleString()}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Deep Change History & Price Audits Tab */}
+      {activeTab === "history" && (
+        <div className="bg-white rounded-3xl border border-slate-200 shadow-card p-6 space-y-6">
+          <div className="border-b border-slate-100 pb-4">
+            <h3 className="font-bold text-slate-900 text-base">Network-Wide Business Change History & Audits ({changeHistories.length})</h3>
+            <p className="text-xs text-slate-500">
+              Audit log tracking price adjustments (e.g. 3,000 &rarr; 3,500 RWF), profile updates, and keep-alive confirmations.
+            </p>
+          </div>
+
+          {changeHistories.length === 0 ? (
+            <div className="py-12 text-center text-slate-400 text-xs">
+              No business changes recorded in history yet.
+            </div>
+          ) : (
+            <div className="divide-y divide-slate-100 text-xs">
+              {changeHistories.map((h) => (
+                <div key={h.id} className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-2">
+                      <span className="font-black text-slate-900">{h.businessName}</span>
+                      <span className="text-[10px] text-slate-400">({h.businessCell})</span>
+                      <span className="text-[10px] font-bold px-2 py-0.2 rounded bg-emerald-100 text-emerald-800">
+                        {h.action}
+                      </span>
+                    </div>
+
+                    <div className="text-slate-600">
+                      Field: <code className="bg-slate-100 px-1 py-0.2 rounded">{h.fieldChanged}</code>
+                      {h.previousValue && (
+                        <span> Old: <span className="line-through text-slate-400">{h.previousValue}</span> &rarr; </span>
+                      )}
+                      <strong> New: {h.newValue}</strong>
+                    </div>
+
+                    <div className="text-[10px] text-slate-400">
+                      Actor: {h.actorName} ({h.actorRole}) • Source: {h.source}
+                    </div>
+                  </div>
+
+                  <div className="text-[11px] text-slate-400 font-mono self-end sm:self-center">
+                    {new Date(h.createdAt).toLocaleString()}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

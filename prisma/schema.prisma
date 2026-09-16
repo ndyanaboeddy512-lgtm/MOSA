@@ -95,6 +95,7 @@ model User {
   sessions         Session[]
   claims           BusinessClaim[]
   agentAssignments AgentAssignment[]
+  changeHistories  BusinessChangeHistory[]
 
   @@index([phone])
   @@index([role])
@@ -312,6 +313,15 @@ model Business {
   agentId            String?
   agent              User?              @relation("AgentBusinesses", fields: [agentId], references: [id])
   
+  // Business Operational & Keep-Alive Metadata
+  subCategory        String?
+  lastConfirmedAt    DateTime?
+  confirmationIntervalDays Int          @default(60)
+  healthScore        Int                @default(0)
+  claimedAt          DateTime?
+  claimPhone         String?
+  isClaimed          Boolean            @default(false)
+  
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @updatedAt
 
@@ -325,6 +335,9 @@ model Business {
   offers             Offer[]
   claims             BusinessClaim[]
   viewEvents         BusinessViewEvent[]
+  changeHistory      BusinessChangeHistory[]
+  reminders          BusinessReminder[]
+  smsMessages        SMSMessage[]
 
   @@index([category])
   @@index([cell])
@@ -336,20 +349,28 @@ model Business {
   @@index([status])
   @@index([updatedAt])
   @@index([isOpenNow])
+  @@index([isClaimed])
+  @@index([lastConfirmedAt])
 }
 
 model BusinessClaim {
-  id          String    @id @default(cuid())
-  businessId  String
-  business    Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  userId      String
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  claimPhone  String
-  status      String    @default("PENDING") // PENDING, APPROVED, REJECTED
-  claimedAt   DateTime  @default(now())
+  id                 String    @id @default(cuid())
+  businessId         String
+  business           Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  userId             String
+  user               User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  claimPhone         String
+  ownerName          String?
+  nationalIdOrDoc    String?
+  verificationNotes  String?
+  status             String    @default("PENDING") // PENDING, APPROVED, REJECTED
+  reviewedBy         String?
+  reviewedAt         DateTime?
+  claimedAt          DateTime  @default(now())
 
   @@index([businessId])
   @@index([userId])
+  @@index([status])
 }
 
 model Product {
@@ -369,6 +390,8 @@ model Product {
   unit            String?       @default("item")
   isAvailable     Boolean       @default(true)
   isEstimated     Boolean       @default(false)
+  sortOrder       Int           @default(0)
+  isArchived      Boolean       @default(false)
   category        String?
   dataStatus      DataStatus    @default(DEMO)
   extractedFrom   DocumentType?
@@ -379,10 +402,12 @@ model Product {
 
   receiptItemId   String?       @unique
   receiptItem     ReceiptItem?  @relation(fields: [receiptItemId], references: [id])
+  changeHistory   BusinessChangeHistory[]
 
   @@index([businessId])
   @@index([category])
   @@index([dataStatus])
+  @@index([isArchived])
 }
 
 model BusinessHour {
@@ -501,11 +526,16 @@ model Offer {
   business    Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
   title       String
   titleRw     String
+  description String?
+  descriptionRw String?
   discount    String
+  startDate   DateTime  @default(now())
   validUntil  DateTime
+  status      String    @default("ACTIVE") // ACTIVE, EXPIRED, DRAFT
   createdAt   DateTime  @default(now())
 
   @@index([businessId])
+  @@index([status])
 }
 
 model Mission {
@@ -594,3 +624,69 @@ model AuditLog {
   @@index([createdAt])
   @@index([actorId])
 }
+
+model BusinessChangeHistory {
+  id             String    @id @default(cuid())
+  businessId     String
+  business       Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  productId      String?
+  product        Product?  @relation(fields: [productId], references: [id], onDelete: SetNull)
+  actorId        String?
+  actor          User?     @relation(fields: [actorId], references: [id])
+  action         String    // PRICE_CHANGED, PROFILE_UPDATED, PRODUCT_ADDED, PRODUCT_EDITED, PRODUCT_ARCHIVED, HOURS_UPDATED, OFFER_CREATED, CONFIRMATION_SUBMITTED
+  fieldChanged   String?
+  previousValue  String?
+  newValue       String?
+  approvalStatus String    @default("APPROVED") // PENDING, VALIDATED, APPROVED, REJECTED
+  source         String    @default("OWNER_DASHBOARD") // OWNER_DASHBOARD, COMMAND_CENTER, AGENT_AUDIT, AUTO_RULE
+  metadata       String?   // JSON representation of additional context
+  createdAt      DateTime  @default(now())
+
+  @@index([businessId])
+  @@index([actorId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+model BusinessReminder {
+  id          String    @id @default(cuid())
+  businessId  String
+  business    Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  type        String    // CONFIRMATION_DUE, HOURS_MISSING, PRICES_MISSING, DEMAND_SURGE, INCOMPLETE_PROFILE, LOCATION_UNVERIFIED
+  title       String
+  titleRw     String
+  message     String
+  messageRw   String
+  severity    String    @default("INFO") // INFO, WARNING, URGENT
+  actionUrl   String?
+  isResolved  Boolean   @default(false)
+  resolvedAt  DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([businessId])
+  @@index([type])
+  @@index([isResolved])
+}
+
+model SMSMessage {
+  id                 String    @id @default(cuid())
+  businessId         String?
+  business           Business? @relation(fields: [businessId], references: [id], onDelete: SetNull)
+  recipientPhone     String
+  templateId         String    // UPDATE_SUCCESS, REMINDER, SECURITY_ALERT, PROFILE_CONFIRMATION, DEMAND_ALERT
+  language           String    @default("rw") // rw, en, fr, sw
+  messageBody        String
+  provider           String    @default("UNCONFIGURED") // AFRICAS_TALKING, TWILIO, PINPOINT, UNCONFIGURED
+  status             String    @default("CONFIGURATION_REQUIRED") // CONFIGURATION_REQUIRED, PENDING, SENT, DELIVERED, FAILED
+  providerMessageId  String?
+  errorMessage       String?
+  retryCount         Int       @default(0)
+  sentAt             DateTime?
+  createdAt          DateTime  @default(now())
+
+  @@index([businessId])
+  @@index([recipientPhone])
+  @@index([status])
+  @@index([createdAt])
+}
+

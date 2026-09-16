@@ -25,7 +25,8 @@ import {
   Share2,
   ExternalLink,
   ChevronRight,
-  Plus
+  Plus,
+  Tag
 } from "lucide-react";
 
 export default function BusinessProfilePage({ params }: { params: Promise<{ id: string }> }) {
@@ -243,6 +244,30 @@ export default function BusinessProfilePage({ params }: { params: Promise<{ id: 
             </p>
           </div>
 
+          {/* Featured Active Offer if Present */}
+          {business.featuredOffer && (
+            <div className="p-6 rounded-3xl bg-gradient-to-r from-amber-500/15 via-amber-500/5 to-transparent border border-amber-300 space-y-2 shadow-xs">
+              <div className="flex items-center justify-between text-xs font-bold text-amber-900">
+                <span className="flex items-center gap-1.5">
+                  <Tag className="w-4 h-4 text-amber-600" />
+                  <span>{lang === "rw" ? "Poromosiyo Idasanzwe muri aka Gace" : "Special Neighborhood Offer"}</span>
+                </span>
+                <span className="bg-amber-500 text-slate-950 font-black px-2.5 py-0.5 rounded-full text-[10px] uppercase">
+                  {business.featuredOffer.discount}
+                </span>
+              </div>
+              <h4 className="text-base font-black text-slate-900">
+                {lang === "rw" && business.featuredOffer.titleRw ? business.featuredOffer.titleRw : business.featuredOffer.title}
+              </h4>
+              {business.featuredOffer.description && (
+                <p className="text-xs text-slate-600">{business.featuredOffer.description}</p>
+              )}
+              <div className="text-[11px] text-slate-400">
+                Valid until {new Date(business.featuredOffer.validUntil).toLocaleDateString()}
+              </div>
+            </div>
+          )}
+
           {/* Verified Products & Services Catalogue */}
           <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-card">
             <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-4">
@@ -292,11 +317,14 @@ export default function BusinessProfilePage({ params }: { params: Promise<{ id: 
 
                     <div className="text-right shrink-0">
                       <div className="text-base font-extrabold text-slate-900">
-                        {item.price.toLocaleString()} Frw
+                        {item.priceType === "RANGE" && item.priceMin && item.priceMax
+                          ? `${item.priceMin.toLocaleString()} – ${item.priceMax.toLocaleString()} Frw`
+                          : `${item.price.toLocaleString()} Frw`}
                       </div>
-                      {item.unit && (
-                        <div className="text-[10px] text-slate-400">/{item.unit}</div>
-                      )}
+                      <div className="flex items-center justify-end gap-1 text-[10px] text-slate-400">
+                        {item.isEstimated && <span className="text-amber-600 font-semibold">(Est.)</span>}
+                        {item.unit && <span>/{item.unit}</span>}
+                      </div>
                     </div>
                   </div>
                 ))}

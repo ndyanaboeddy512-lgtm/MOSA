@@ -60,16 +60,20 @@ export default function BusinessClaimPage({ params }: { params: Promise<{ id: st
     e.preventDefault();
     const ok = await verifyOtp(otpCode);
     if (ok) {
-      // Sync claim to Neon PostgreSQL
+      // Sync claim to Neon PostgreSQL via official claims API
       try {
-        await fetch(`/api/businesses/${business.id}`, {
-          method: "PATCH",
+        await fetch("/api/claims", {
+          method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "CLAIM" }),
+          body: JSON.stringify({
+            businessId: business.id,
+            claimPhone: phone,
+          }),
         });
-      } catch {}
+      } catch (err) {
+        console.warn("[Claims sync error]:", err);
+      }
 
-      store.claimBusiness(business.id, `owner-${phone}`);
       setStep("success");
       setTimeout(() => {
         router.push("/owner/dashboard");

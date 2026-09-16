@@ -1,10 +1,12 @@
 import { NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
 import { logAuditEvent } from "@/lib/audit";
 import { store } from "@/lib/store";
 import { VerificationStatus, ReportStatus, Role } from "@prisma/client";
 import { formatBusinessRecord } from "@/lib/format-business";
+import { sendBusinessSMS } from "@/lib/sms";
 
 // GET /api/admin - Fetch administrative overview, metrics, and queues
 export async function GET() {
@@ -36,6 +38,10 @@ export async function GET() {
       captures,
       reports,
       demands,
+      pendingClaimsCount,
+      claims,
+      smsMessages,
+      changeHistories,
     ] = await Promise.all([
       prisma.business.count(),
       prisma.business.count({ where: { verificationStatus: { in: [VerificationStatus.AGENT_VERIFIED, VerificationStatus.HIGH_CONFIDENCE] } } }),
@@ -88,6 +94,31 @@ export async function GET() {
         take: 20,
         orderBy: { searchCount: "desc" },
       }),
+      prisma.businessClaim.count({ where: { status: "PENDING" } }),
+      prisma.businessClaim.findMany({
+        take: 40,
+        orderBy: { claimedAt: "desc" },
+        include: {
+          business: { select: { id: true, name: true, phone: true, cell: true, sector: true } },
+          user: { select: { id: true, name: true, phone: true } },
+        },
+      }),
+      prisma.sMSMessage.findMany({
+        take: 50,
+        orderBy: { createdAt: "desc" },
+        include: {
+          business: { select: { id: true, name: true } },
+        },
+      }),
+      prisma.businessChangeHistory.findMany({
+        take: 50,
+        orderBy: { createdAt: "desc" },
+        include: {
+          business: { select: { id: true, name: true, cell: true } },
+          actor: { select: { id: true, name: true, role: true } },
+          product: { select: { name: true } },
+        },
+      }),
     ]);
 
     // Duplicate detection analysis across businesses
@@ -125,6 +156,8 @@ export async function GET() {
         totalProducts,
         estimatedProductsCount,
         potentialDuplicatesCount: duplicateIds.size,
+        pendingClaimsCount,
+        totalSMSCount: smsMessages.length,
       },
       auditLogs: recentAuditLogs,
       businesses: businesses.map((b: any) => ({
@@ -134,6 +167,48 @@ export async function GET() {
       captures,
       reports,
       demands,
+      claims: claims.map((c: any) => ({
+        id: c.id,
+        businessId: c.businessId,
+        businessName: c.business.name,
+        businessPhone: c.business.phone,
+        businessLocation: `${c.business.cell}, ${c.business.sector}`,
+        userId: c.userId,
+        claimantName: c.ownerName || c.user.name,
+        claimPhone: c.claimPhone,
+        status: c.status,
+        verificationNotes: c.verificationNotes,
+        claimedAt: c.claimedAt.toISOString(),
+      })),
+      smsMessages: smsMessages.map((s: any) => ({
+        id: s.id,
+        businessId: s.businessId,
+        businessName: s.business?.name || "System Alert",
+        recipientPhone: s.recipientPhone,
+        templateId: s.templateId,
+        language: s.language,
+        messageBody: s.messageBody,
+        provider: s.provider,
+        status: s.status,
+        sentAt: s.sentAt ? s.sentAt.toISOString() : null,
+        createdAt: s.createdAt.toISOString(),
+      })),
+      changeHistories: changeHistories.map((h: any) => ({
+        id: h.id,
+        businessId: h.businessId,
+        businessName: h.business.name,
+        businessCell: h.business.cell,
+        actorId: h.actorId,
+        actorName: h.actor?.name || "System",
+        actorRole: h.actor?.role || "SYSTEM",
+        action: h.action,
+        fieldChanged: h.fieldChanged,
+        previousValue: h.previousValue,
+        newValue: h.newValue,
+        approvalStatus: h.approvalStatus,
+        source: h.source,
+        createdAt: h.createdAt.toISOString(),
+      })),
     });
   } catch (error) {
     console.warn("[Admin API DB Fallback]:", error);
@@ -331,6 +406,93 @@ export async function PATCH(request: Request) {
       });
 
       return NextResponse.json({ success: true, status: "ARCHIVED" });
+    }
+
+    if (action === "APPROVE_CLAIM" && body.claimId) {
+      const claim = await prisma.businessClaim.update({
+        where: { id: body.claimId },
+        data: {
+          status: "APPROVED",
+          reviewedBy: auth.user.name,
+          reviewedAt: new Date(),
+        },
+        include: { business: true },
+      });
+
+      await prisma.business.update({
+        where: { id: claim.businessId },
+        data: {
+          ownerId: claim.userId,
+          isClaimed: true,
+          claimedAt: new Date(),
+          claimPhone: claim.claimPhone,
+          verificationStatus: VerificationStatus.BUSINESS_VERIFIED,
+        },
+      });
+
+      await prisma.user.update({
+        where: { id: claim.userId },
+        data: { role: Role.BUSINESS_OWNER },
+      });
+
+      await prisma.businessChangeHistory.create({
+        data: {
+          businessId: claim.businessId,
+          actorId: auth.user.id,
+          action: "CLAIM_APPROVED",
+          fieldChanged: "ownerId",
+          previousValue: null,
+          newValue: claim.userId,
+          approvalStatus: "APPROVED",
+          source: "COMMAND_CENTER",
+          metadata: JSON.stringify({ approvedBy: auth.user.name, claimId: claim.id }),
+        },
+      });
+
+      await logAuditEvent({
+        actorId: auth.user.id,
+        action: "ADMIN_CLAIM_APPROVED",
+        entityType: "BUSINESS_CLAIM",
+        entityId: claim.id,
+        metadata: { businessId: claim.businessId, claimant: claim.userId },
+      });
+
+      if (claim.claimPhone) {
+        await sendBusinessSMS({
+          businessId: claim.businessId,
+          recipientPhone: claim.claimPhone,
+          templateId: "PROFILE_CONFIRMATION",
+          language: "rw",
+          variables: { businessName: claim.business.name },
+        }).catch(() => {});
+      }
+
+      revalidatePath(`/business/${claim.businessId}`);
+      revalidatePath("/explore");
+
+      return NextResponse.json({ success: true, claim });
+    }
+
+    if (action === "REJECT_CLAIM" && body.claimId) {
+      const claim = await prisma.businessClaim.update({
+        where: { id: body.claimId },
+        data: {
+          status: "REJECTED",
+          reviewedBy: auth.user.name,
+          reviewedAt: new Date(),
+          verificationNotes: body.notes || "Rejected by governance team",
+        },
+      });
+
+      await logAuditEvent({
+        actorId: auth.user.id,
+        action: "ADMIN_CLAIM_REJECTED",
+        entityType: "BUSINESS_CLAIM",
+        entityId: claim.id,
+        metadata: { reason: body.notes },
+      });
+
+      return NextResponse.json({ success: true, claim });
     }
 
     return NextResponse.json({ error: "Invalid action or parameters" }, { status: 400 });
