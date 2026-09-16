@@ -128,10 +128,24 @@ export async function PATCH(request: Request) {
 
   try {
     const body = await request.json();
-    const { productId, businessId, ...fields } = body;
+    const { productId: _p, id: _i, businessId: _b, ...fields } = body;
+    const productId = body.productId || body.id;
+    let businessId = body.businessId;
 
-    if (!productId || !businessId) {
-      return NextResponse.json({ error: "productId and businessId are required" }, { status: 400 });
+    if (!productId) {
+      return NextResponse.json({ error: "productId is required" }, { status: 400 });
+    }
+
+    if (!businessId) {
+      const prod = await prisma.product.findUnique({
+        where: { id: productId },
+        select: { businessId: true },
+      });
+      if (prod) businessId = prod.businessId;
+    }
+
+    if (!businessId) {
+      return NextResponse.json({ error: "businessId is required or could not be determined" }, { status: 400 });
     }
 
     // Verify ownership
