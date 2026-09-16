@@ -4,6 +4,7 @@ import { requireAuth } from "@/lib/auth";
 import { logAuditEvent } from "@/lib/audit";
 import { store } from "@/lib/store";
 import { VerificationStatus, ReportStatus, Role } from "@prisma/client";
+import { formatBusinessRecord } from "@/lib/format-business";
 
 // GET /api/admin - Fetch administrative overview, metrics, and queues
 export async function GET() {
@@ -73,7 +74,7 @@ export async function GET() {
         totalCaptures,
       },
       auditLogs: recentAuditLogs,
-      businesses,
+      businesses: businesses.map(formatBusinessRecord),
       captures,
       reports,
       demands,

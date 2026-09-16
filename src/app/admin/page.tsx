@@ -178,7 +178,7 @@ export default function AdminPanelPage() {
 
   const filteredBusinesses = businesses.filter((b) =>
     b.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    b.location.community.toLowerCase().includes(searchTerm.toLowerCase())
+    (b.location?.community || (b as any).cell || "").toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const isPermittedAdmin = user?.role === "SUPER_ADMIN" || user?.role === "COMMUNITY_ADMIN" || user?.role === "MODERATOR";
@@ -315,7 +315,7 @@ export default function AdminPanelPage() {
                         <VerificationBadge status={biz.verificationStatus} />
                       </div>
                       <div className="text-xs text-slate-500 mt-0.5">
-                        {biz.category} • {biz.location.community} • Phone: {biz.phone}
+                        {biz.category} • {biz.location?.community || (biz as any).cell || "Nyamirambo"} • Phone: {biz.phone}
                       </div>
                     </div>
                   </div>

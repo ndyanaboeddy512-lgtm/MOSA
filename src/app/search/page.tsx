@@ -32,18 +32,48 @@ function SearchContent() {
   const [selectedCell, setSelectedCell] = useState("all");
 
   useEffect(() => {
-    if (initialQuery) {
-      setQuery(initialQuery);
-      let list = store.getBusinesses({ search: initialQuery });
-      if (openNowOnly) list = list.filter((b) => b.isOpenNow);
-      if (verifiedOnly) list = list.filter((b) => b.verificationStatus !== "UNVERIFIED");
-      if (selectedCell !== "all") {
-        list = list.filter((b) => b.location.cell.toLowerCase() === selectedCell.toLowerCase());
+    async function loadSearch() {
+      if (initialQuery) {
+        setQuery(initialQuery);
+        try {
+          const params = new URLSearchParams();
+          params.set("search", initialQuery);
+          if (openNowOnly) params.set("openNowOnly", "true");
+          if (selectedCell !== "all") params.set("community", selectedCell);
+          const res = await fetch(`/api/businesses?${params.toString()}`);
+          if (res.ok) {
+            const data = await res.json();
+            if (data.businesses) {
+              let list: Business[] = data.businesses;
+              if (verifiedOnly) list = list.filter((b) => b.verificationStatus !== "UNVERIFIED");
+              setResults(list);
+              return;
+            }
+          }
+        } catch {}
+
+        let list = store.getBusinesses({ search: initialQuery });
+        if (openNowOnly) list = list.filter((b) => b.isOpenNow);
+        if (verifiedOnly) list = list.filter((b) => b.verificationStatus !== "UNVERIFIED");
+        if (selectedCell !== "all") {
+          list = list.filter((b) => (b.location?.cell || (b as any).cell || "").toLowerCase() === selectedCell.toLowerCase());
+        }
+        setResults(list);
+      } else {
+        try {
+          const res = await fetch("/api/businesses");
+          if (res.ok) {
+            const data = await res.json();
+            if (data.businesses) {
+              setResults(data.businesses);
+              return;
+            }
+          }
+        } catch {}
+        setResults(store.getBusinesses());
       }
-      setResults(list);
-    } else {
-      setResults(store.getBusinesses());
     }
+    loadSearch();
   }, [initialQuery, openNowOnly, verifiedOnly, selectedCell]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {

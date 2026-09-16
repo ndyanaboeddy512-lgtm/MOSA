@@ -13,11 +13,29 @@ export function DemandTicker() {
   const [currentIndex, setCurrentIndex] = useState(0);
 
   useEffect(() => {
-    const list = store.getDemands();
-    setDemands(list);
+    async function loadDemands() {
+      try {
+        const res = await fetch("/api/demand");
+        if (res.ok) {
+          const data = await res.json();
+          if (data.demands && data.demands.length > 0) {
+            setDemands(data.demands);
+            return;
+          }
+        }
+      } catch {}
+      const list = store.getDemands();
+      setDemands(list);
+    }
+    loadDemands();
 
     const interval = setInterval(() => {
-      setCurrentIndex((prev) => (prev + 1) % (list.length || 1));
+      setDemands((prev) => {
+        if (prev.length > 0) {
+          setCurrentIndex((idx) => (idx + 1) % prev.length);
+        }
+        return prev;
+      });
     }, 5000);
 
     return () => clearInterval(interval);
@@ -25,8 +43,9 @@ export function DemandTicker() {
 
   if (demands.length === 0) return null;
 
-  const current = demands[currentIndex];
-  const query = lang === "rw" ? current.queryTermRw : current.queryTerm;
+  const current = demands[currentIndex] || demands[0];
+  if (!current) return null;
+  const query = lang === "rw" ? (current.queryTermRw || current.queryTerm) : (current.queryTerm || current.queryTermRw);
 
   return (
     <div className="bg-gradient-to-r from-amber-500/10 via-emerald-500/10 to-amber-500/10 border border-amber-300/40 rounded-2xl p-3 sm:p-4 mb-6 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">

@@ -14,33 +14,61 @@ interface LanguageContextType {
   t: typeof en;
 }
 
-const dictionaries: Record<Language, typeof en> = {
-  rw: rw as unknown as typeof en,
+function createDictionaryWithFallback(target: any, fallback: any): any {
+  if (!target) return fallback;
+  return new Proxy(target, {
+    get(obj, prop) {
+      const val = obj[prop];
+      const fallbackVal = fallback ? fallback[prop] : undefined;
+      if (val === undefined) {
+        return fallbackVal;
+      }
+      if (typeof val === "object" && val !== null) {
+        return createDictionaryWithFallback(val, fallbackVal);
+      }
+      return val;
+    },
+  });
+}
+
+const rawDictionaries: Record<Language, any> = {
+  rw,
   en,
-  fr: fr as unknown as typeof en,
-  sw: sw as unknown as typeof en,
+  fr,
+  sw,
+};
+
+const dictionaries: Record<Language, typeof en> = {
+  rw: createDictionaryWithFallback(rw, en),
+  en,
+  fr: createDictionaryWithFallback(fr, en),
+  sw: createDictionaryWithFallback(sw, en),
 };
 
 const LanguageContext = createContext<LanguageContextType>({
   lang: "rw",
   setLang: () => {},
-  t: rw as unknown as typeof en,
+  t: dictionaries.rw,
 });
 
 export function LanguageProvider({ children }: { children: React.ReactNode }) {
   const [lang, setLangState] = useState<Language>("rw");
 
   useEffect(() => {
-    const saved = localStorage.getItem("mosa_lang") as Language;
-    if (saved && (saved === "en" || saved === "rw" || saved === "fr" || saved === "sw")) {
-      setLangState(saved);
-    }
+    try {
+      const saved = localStorage.getItem("mosa_lang") as Language;
+      if (saved && (saved === "en" || saved === "rw" || saved === "fr" || saved === "sw")) {
+        setLangState(saved);
+      }
+    } catch {}
   }, []);
 
   const setLang = (newLang: Language) => {
     setLangState(newLang);
     if (typeof window !== "undefined") {
-      localStorage.setItem("mosa_lang", newLang);
+      try {
+        localStorage.setItem("mosa_lang", newLang);
+      } catch {}
       // Asynchronously sync preference to user account in database if logged in
       fetch("/api/auth/me", {
         method: "PATCH",

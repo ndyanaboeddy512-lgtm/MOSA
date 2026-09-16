@@ -263,7 +263,7 @@ export default function PhysicalCapturePage() {
               >
                 {businesses.map((biz) => (
                   <option key={biz.id} value={biz.id}>
-                    {biz.name} ({biz.location.community} • {biz.categoryDisplay})
+                    {biz.name} ({biz.location?.community || (biz as any).cell || "Nyamirambo"} • {biz.categoryDisplay})
                   </option>
                 ))}
               </select>

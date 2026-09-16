@@ -72,7 +72,7 @@ export function BusinessCard({ business }: BusinessCardProps) {
             </span>
             <span className="flex items-center gap-1 text-slate-500">
               <MapPin className="w-3 h-3 text-slate-400" />
-              {business.location.community}
+              {business.location?.community || (business as any).cell || "Nyamirambo"}
             </span>
           </div>
 
@@ -87,7 +87,7 @@ export function BusinessCard({ business }: BusinessCardProps) {
           </p>
 
           {/* Sample Verified Price Items */}
-          {business.products.length > 0 && (
+          {business.products && business.products.length > 0 && (
             <div className="mt-3 pt-2.5 border-t border-slate-100 space-y-1.5">
               <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
                 {lang === "rw" ? "Ibiciro Byemejwe" : "Sample Verified Prices"}

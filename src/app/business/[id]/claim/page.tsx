@@ -23,8 +23,21 @@ export default function BusinessClaimPage({ params }: { params: Promise<{ id: st
   const [errorMsg, setErrorMsg] = useState("");
 
   useEffect(() => {
-    const biz = store.getBusinessById(resolvedParams.id);
-    if (biz) setBusiness(biz);
+    async function loadBiz() {
+      try {
+        const res = await fetch(`/api/businesses/${resolvedParams.id}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.business) {
+            setBusiness(data.business);
+            return;
+          }
+        }
+      } catch {}
+      const biz = store.getBusinessById(resolvedParams.id);
+      if (biz) setBusiness(biz);
+    }
+    loadBiz();
   }, [resolvedParams.id]);
 
   if (!business) {
@@ -47,6 +60,15 @@ export default function BusinessClaimPage({ params }: { params: Promise<{ id: st
     e.preventDefault();
     const ok = await verifyOtp(otpCode);
     if (ok) {
+      // Sync claim to Neon PostgreSQL
+      try {
+        await fetch(`/api/businesses/${business.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "CLAIM" }),
+        });
+      } catch {}
+
       store.claimBusiness(business.id, `owner-${phone}`);
       setStep("success");
       setTimeout(() => {
@@ -77,8 +99,8 @@ export default function BusinessClaimPage({ params }: { params: Promise<{ id: st
         </h2>
         <p className="text-xs text-slate-500 mt-1 mb-6">
           {lang === "rw"
-            ? `Bwiyandikisheho kuri "${business.name}" i ${business.location.community} ukoresheje telefone yawe.`
-            : `Verify ownership of "${business.name}" located in ${business.location.community}.`}
+            ? `Bwiyandikisheho kuri "${business.name}" i ${business.location?.community || (business as any).cell || "Nyamirambo"} ukoresheje telefone yawe.`
+            : `Verify ownership of "${business.name}" located in ${business.location?.community || (business as any).cell || "Nyamirambo"}.`}
         </p>
 
         {step === "phone" && (

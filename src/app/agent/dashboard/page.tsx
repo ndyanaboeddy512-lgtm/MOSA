@@ -227,9 +227,9 @@ export default function AgentDashboardPage() {
                     <div className="flex items-center gap-2 text-xs text-slate-500">
                       <span>{biz.categoryDisplay}</span>
                       <span>•</span>
-                      <span>{biz.location.community}</span>
+                      <span>{biz.location?.community || (biz as any).cell || "Nyamirambo"}</span>
                       <span>•</span>
-                      <span className="font-semibold text-slate-700">{biz.products.length} products</span>
+                      <span className="font-semibold text-slate-700">{biz.products?.length || 0} products</span>
                     </div>
                   </div>
 

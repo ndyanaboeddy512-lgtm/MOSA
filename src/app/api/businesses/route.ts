@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { logAuditEvent } from "@/lib/audit";
 import { VerificationStatus } from "@prisma/client";
 import { INITIAL_BUSINESSES } from "@/lib/seed-data";
+import { formatBusinessRecord } from "@/lib/format-business";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -84,15 +85,17 @@ export async function GET(request: Request) {
         success: true,
         source: "seed-fallback",
         count: INITIAL_BUSINESSES.length,
-        businesses: INITIAL_BUSINESSES,
+        businesses: INITIAL_BUSINESSES.map(formatBusinessRecord),
       });
     }
+
+    const formatted = businesses.map(formatBusinessRecord);
 
     return NextResponse.json({
       success: true,
       source: "postgres",
-      count: businesses.length,
-      businesses,
+      count: formatted.length,
+      businesses: formatted,
     });
   } catch (error) {
     console.warn("[Businesses API] PostgreSQL query error, falling back to initial records:", error);
@@ -100,7 +103,7 @@ export async function GET(request: Request) {
       success: true,
       source: "fallback",
       count: INITIAL_BUSINESSES.length,
-      businesses: INITIAL_BUSINESSES,
+      businesses: INITIAL_BUSINESSES.map(formatBusinessRecord),
     });
   }
 }
@@ -169,7 +172,7 @@ export async function POST(request: Request) {
       metadata: { name: business.name, cell: business.cell },
     });
 
-    return NextResponse.json({ success: true, business }, { status: 201 });
+    return NextResponse.json({ success: true, business: formatBusinessRecord(business) }, { status: 201 });
   } catch (error) {
     console.error("[Business Creation Error]:", error);
     return NextResponse.json(

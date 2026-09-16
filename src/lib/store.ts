@@ -1,6 +1,7 @@
 import { Business, PhysicalCaptureRecord, CommunityDemandSignal, CommunityMission, UserReview, ModerationReport, ProductItem, VerificationStatus } from "@/types";
 import { INITIAL_BUSINESSES, INITIAL_CAPTURES, INITIAL_DEMAND_SIGNALS, INITIAL_MISSIONS, INITIAL_REVIEWS } from "./seed-data";
 import { ExtractedLineItem } from "./ocr";
+import { formatBusinessRecord } from "./format-business";
 
 class MosaStore {
   private businesses: Business[] = [...INITIAL_BUSINESSES];
@@ -19,7 +20,10 @@ class MosaStore {
     if (!this.isBrowser) return;
     try {
       const storedBiz = localStorage.getItem("mosa_businesses");
-      if (storedBiz) this.businesses = JSON.parse(storedBiz);
+      if (storedBiz) {
+        const parsed = JSON.parse(storedBiz);
+        this.businesses = Array.isArray(parsed) ? parsed.map(formatBusinessRecord) : [...INITIAL_BUSINESSES];
+      }
 
       const storedCaps = localStorage.getItem("mosa_captures");
       if (storedCaps) this.captures = JSON.parse(storedCaps);
@@ -66,8 +70,8 @@ class MosaStore {
     if (params?.community && params.community !== "all") {
       result = result.filter(
         (b) =>
-          b.location.community.toLowerCase().includes(params.community!.toLowerCase()) ||
-          b.location.cell.toLowerCase().includes(params.community!.toLowerCase())
+          (b.location?.community || (b as any).cell || "").toLowerCase().includes(params.community!.toLowerCase()) ||
+          (b.location?.cell || (b as any).cell || "").toLowerCase().includes(params.community!.toLowerCase())
       );
     }
 
@@ -85,8 +89,8 @@ class MosaStore {
         const inName = b.name.toLowerCase().includes(q) || (b.nameRw && b.nameRw.toLowerCase().includes(q));
         const inDesc = b.description.toLowerCase().includes(q) || (b.descriptionRw && b.descriptionRw.toLowerCase().includes(q));
         const inCategory = b.categoryDisplay.toLowerCase().includes(q) || b.categoryDisplayRw.toLowerCase().includes(q);
-        const inCommunity = b.location.community.toLowerCase().includes(q) || b.location.cell.toLowerCase().includes(q);
-        const inProducts = b.products.some((p) => p.name.toLowerCase().includes(q) || (p.nameRw && p.nameRw.toLowerCase().includes(q)));
+        const inCommunity = (b.location?.community || (b as any).cell || "").toLowerCase().includes(q) || (b.location?.cell || (b as any).cell || "").toLowerCase().includes(q);
+        const inProducts = Array.isArray(b.products) && b.products.some((p) => p.name.toLowerCase().includes(q) || (p.nameRw && p.nameRw.toLowerCase().includes(q)));
         return inName || inDesc || inCategory || inCommunity || inProducts;
       });
 
@@ -98,7 +102,8 @@ class MosaStore {
   }
 
   public getBusinessById(id: string): Business | undefined {
-    return this.businesses.find((b) => b.id === id);
+    const found = this.businesses.find((b) => b.id === id);
+    return found ? formatBusinessRecord(found) : undefined;
   }
 
   public registerBusiness(newBiz: Omit<Business, "id" | "createdAt" | "updatedAt" | "viewsCount" | "contactClicksCount" | "searchAppearancesCount">): Business {

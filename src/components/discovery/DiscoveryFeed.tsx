@@ -28,7 +28,7 @@ export function DiscoveryFeed({ businesses }: DiscoveryFeedProps) {
   // Filters
   const hiddenGems = businesses.filter((b) => b.priceRange === "LOW" || b.verificationStatus === "AGENT_VERIFIED");
   const localOffers = businesses.filter((b) => !!b.featuredOffer);
-  const freshlyDigitized = businesses.filter((b) => b.products.some((p) => p.extractedFrom === "RECEIPT" || p.extractedFrom === "PRICE_BOARD"));
+  const freshlyDigitized = businesses.filter((b) => Array.isArray(b.products) && b.products.some((p) => p.extractedFrom === "RECEIPT" || p.extractedFrom === "PRICE_BOARD"));
   const openNow = businesses.filter((b) => b.isOpenNow);
 
   const getFilteredList = () => {

@@ -44,15 +44,32 @@ export default function OwnerDashboardPage() {
   const [offerDiscount, setOfferDiscount] = useState("20% OFF");
 
   useEffect(() => {
-    // Look for claimed business or default to Salon Nova Style for immediate rich demo
-    const all = store.getBusinesses();
-    const myBiz = all.find((b) => b.claimedByUserId === user?.id) || all[0];
-    setBusiness(myBiz);
+    async function loadOwnerData() {
+      let myBiz: Business | null = null;
+      try {
+        const res = await fetch("/api/businesses");
+        if (res.ok) {
+          const data = await res.json();
+          if (data.businesses && data.businesses.length > 0) {
+            myBiz = data.businesses.find((b: any) => b.claimedByUserId === user?.id || b.ownerId === user?.id) || data.businesses[0];
+          }
+        }
+      } catch {}
 
-    if (myBiz) {
-      const relDemands = store.getDemands().filter((d) => d.category === myBiz.category || d.cell === myBiz.location.cell);
-      setDemands(relDemands.length > 0 ? relDemands : store.getDemands().slice(0, 2));
+      if (!myBiz) {
+        const all = store.getBusinesses();
+        myBiz = all.find((b) => b.claimedByUserId === user?.id) || all[0];
+      }
+
+      setBusiness(myBiz);
+
+      if (myBiz) {
+        const myCell = myBiz.location?.cell || (myBiz as any).cell || "Biryogo";
+        const relDemands = store.getDemands().filter((d) => d.category === myBiz!.category || d.cell === myCell);
+        setDemands(relDemands.length > 0 ? relDemands : store.getDemands().slice(0, 2));
+      }
     }
+    loadOwnerData();
   }, [user]);
 
   if (!business) {
@@ -113,7 +130,7 @@ export default function OwnerDashboardPage() {
             {displayName}
           </h1>
           <p className="text-xs sm:text-sm text-slate-500">
-            {business.location.community}, {business.location.cell}, Nyamirambo • Phone: {business.phone}
+            {business.location?.community || (business as any).cell || "Nyamirambo"}, {business.location?.cell || (business as any).cell || "Nyamirambo"}, Nyamirambo • Phone: {business.phone}
           </p>
         </div>
 

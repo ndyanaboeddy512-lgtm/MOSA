@@ -45,7 +45,7 @@ export default function ExplorePage() {
 
       let list = store.getBusinesses({ category: selectedCategory });
       if (selectedCell !== "all") {
-        list = list.filter((b) => b.location.cell.toLowerCase().includes(selectedCell.toLowerCase()));
+        list = list.filter((b) => (b.location?.cell || (b as any).cell || "").toLowerCase().includes(selectedCell.toLowerCase()));
       }
       setBusinesses(list);
       if (list.length > 0 && !selectedPin) {
@@ -237,7 +237,7 @@ export default function ExplorePage() {
                   </h3>
                   <div className="flex items-center gap-1.5 text-xs text-slate-500 mt-1">
                     <MapPin className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                    <span>{selectedPin.location.community}, {selectedPin.location.cell}</span>
+                    <span>{selectedPin.location?.community || (selectedPin as any).cell || "Nyamirambo"}, {selectedPin.location?.cell || (selectedPin as any).cell || "Nyamirambo"}</span>
                   </div>
                   <p className="text-xs text-slate-600 mt-2 leading-relaxed">
                     {lang === "rw" && selectedPin.descriptionRw ? selectedPin.descriptionRw : selectedPin.description}

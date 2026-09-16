@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { logAuditEvent } from "@/lib/audit";
 import { VerificationStatus } from "@prisma/client";
 import { INITIAL_BUSINESSES } from "@/lib/seed-data";
+import { formatBusinessRecord } from "@/lib/format-business";
 
 export async function GET(
   request: Request,
@@ -28,7 +29,7 @@ export async function GET(
     if (!business) {
       const fallback = INITIAL_BUSINESSES.find((b) => b.id === id);
       if (fallback) {
-        return NextResponse.json({ success: true, source: "seed-fallback", business: fallback });
+        return NextResponse.json({ success: true, source: "seed-fallback", business: formatBusinessRecord(fallback) });
       }
       return NextResponse.json({ error: "Business not found" }, { status: 404 });
     }
@@ -41,11 +42,11 @@ export async function GET(
       })
       .catch(() => {});
 
-    return NextResponse.json({ success: true, source: "postgres", business });
+    return NextResponse.json({ success: true, source: "postgres", business: formatBusinessRecord(business) });
   } catch (error) {
     const fallback = INITIAL_BUSINESSES.find((b) => b.id === id);
     if (fallback) {
-      return NextResponse.json({ success: true, source: "fallback", business: fallback });
+      return NextResponse.json({ success: true, source: "fallback", business: formatBusinessRecord(fallback) });
     }
     return NextResponse.json({ error: "Failed to fetch business" }, { status: 500 });
   }
@@ -101,7 +102,7 @@ export async function PATCH(
         });
       }
 
-      return NextResponse.json({ success: true, business: updated });
+      return NextResponse.json({ success: true, business: formatBusinessRecord(updated) });
     }
 
     // Business claim action by owner
@@ -135,7 +136,7 @@ export async function PATCH(
         entityId: id,
       });
 
-      return NextResponse.json({ success: true, business: updated });
+      return NextResponse.json({ success: true, business: formatBusinessRecord(updated) });
     }
 
     return NextResponse.json({ error: "Invalid action parameter" }, { status: 400 });
