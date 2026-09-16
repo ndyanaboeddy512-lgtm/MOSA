@@ -77,6 +77,8 @@ interface AuthContextType {
   user: UserSession | null;
   switchDemoRole: (role: Role) => Promise<void>;
   loginWithPhone: (phone: string, role?: Role) => Promise<{ success: boolean; otp: string }>;
+  loginWithPassword: (phone: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  register: (data: { phone: string; password: string; name: string; role?: Role; community?: string }) => Promise<{ success: boolean; error?: string }>;
   verifyOtp: (code: string) => Promise<boolean>;
   logout: () => Promise<void>;
   isAuthenticated: boolean;
@@ -86,6 +88,8 @@ const AuthContext = createContext<AuthContextType>({
   user: null,
   switchDemoRole: async () => {},
   loginWithPhone: async () => ({ success: true, otp: "1234" }),
+  loginWithPassword: async () => ({ success: false, error: "Not implemented" }),
+  register: async () => ({ success: false, error: "Not implemented" }),
   verifyOtp: async () => true,
   logout: async () => {},
   isAuthenticated: false,
@@ -235,6 +239,52 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return false;
   };
 
+  const loginWithPassword = async (phone: string, password: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone, password }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        return { success: false, error: data.error || "Invalid phone number or password" };
+      }
+      if (data.user) {
+        setUser(data.user);
+        if (typeof window !== "undefined") {
+          localStorage.setItem("mosa_user_session", JSON.stringify(data.user));
+        }
+      }
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err.message || "Network error during login" };
+    }
+  };
+
+  const register = async (payload: { phone: string; password: string; name: string; role?: Role; community?: string }): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const res = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        return { success: false, error: data.error || "Registration failed" };
+      }
+      if (data.user) {
+        setUser(data.user);
+        if (typeof window !== "undefined") {
+          localStorage.setItem("mosa_user_session", JSON.stringify(data.user));
+        }
+      }
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err.message || "Network error during registration" };
+    }
+  };
+
   const logout = async () => {
     try {
       await fetch("/api/auth/logout", { method: "POST" });
@@ -251,6 +301,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         user,
         switchDemoRole,
         loginWithPhone,
+        loginWithPassword,
+        register,
         verifyOtp,
         logout,
         isAuthenticated: !!user,

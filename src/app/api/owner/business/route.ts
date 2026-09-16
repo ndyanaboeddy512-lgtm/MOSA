@@ -54,47 +54,15 @@ export async function GET(request: Request) {
         },
       });
 
-      // If no business explicitly claimed yet, assign the first eligible unowned business to the demo owner
-      if (!business) {
-        const eligible = await prisma.business.findFirst({
-          where: { ownerId: null },
-          orderBy: { createdAt: "asc" },
-          include: {
-            products: { where: { isArchived: false }, orderBy: { sortOrder: "asc" } },
-            businessHours: true,
-            offers: { where: { status: "ACTIVE" }, orderBy: { createdAt: "desc" } },
-            localArea: true,
-            districtRel: true,
-            sectorRel: true,
-            cellRel: true,
-          },
-        });
-
-        if (eligible) {
-          business = await prisma.business.update({
-            where: { id: eligible.id },
-            data: {
-              ownerId: auth.user.id,
-              isClaimed: true,
-              claimedAt: new Date(),
-              claimPhone: auth.user.phone,
-            },
-            include: {
-              products: { where: { isArchived: false }, orderBy: { sortOrder: "asc" } },
-              businessHours: true,
-              offers: { where: { status: "ACTIVE" }, orderBy: { createdAt: "desc" } },
-              localArea: true,
-              districtRel: true,
-              sectorRel: true,
-              cellRel: true,
-            },
-          });
-        }
-      }
     }
 
     if (!business) {
-      return NextResponse.json({ error: "No business found for this owner account" }, { status: 404 });
+      return NextResponse.json({
+        success: true,
+        hasBusiness: false,
+        business: null,
+        message: "No business found for this owner account. Please claim or register your business.",
+      });
     }
 
     // Calculate operational intelligence
@@ -131,7 +99,9 @@ export async function PATCH(request: Request) {
 
   try {
     const body = await request.json();
-    const { businessId, action, ...fields } = body;
+    const businessId = body.businessId;
+    const action = body.action || body.actionType;
+    const { businessId: _b, action: _a, actionType: _at, ...fields } = body;
 
     if (!businessId) {
       return NextResponse.json({ error: "businessId is required" }, { status: 400 });

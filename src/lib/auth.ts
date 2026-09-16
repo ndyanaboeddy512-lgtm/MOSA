@@ -62,8 +62,11 @@ export async function clearSessionCookie() {
   cookieStore.delete(SESSION_COOKIE_NAME);
 }
 
+export * from "./crypto";
+
 /**
  * Retrieves the currently authenticated User from the database using the session cookie.
+ * Strictly verifies against Neon PostgreSQL User & Session tables.
  */
 export async function getCurrentUser(): Promise<User | null> {
   try {
@@ -74,31 +77,27 @@ export async function getCurrentUser(): Promise<User | null> {
     const payload = await verifySessionToken(token);
     if (!payload?.userId) return null;
 
+    // Verify session in Neon Session table to ensure it has not expired
     try {
-      const user = await prisma.user.findUnique({
-        where: { id: payload.userId },
+      const dbSession = await prisma.session.findUnique({
+        where: { token },
       });
-      if (user && user.status === "ACTIVE") return user;
+      if (dbSession && dbSession.expiresAt < new Date()) {
+        return null;
+      }
     } catch {
-      // If DB error, fallback to cryptographically verified JWT payload
+      // If session query fails, continue to user verification
     }
 
-    // Resilient fallback from verified JWT token
-    return {
-      id: payload.userId,
-      phone: payload.phone,
-      role: payload.role,
-      name: payload.name,
-      language: "rw",
-      community: "Nyamirambo",
-      assignedCell: "Biryogo",
-      points: 100,
-      badges: ["Community Member"],
-      referralCode: `MOSA-${payload.role}`,
-      status: "ACTIVE",
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    } as unknown as User;
+    const user = await prisma.user.findUnique({
+      where: { id: payload.userId },
+    });
+
+    if (user && user.status === "ACTIVE") {
+      return user;
+    }
+
+    return null;
   } catch {
     return null;
   }

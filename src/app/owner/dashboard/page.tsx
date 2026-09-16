@@ -125,9 +125,12 @@ export default function OwnerDashboardPage() {
   const [assistantDisclaimer, setAssistantDisclaimer] = useState("");
 
   // Account Security state
-  const [accountPassword, setAccountPassword] = useState("");
-  const [accountPhone, setAccountPhone] = useState("");
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordLoading, setPasswordLoading] = useState(false);
   const [accountMsg, setAccountMsg] = useState("");
+  const [accountErrorMsg, setAccountErrorMsg] = useState("");
 
   // Fetch Owner Data directly from Neon PostgreSQL
   const loadOwnerData = async () => {
@@ -1659,29 +1662,96 @@ export default function OwnerDashboardPage() {
                 <span>Change Password</span>
               </h4>
 
-              <div className="space-y-3">
-                <input
-                  type="password"
-                  placeholder="New Secure Password"
-                  value={accountPassword}
-                  onChange={(e) => setAccountPassword(e.target.value)}
-                  className="w-full p-2.5 bg-slate-50 rounded-xl border border-slate-300 text-xs outline-none"
-                />
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (accountPassword.length < 6) {
-                      alert("Password must be at least 6 characters");
-                      return;
+              {accountErrorMsg && (
+                <div className="p-3 bg-red-50 text-red-700 text-xs rounded-xl font-medium">
+                  {accountErrorMsg}
+                </div>
+              )}
+
+              <form
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  setAccountMsg("");
+                  setAccountErrorMsg("");
+
+                  if (newPassword.length < 8) {
+                    setAccountErrorMsg("New password must be at least 8 characters long.");
+                    return;
+                  }
+                  if (newPassword !== confirmPassword) {
+                    setAccountErrorMsg("New password and confirmation do not match.");
+                    return;
+                  }
+
+                  setPasswordLoading(true);
+                  try {
+                    const res = await fetch("/api/auth/password", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ currentPassword, newPassword }),
+                    });
+                    const data = await res.json();
+                    if (res.ok && data.success) {
+                      setAccountMsg("Password updated successfully in PostgreSQL database.");
+                      setCurrentPassword("");
+                      setNewPassword("");
+                      setConfirmPassword("");
+                    } else {
+                      setAccountErrorMsg(data.error || "Failed to update password.");
                     }
-                    setAccountMsg("Password updated successfully.");
-                    setAccountPassword("");
-                  }}
-                  className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl text-xs"
+                  } catch (err: any) {
+                    setAccountErrorMsg(err.message || "Network error updating password.");
+                  } finally {
+                    setPasswordLoading(false);
+                  }
+                }}
+                className="space-y-3"
+              >
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">Current Password</label>
+                  <input
+                    type="password"
+                    placeholder="Enter current password (if set)"
+                    value={currentPassword}
+                    onChange={(e) => setCurrentPassword(e.target.value)}
+                    className="w-full p-2.5 bg-slate-50 rounded-xl border border-slate-300 text-xs outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">New Password (Min. 8 chars)</label>
+                  <input
+                    type="password"
+                    placeholder="Enter new strong password"
+                    minLength={8}
+                    required
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    className="w-full p-2.5 bg-slate-50 rounded-xl border border-slate-300 text-xs outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">Confirm New Password</label>
+                  <input
+                    type="password"
+                    placeholder="Re-enter new password"
+                    minLength={8}
+                    required
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className="w-full p-2.5 bg-slate-50 rounded-xl border border-slate-300 text-xs outline-none"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={passwordLoading}
+                  className="px-4 py-2 bg-slate-900 hover:bg-slate-800 disabled:opacity-60 text-white font-bold rounded-xl text-xs cursor-pointer transition-all"
                 >
-                  Update Password
+                  {passwordLoading ? "Updating..." : "Update Password"}
                 </button>
-              </div>
+              </form>
             </div>
           </div>
         </div>

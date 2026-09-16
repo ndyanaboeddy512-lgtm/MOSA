@@ -1,6 +1,23 @@
 import { prisma } from "@/lib/prisma";
 import { SMSMessagePayload, SMSSendResult, SMSProvider } from "./types";
 import { renderSMSTemplate } from "./templates";
+import { normalizeRwandaPhone, maskPhone } from "./normalize";
+
+/**
+ * Deduplication cache (5-minute TTL per recipient + template)
+ */
+const smsDedupCache = new Map<string, number>();
+const DEDUP_WINDOW_MS = 5 * 60 * 1000;
+
+function cleanDedupCache(now: number) {
+  if (smsDedupCache.size > 1000) {
+    for (const [key, timestamp] of smsDedupCache.entries()) {
+      if (now - timestamp > DEDUP_WINDOW_MS) {
+        smsDedupCache.delete(key);
+      }
+    }
+  }
+}
 
 /**
  * Provider Implementation: Africa's Talking (Standard for Rwanda / East Africa)
@@ -79,15 +96,46 @@ export function getActiveSMSProvider(): SMSProvider {
 
 /**
  * Core dispatch function.
- * 1. Renders the template in owner's language.
- * 2. Checks provider configuration.
- * 3. Saves record in Neon PostgreSQL SMSMessage table.
- * 4. Strictly reports CONFIGURATION_REQUIRED if provider is unconfigured.
+ * 1. Validates and normalizes Rwanda phone number (+2507XXXXXXXX).
+ * 2. Checks deduplication window (5 mins for identical template + recipient).
+ * 3. Renders the template in owner's language.
+ * 4. Checks provider configuration.
+ * 5. Saves record in Neon PostgreSQL SMSMessage table.
+ * 6. Strictly reports CONFIGURATION_REQUIRED if provider is unconfigured.
  */
 export async function sendBusinessSMS(payload: SMSMessagePayload): Promise<SMSSendResult> {
   const { businessId, recipientPhone, templateId, language = "rw", variables } = payload;
 
   const messageBody = renderSMSTemplate(templateId, language, variables);
+
+  // 1. Phone Normalization
+  const phoneNorm = normalizeRwandaPhone(recipientPhone);
+  if (!phoneNorm.isValid || !phoneNorm.e164) {
+    return {
+      success: false,
+      status: "FAILED",
+      provider: "NONE",
+      messageBody,
+      error: phoneNorm.error || `Invalid Rwandan phone number: ${recipientPhone}`,
+    };
+  }
+  const canonicalPhone = phoneNorm.e164;
+
+  // 2. Deduplication Rate Limit
+  const now = Date.now();
+  cleanDedupCache(now);
+  const dedupKey = `${canonicalPhone}:${templateId}`;
+  const lastSent = smsDedupCache.get(dedupKey);
+  if (lastSent && now - lastSent < DEDUP_WINDOW_MS) {
+    const masked = maskPhone(canonicalPhone);
+    return {
+      success: false,
+      status: "FAILED",
+      provider: getActiveSMSProvider().name,
+      messageBody,
+      error: `Duplicate SMS suppressed for ${masked} with template ${templateId}. Window is 5 minutes.`,
+    };
+  }
   const provider = getActiveSMSProvider();
 
   let status: "CONFIGURATION_REQUIRED" | "PENDING" | "SENT" | "DELIVERED" | "FAILED" = "CONFIGURATION_REQUIRED";
@@ -99,10 +147,11 @@ export async function sendBusinessSMS(payload: SMSMessagePayload): Promise<SMSSe
     errorMessage = "SMS Gateway requires AFRICAS_TALKING_API_KEY configuration in production environment.";
   } else {
     status = "PENDING";
-    const result = await provider.send(recipientPhone, messageBody);
+    const result = await provider.send(canonicalPhone, messageBody);
     if (result.success) {
       status = "SENT";
       messageId = result.messageId;
+      smsDedupCache.set(dedupKey, now);
     } else {
       status = "FAILED";
       errorMessage = result.error;
@@ -115,7 +164,7 @@ export async function sendBusinessSMS(payload: SMSMessagePayload): Promise<SMSSe
     const record = await prisma.sMSMessage.create({
       data: {
         businessId: businessId || null,
-        recipientPhone,
+        recipientPhone: canonicalPhone,
         templateId,
         language,
         messageBody,
@@ -128,7 +177,7 @@ export async function sendBusinessSMS(payload: SMSMessagePayload): Promise<SMSSe
     });
     loggedId = record.id;
   } catch (dbErr) {
-    console.warn("[SMS DB Logging Warning]:", dbErr);
+    console.warn(`[SMS DB Logging Warning for ${maskPhone(canonicalPhone)}]:`, dbErr);
   }
 
   return {

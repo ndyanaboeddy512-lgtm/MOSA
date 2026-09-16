@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { getCurrentUser, requireAuth } from "@/lib/auth";
+import { getCurrentUser, requireAuth, encryptSensitiveText, decryptSensitiveText, maskNationalId } from "@/lib/auth";
 import { Role, VerificationStatus } from "@prisma/client";
 import { sendBusinessSMS } from "@/lib/sms";
+import { normalizeRwandaPhone } from "@/lib/sms/normalize";
 import { logAuditEvent } from "@/lib/audit";
 
 /**
@@ -24,6 +25,27 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "businessId and claimPhone are required" }, { status: 400 });
     }
 
+    // Rate Limiting: Max 3 claims submitted per user in 1 hour
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+    const recentCount = await prisma.businessClaim.count({
+      where: {
+        userId: user.id,
+        claimedAt: { gt: oneHourAgo },
+      },
+    });
+    if (recentCount >= 3) {
+      return NextResponse.json(
+        { error: "Rate limit exceeded: You have submitted multiple claims recently. Please await verification." },
+        { status: 429 }
+      );
+    }
+
+    // Validate and normalize Rwanda phone number
+    const normPhone = normalizeRwandaPhone(claimPhone);
+    if (!normPhone.isValid || !normPhone.e164) {
+      return NextResponse.json({ error: normPhone.error || "A valid Rwandan phone number is required" }, { status: 400 });
+    }
+
     const business = await prisma.business.findUnique({
       where: { id: businessId },
       include: { claims: { where: { status: "APPROVED" } } },
@@ -40,10 +62,36 @@ export async function POST(request: Request) {
       );
     }
 
+    // Duplicate Check: Prevent multiple pending claims for the same business
+    const existingPending = await prisma.businessClaim.findFirst({
+      where: {
+        businessId,
+        status: "PENDING",
+      },
+    });
+    if (existingPending) {
+      return NextResponse.json(
+        { error: "A verification claim is already pending review for this business." },
+        { status: 409 }
+      );
+    }
+
+    // Validate National ID format and encrypt at rest
+    let protectedDoc: string | null = null;
+    if (nationalIdOrDoc && typeof nationalIdOrDoc === "string") {
+      const cleanDoc = nationalIdOrDoc.trim().replace(/\s/g, "");
+      if (cleanDoc.length === 16 && !/^\d{16}$/.test(cleanDoc)) {
+        return NextResponse.json(
+          { error: "Invalid Rwandan National ID. Must be exactly 16 numeric digits." },
+          { status: 400 }
+        );
+      }
+      protectedDoc = encryptSensitiveText(cleanDoc);
+    }
+
     // Check if phone matches the business registered phone
-    const normalizedClaimPhone = claimPhone.replace(/\D/g, "");
-    const normalizedBizPhone = business.phone.replace(/\D/g, "");
-    const isDirectMatch = normalizedClaimPhone.length > 8 && normalizedClaimPhone === normalizedBizPhone;
+    const normBizPhone = normalizeRwandaPhone(business.phone);
+    const isDirectMatch = normBizPhone.isValid && normBizPhone.e164 === normPhone.e164;
 
     // Direct match allows instant verified ownership; otherwise submitted for admin review
     const initialStatus = isDirectMatch ? "APPROVED" : "PENDING";
@@ -52,9 +100,9 @@ export async function POST(request: Request) {
       data: {
         businessId,
         userId: user.id,
-        claimPhone: claimPhone.trim(),
+        claimPhone: normPhone.e164,
         ownerName: ownerName?.trim() || user.name,
-        nationalIdOrDoc: nationalIdOrDoc?.trim() || null,
+        nationalIdOrDoc: protectedDoc,
         verificationNotes: verificationNotes?.trim() || (isDirectMatch ? "Direct registered phone match" : "Manual verification requested"),
         status: initialStatus,
         reviewedBy: isDirectMatch ? "SYSTEM_AUTO_VERIFIED" : null,
@@ -63,44 +111,40 @@ export async function POST(request: Request) {
     });
 
     if (initialStatus === "APPROVED") {
-      // Bind ownership
-      await prisma.business.update({
-        where: { id: businessId },
-        data: {
-          ownerId: user.id,
-          isClaimed: true,
-          claimedAt: new Date(),
-          claimPhone: claimPhone.trim(),
-          verificationStatus: VerificationStatus.BUSINESS_VERIFIED,
-        },
-      });
-
-      // Elevate user role to BUSINESS_OWNER if currently customer
-      if (user.role === Role.CUSTOMER) {
-        await prisma.user.update({
+      await prisma.$transaction([
+        prisma.business.update({
+          where: { id: businessId },
+          data: {
+            ownerId: user.id,
+            isClaimed: true,
+            claimedAt: new Date(),
+            claimPhone: normPhone.e164,
+            verificationStatus: VerificationStatus.BUSINESS_VERIFIED,
+          },
+        }),
+        prisma.user.update({
           where: { id: user.id },
           data: { role: Role.BUSINESS_OWNER },
-        });
-      }
-
-      await prisma.businessChangeHistory.create({
-        data: {
-          businessId,
-          actorId: user.id,
-          action: "OWNERSHIP_CLAIMED",
-          fieldChanged: "ownerId",
-          previousValue: null,
-          newValue: user.id,
-          approvalStatus: "APPROVED",
-          source: "CLAIM_SYSTEM",
-          metadata: JSON.stringify({ claimant: user.name, phone: claimPhone }),
-        },
-      });
+        }),
+        prisma.businessChangeHistory.create({
+          data: {
+            businessId,
+            actorId: user.id,
+            action: "OWNERSHIP_CLAIMED",
+            fieldChanged: "ownerId",
+            previousValue: null,
+            newValue: user.id,
+            approvalStatus: "APPROVED",
+            source: "CLAIM_SYSTEM",
+            metadata: JSON.stringify({ claimant: user.name }),
+          },
+        }),
+      ]);
 
       // Send SMS confirmation
       await sendBusinessSMS({
         businessId,
-        recipientPhone: claimPhone,
+        recipientPhone: normPhone.e164,
         templateId: "PROFILE_CONFIRMATION",
         language: (user.language as any) || "rw",
         variables: { businessName: business.name },
@@ -175,6 +219,7 @@ export async function GET(request: Request) {
         userId: c.userId,
         claimantName: c.ownerName || c.user.name,
         claimPhone: c.claimPhone,
+        nationalId: isAdmin && c.nationalIdOrDoc ? maskNationalId(decryptSensitiveText(c.nationalIdOrDoc)) : undefined,
         status: c.status,
         verificationNotes: c.verificationNotes,
         claimedAt: c.claimedAt.toISOString(),

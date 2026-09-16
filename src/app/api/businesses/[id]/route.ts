@@ -22,7 +22,6 @@ export async function GET(
         businessHours: true,
         media: true,
         verifications: true,
-        claims: true,
       },
     });
 

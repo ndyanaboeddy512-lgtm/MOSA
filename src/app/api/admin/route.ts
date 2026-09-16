@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { requireAuth } from "@/lib/auth";
+import { requireAuth, maskNationalId, decryptSensitiveText } from "@/lib/auth";
 import { logAuditEvent } from "@/lib/audit";
 import { store } from "@/lib/store";
 import { VerificationStatus, ReportStatus, Role } from "@prisma/client";
@@ -176,6 +176,7 @@ export async function GET() {
         userId: c.userId,
         claimantName: c.ownerName || c.user.name,
         claimPhone: c.claimPhone,
+        nationalId: c.nationalIdOrDoc ? maskNationalId(decryptSensitiveText(c.nationalIdOrDoc)) : undefined,
         status: c.status,
         verificationNotes: c.verificationNotes,
         claimedAt: c.claimedAt.toISOString(),
@@ -409,44 +410,49 @@ export async function PATCH(request: Request) {
     }
 
     if (action === "APPROVE_CLAIM" && body.claimId) {
-      const claim = await prisma.businessClaim.update({
-        where: { id: body.claimId },
-        data: {
-          status: "APPROVED",
-          reviewedBy: auth.user.name,
-          reviewedAt: new Date(),
-        },
-        include: { business: true },
-      });
+      const adminUser = auth.user!;
+      const claim = await prisma.$transaction(async (tx) => {
+        const c = await tx.businessClaim.update({
+          where: { id: body.claimId },
+          data: {
+            status: "APPROVED",
+            reviewedBy: adminUser.name,
+            reviewedAt: new Date(),
+          },
+          include: { business: true },
+        });
 
-      await prisma.business.update({
-        where: { id: claim.businessId },
-        data: {
-          ownerId: claim.userId,
-          isClaimed: true,
-          claimedAt: new Date(),
-          claimPhone: claim.claimPhone,
-          verificationStatus: VerificationStatus.BUSINESS_VERIFIED,
-        },
-      });
+        await tx.business.update({
+          where: { id: c.businessId },
+          data: {
+            ownerId: c.userId,
+            isClaimed: true,
+            claimedAt: new Date(),
+            claimPhone: c.claimPhone,
+            verificationStatus: VerificationStatus.BUSINESS_VERIFIED,
+          },
+        });
 
-      await prisma.user.update({
-        where: { id: claim.userId },
-        data: { role: Role.BUSINESS_OWNER },
-      });
+        await tx.user.update({
+          where: { id: c.userId },
+          data: { role: Role.BUSINESS_OWNER },
+        });
 
-      await prisma.businessChangeHistory.create({
-        data: {
-          businessId: claim.businessId,
-          actorId: auth.user.id,
-          action: "CLAIM_APPROVED",
-          fieldChanged: "ownerId",
-          previousValue: null,
-          newValue: claim.userId,
-          approvalStatus: "APPROVED",
-          source: "COMMAND_CENTER",
-          metadata: JSON.stringify({ approvedBy: auth.user.name, claimId: claim.id }),
-        },
+        await tx.businessChangeHistory.create({
+          data: {
+            businessId: c.businessId,
+            actorId: adminUser.id,
+            action: "CLAIM_APPROVED",
+            fieldChanged: "ownerId",
+            previousValue: null,
+            newValue: c.userId,
+            approvalStatus: "APPROVED",
+            source: "COMMAND_CENTER",
+            metadata: JSON.stringify({ approvedBy: adminUser.name, claimId: c.id }),
+          },
+        });
+
+        return c;
       });
 
       await logAuditEvent({
