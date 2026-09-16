@@ -10,8 +10,55 @@ export async function GET(request: Request) {
   const sectorName = searchParams.get("sector");
 
   try {
+    if (level === "provinces") {
+      const provinces = await prisma.geographicProvince.findMany({
+        include: {
+          _count: { select: { districts: true, businesses: true } },
+        },
+        orderBy: { name: "asc" },
+      });
+      return NextResponse.json({ success: true, provinces });
+    }
+
+    if (level === "districts") {
+      const provinceCode = searchParams.get("province");
+      const where: any = {};
+      if (provinceCode) {
+        where.province = {
+          OR: [
+            { code: { equals: provinceCode, mode: "insensitive" } },
+            { name: { equals: provinceCode, mode: "insensitive" } },
+          ],
+        };
+      }
+
+      const districts = await prisma.geographicDistrict.findMany({
+        where,
+        include: {
+          province: true,
+          _count: { select: { sectors: true, businesses: true } },
+        },
+        orderBy: { name: "asc" },
+      });
+      return NextResponse.json({ success: true, count: districts.length, districts });
+    }
+
     if (level === "sectors") {
+      const districtId = searchParams.get("districtId");
+      const districtName = searchParams.get("district");
+      const where: any = {};
+      if (districtId) where.districtId = districtId;
+      else if (districtName) {
+        where.districtRel = {
+          OR: [
+            { name: { equals: districtName, mode: "insensitive" } },
+            { code: { equals: districtName, mode: "insensitive" } },
+          ],
+        };
+      }
+
       const sectors = await prisma.geographicSector.findMany({
+        where,
         include: {
           districtRel: {
             include: { province: true },
@@ -55,11 +102,16 @@ export async function GET(request: Request) {
       return NextResponse.json({ success: true, sectors: formatted });
     }
 
-    if (level === "cells" && sectorName) {
+    if (level === "cells" && (sectorName || searchParams.get("sectorId"))) {
+      const sectorId = searchParams.get("sectorId");
+      const where: any = {};
+      if (sectorId) where.sectorId = sectorId;
+      else if (sectorName) {
+        where.sectorRel = { name: { equals: sectorName, mode: "insensitive" } };
+      }
+
       const cells = await prisma.geographicCell.findMany({
-        where: {
-          sectorRel: { name: { equals: sectorName, mode: "insensitive" } },
-        },
+        where,
         include: {
           localAreas: true,
           _count: { select: { businesses: true } },

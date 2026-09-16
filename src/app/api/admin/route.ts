@@ -24,8 +24,13 @@ export async function GET() {
       agentCount,
       openReportsCount,
       totalCaptures,
+      totalProvinces,
+      totalDistricts,
       totalSectors,
       totalCells,
+      totalLocalAreas,
+      totalProducts,
+      estimatedProductsCount,
       recentAuditLogs,
       businesses,
       captures,
@@ -41,17 +46,30 @@ export async function GET() {
       prisma.user.count({ where: { role: Role.COMMUNITY_AGENT } }),
       prisma.report.count({ where: { status: ReportStatus.OPEN } }),
       prisma.receiptCapture.count(),
+      prisma.geographicProvince.count(),
+      prisma.geographicDistrict.count(),
       prisma.geographicSector.count(),
       prisma.geographicCell.count(),
+      prisma.localArea.count(),
+      prisma.product.count(),
+      prisma.product.count({ where: { isEstimated: true } }),
       prisma.auditLog.findMany({
-        take: 20,
+        take: 30,
         orderBy: { createdAt: "desc" },
         include: { actor: { select: { id: true, name: true, role: true } } },
       }),
       prisma.business.findMany({
-        take: 50,
+        take: 150,
         orderBy: { updatedAt: "desc" },
-        include: { products: true, verifications: true, localArea: true },
+        include: {
+          products: true,
+          verifications: true,
+          localArea: true,
+          districtRel: true,
+          provinceRel: true,
+          sectorRel: true,
+          cellRel: true,
+        },
       }),
       prisma.receiptCapture.findMany({
         take: 30,
@@ -72,6 +90,20 @@ export async function GET() {
       }),
     ]);
 
+    // Duplicate detection analysis across businesses
+    const duplicatesMap: Record<string, string[]> = {};
+    for (const b of businesses) {
+      const key = `${b.name.trim().toLowerCase()}__${b.cell.trim().toLowerCase()}`;
+      if (!duplicatesMap[key]) duplicatesMap[key] = [];
+      duplicatesMap[key].push(b.id);
+    }
+    const duplicateIds = new Set<string>();
+    for (const ids of Object.values(duplicatesMap)) {
+      if (ids.length > 1) {
+        ids.forEach((id) => duplicateIds.add(id));
+      }
+    }
+
     return NextResponse.json({
       success: true,
       metrics: {
@@ -85,11 +117,20 @@ export async function GET() {
         agentCount,
         openReportsCount,
         totalCaptures,
+        totalProvinces,
+        totalDistricts,
         totalSectors,
         totalCells,
+        totalLocalAreas,
+        totalProducts,
+        estimatedProductsCount,
+        potentialDuplicatesCount: duplicateIds.size,
       },
       auditLogs: recentAuditLogs,
-      businesses: businesses.map(formatBusinessRecord),
+      businesses: businesses.map((b: any) => ({
+        ...formatBusinessRecord(b),
+        isPotentialDuplicate: duplicateIds.has(b.id),
+      })),
       captures,
       reports,
       demands,
@@ -231,6 +272,65 @@ export async function PATCH(request: Request) {
       });
 
       return NextResponse.json({ success: true, dataStatus: updated.dataStatus });
+    }
+
+    if (action === "EDIT_BUSINESS" && businessId) {
+      const {
+        name,
+        category,
+        description,
+        phone,
+        cell,
+        sector,
+        district,
+        priceRangeMin,
+        priceRangeMax,
+        dataStatus: editDataStatus,
+        verificationStatus: editVerifStatus,
+      } = body;
+
+      const updated = await prisma.business.update({
+        where: { id: businessId },
+        data: {
+          ...(name ? { name } : {}),
+          ...(category ? { category, categoryDisplay: category } : {}),
+          ...(description !== undefined ? { description } : {}),
+          ...(phone ? { phone } : {}),
+          ...(cell ? { cell } : {}),
+          ...(sector ? { sector } : {}),
+          ...(district ? { district } : {}),
+          ...(priceRangeMin !== undefined ? { priceRangeMin: Number(priceRangeMin) } : {}),
+          ...(priceRangeMax !== undefined ? { priceRangeMax: Number(priceRangeMax) } : {}),
+          ...(editDataStatus ? { dataStatus: editDataStatus } : {}),
+          ...(editVerifStatus ? { verificationStatus: editVerifStatus } : {}),
+        },
+      });
+
+      await logAuditEvent({
+        actorId: auth.user.id,
+        action: "ADMIN_BUSINESS_EDITED",
+        entityType: "BUSINESS",
+        entityId: businessId,
+        metadata: { updatedFields: Object.keys(body) },
+      });
+
+      return NextResponse.json({ success: true, business: updated });
+    }
+
+    if (action === "ARCHIVE_BUSINESS" && businessId) {
+      const updated = await prisma.business.update({
+        where: { id: businessId },
+        data: { status: "ARCHIVED" },
+      });
+
+      await logAuditEvent({
+        actorId: auth.user.id,
+        action: "ADMIN_BUSINESS_ARCHIVED",
+        entityType: "BUSINESS",
+        entityId: businessId,
+      });
+
+      return NextResponse.json({ success: true, status: "ARCHIVED" });
     }
 
     return NextResponse.json({ error: "Invalid action or parameters" }, { status: 400 });

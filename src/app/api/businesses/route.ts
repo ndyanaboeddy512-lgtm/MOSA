@@ -17,7 +17,34 @@ export async function GET(request: Request) {
   const openNowOnly = searchParams.get("openNowOnly") === "true";
   const verification = searchParams.get("verification") || undefined;
 
+  const district = searchParams.get("district") || undefined;
+  const districtId = searchParams.get("districtId") || undefined;
+  const province = searchParams.get("province") || undefined;
+  const provinceId = searchParams.get("provinceId") || undefined;
+  const checkDuplicate = searchParams.get("checkDuplicate") === "true";
+
   try {
+    // Duplicate detection check
+    if (checkDuplicate && search) {
+      const nameQuery = search.trim();
+      const existing = await prisma.business.findMany({
+        where: {
+          name: { contains: nameQuery, mode: "insensitive" as const },
+          OR: [
+            ...(sector ? [{ sector: { equals: sector, mode: "insensitive" as const } }] : []),
+            ...(cell ? [{ cell: { equals: cell, mode: "insensitive" as const } }] : []),
+          ],
+        },
+        select: { id: true, name: true, cell: true, sector: true, district: true, dataStatus: true },
+      });
+      return NextResponse.json({
+        success: true,
+        isDuplicate: existing.length > 0,
+        matchesCount: existing.length,
+        matches: existing,
+      });
+    }
+
     const where: any = {
       status: "ACTIVE",
     };
@@ -26,11 +53,40 @@ export async function GET(request: Request) {
       where.category = category;
     }
 
+    if (provinceId) {
+      where.provinceId = provinceId;
+    } else if (province && province !== "all") {
+      where.OR = where.OR || [];
+      where.provinceRel = {
+        OR: [
+          { name: { equals: province, mode: "insensitive" } },
+          { nameRw: { equals: province, mode: "insensitive" } },
+          { code: { equals: province, mode: "insensitive" } },
+        ],
+      };
+    }
+
+    if (districtId) {
+      where.districtId = districtId;
+    } else if (district && district !== "all") {
+      where.AND = where.AND || [];
+      where.AND.push({
+        OR: [
+          { district: { equals: district, mode: "insensitive" } },
+          { districtRel: { name: { equals: district, mode: "insensitive" } } },
+          { districtRel: { code: { equals: district, mode: "insensitive" } } },
+        ],
+      });
+    }
+
     if (sector && sector !== "all") {
-      where.OR = [
-        { sector: { equals: sector, mode: "insensitive" } },
-        { sectorRel: { name: { equals: sector, mode: "insensitive" } } },
-      ];
+      where.AND = where.AND || [];
+      where.AND.push({
+        OR: [
+          { sector: { equals: sector, mode: "insensitive" } },
+          { sectorRel: { name: { equals: sector, mode: "insensitive" } } },
+        ],
+      });
     }
 
     if (cell && cell !== "all") {
@@ -155,6 +211,7 @@ export async function POST(request: Request) {
       cell = "Biryogo",
       sector = "Nyamirambo",
       district = "Nyarugenge",
+      province = "Kigali City",
       addressNote,
       latitude = -1.981,
       longitude = 30.046,
@@ -162,11 +219,14 @@ export async function POST(request: Request) {
       priceRangeMin,
       priceRangeMax,
       coverImage,
+      provinceId,
+      districtId,
       sectorId,
       cellId,
       localAreaId,
-      dataStatus = "VERIFIED",
+      dataStatus = "DEMO",
       source,
+      products = [],
     } = body;
 
     if (!name || !category) {
@@ -174,6 +234,31 @@ export async function POST(request: Request) {
         { error: "Business name and category are required" },
         { status: 400 }
       );
+    }
+
+    // Resolve geographic IDs if missing
+    let resolvedSectorId = sectorId;
+    let resolvedDistrictId = districtId;
+    let resolvedProvinceId = provinceId;
+    let resolvedCellId = cellId;
+
+    if (!resolvedSectorId && sector) {
+      const sec = await prisma.geographicSector.findFirst({
+        where: { name: { equals: sector, mode: "insensitive" } },
+        include: { districtRel: true },
+      });
+      if (sec) {
+        resolvedSectorId = sec.id;
+        if (!resolvedDistrictId) resolvedDistrictId = sec.districtId;
+        if (!resolvedProvinceId && sec.districtRel) resolvedProvinceId = sec.districtRel.provinceId;
+      }
+    }
+
+    if (!resolvedCellId && cell && resolvedSectorId) {
+      const c = await prisma.geographicCell.findFirst({
+        where: { sectorId: resolvedSectorId, name: { equals: cell, mode: "insensitive" } },
+      });
+      if (c) resolvedCellId = c.id;
     }
 
     const business = await prisma.business.create({
@@ -185,7 +270,7 @@ export async function POST(request: Request) {
         categoryDisplayRw: categoryDisplayRw || "Ubucuruzi bw'Agace",
         description: description || "Neighborhood business registered on the ground.",
         descriptionRw: descriptionRw || description,
-        phone: phone || "+250788000000",
+        phone: phone || "+250780000000 (Demo)",
         whatsapp: whatsapp || null,
         cell,
         sector,
@@ -199,13 +284,39 @@ export async function POST(request: Request) {
         priceRangeMax: priceRangeMax ? Number(priceRangeMax) : null,
         coverImage: coverImage || "https://images.unsplash.com/photo-1544816155-12df9643f363?w=800&auto=format&fit=crop&q=60",
         agentId: user?.id || null,
-        sectorId: sectorId || null,
-        cellId: cellId || null,
+        provinceId: resolvedProvinceId || null,
+        districtId: resolvedDistrictId || null,
+        sectorId: resolvedSectorId || null,
+        cellId: resolvedCellId || null,
         localAreaId: localAreaId || null,
-        dataStatus: (dataStatus as any) || "VERIFIED",
-        source: source || (user ? "COMMUNITY_AGENT" : "PLATFORM_INPUT"),
+        dataStatus: (dataStatus as any) || "DEMO",
+        source: source || (user ? "COMMUNITY_AGENT" : "SAMPLE_SEED"),
       },
     });
+
+    // Create products if provided
+    if (products && Array.isArray(products) && products.length > 0) {
+      for (const p of products) {
+        if (p.name) {
+          await prisma.product.create({
+            data: {
+              businessId: business.id,
+              name: p.name,
+              nameRw: p.nameRw || null,
+              price: Number(p.price || p.priceMin || 0),
+              priceMin: p.priceMin ? Number(p.priceMin) : null,
+              priceMax: p.priceMax ? Number(p.priceMax) : null,
+              priceType: p.priceType || (p.priceMin && p.priceMax ? "RANGE" : "FIXED"),
+              isEstimated: p.isEstimated ?? true,
+              currency: "RWF",
+              unit: p.unit || "item",
+              dataStatus: (dataStatus as any) || "DEMO",
+              verifiedByAgent: false,
+            },
+          }).catch(() => {});
+        }
+      }
+    }
 
     // Record audit event
     await logAuditEvent({
@@ -213,10 +324,15 @@ export async function POST(request: Request) {
       action: "BUSINESS_REGISTERED",
       entityType: "BUSINESS",
       entityId: business.id,
-      metadata: { name: business.name, cell: business.cell },
+      metadata: { name: business.name, cell: business.cell, dataStatus: business.dataStatus },
     });
 
-    return NextResponse.json({ success: true, business: formatBusinessRecord(business) }, { status: 201 });
+    const fullBusiness = await prisma.business.findUnique({
+      where: { id: business.id },
+      include: { products: true, localArea: true },
+    });
+
+    return NextResponse.json({ success: true, business: formatBusinessRecord(fullBusiness || business) }, { status: 201 });
   } catch (error) {
     console.error("[Business Creation Error]:", error);
     return NextResponse.json(

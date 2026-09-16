@@ -24,7 +24,15 @@ import {
   RefreshCw,
   Lock,
   Globe,
-  Tag
+  Tag,
+  Plus,
+  Edit2,
+  Trash2,
+  Filter,
+  Check,
+  Building,
+  MapPin,
+  X
 } from "lucide-react";
 
 interface AdminAuditLog {
@@ -37,6 +45,40 @@ interface AdminAuditLog {
   actor?: { id: string; name: string; role: string } | null;
 }
 
+interface AdminMetrics {
+  totalBusinesses: number;
+  verifiedCount: number;
+  unverifiedCount: number;
+  demoCount: number;
+  researchedCount: number;
+  verifiedDataCount: number;
+  totalUsers: number;
+  agentCount: number;
+  openReportsCount: number;
+  totalCaptures: number;
+  totalProvinces: number;
+  totalDistricts: number;
+  totalSectors: number;
+  totalCells: number;
+  totalLocalAreas: number;
+  totalProducts: number;
+  estimatedProductsCount: number;
+  potentialDuplicatesCount: number;
+}
+
+const CATEGORY_OPTIONS = [
+  { id: "food_restaurant", label: "Restaurants, Cafes & Milk Bars" },
+  { id: "agriculture_produce", label: "Agro-Produce & Agro-Veterinary" },
+  { id: "tailor_crafts", label: "Tailors, Crafts & Fashion" },
+  { id: "phone_electronics", label: "Phone Repair & Electronics" },
+  { id: "salon_barber", label: "Salons & Barbershops" },
+  { id: "mechanic_repair", label: "Mechanics & Motorcycle Spares" },
+  { id: "hardware_construction", label: "Hardware & Construction" },
+  { id: "pharmacy_health", label: "Pharmacies & Health Care" },
+  { id: "shop_retail", label: "Grocery & Retail Alimentations" },
+  { id: "services", label: "Public, Irembo & Secretarial Services" },
+];
+
 export default function AdminPanelPage() {
   const { lang, t } = useLanguage();
   const { user, switchDemoRole } = useAuth();
@@ -47,20 +89,8 @@ export default function AdminPanelPage() {
   const [reports, setReports] = useState<ModerationReport[]>([]);
   const [demands, setDemands] = useState<CommunityDemandSignal[]>([]);
   const [auditLogs, setAuditLogs] = useState<AdminAuditLog[]>([]);
-  const [metrics, setMetrics] = useState<{
-    totalBusinesses: number;
-    verifiedCount: number;
-    unverifiedCount: number;
-    demoCount?: number;
-    researchedCount?: number;
-    verifiedDataCount?: number;
-    totalUsers: number;
-    agentCount: number;
-    openReportsCount: number;
-    totalCaptures: number;
-    totalSectors?: number;
-    totalCells?: number;
-  }>({
+  
+  const [metrics, setMetrics] = useState<AdminMetrics>({
     totalBusinesses: 0,
     verifiedCount: 0,
     unverifiedCount: 0,
@@ -71,11 +101,52 @@ export default function AdminPanelPage() {
     agentCount: 0,
     openReportsCount: 0,
     totalCaptures: 0,
-    totalSectors: 6,
-    totalCells: 12,
+    totalProvinces: 5,
+    totalDistricts: 30,
+    totalSectors: 41,
+    totalCells: 62,
+    totalLocalAreas: 19,
+    totalProducts: 101,
+    estimatedProductsCount: 67,
+    potentialDuplicatesCount: 0,
   });
+
   const [searchTerm, setSearchTerm] = useState("");
   const [isLoading, setIsLoading] = useState(true);
+
+  // Geographic drill-down filter state
+  const [selectedProvince, setSelectedProvince] = useState<string>("all");
+  const [selectedDistrict, setSelectedDistrict] = useState<string>("all");
+  const [selectedSector, setSelectedSector] = useState<string>("all");
+  const [selectedCell, setSelectedCell] = useState<string>("all");
+  const [lifecycleFilter, setLifecycleFilter] = useState<"ALL" | "DEMO" | "RESEARCHED" | "VERIFIED" | "DUPLICATES">("ALL");
+
+  // Dynamic Geographic options from DB
+  const [geoTree, setGeoTree] = useState<any[]>([]);
+
+  // Modal states
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingBiz, setEditingBiz] = useState<any | null>(null);
+
+  // New business form state
+  const [newBizForm, setNewBizForm] = useState({
+    name: "",
+    nameRw: "",
+    category: "food_restaurant",
+    phone: "+250 780 000 0",
+    province: "Kigali City",
+    district: "Gasabo",
+    sector: "Kacyiru",
+    cell: "Kamutwa",
+    addressNote: "",
+    priceRangeMin: 1000,
+    priceRangeMax: 15000,
+    dataStatus: "DEMO",
+    products: [
+      { name: "", priceMin: 1000, priceMax: 5000, unit: "item" },
+    ],
+  });
 
   const fetchAdminData = async () => {
     setIsLoading(true);
@@ -86,12 +157,12 @@ export default function AdminPanelPage() {
         if (data.metrics) setMetrics(data.metrics);
         if (data.auditLogs) setAuditLogs(data.auditLogs);
         if (data.businesses && data.businesses.length > 0) {
-          // Format DB businesses or keep store format
           setBusinesses(data.businesses.map((b: any) => ({
             id: b.id,
             name: b.name,
             nameRw: b.nameRw || b.name,
             category: b.category,
+            categoryDisplay: b.categoryDisplay,
             description: b.description || "",
             descriptionRw: b.descriptionRw || "",
             location: {
@@ -104,7 +175,7 @@ export default function AdminPanelPage() {
             contactPhone: b.phone || "+250788000000",
             phone: b.phone || "+250788000000",
             verificationStatus: b.verificationStatus,
-            dataStatus: b.dataStatus || "VERIFIED",
+            dataStatus: b.dataStatus || "DEMO",
             source: b.source,
             localArea: b.localArea,
             isOpenNow: b.isOpenNow,
@@ -116,45 +187,40 @@ export default function AdminPanelPage() {
             priceRangeMax: b.priceRangeMax,
             tags: [b.category],
             status: b.status,
+            products: b.products || [],
+            isPotentialDuplicate: b.isPotentialDuplicate || false,
           })));
-        } else {
-          setBusinesses(store.getBusinesses());
         }
         if (data.captures && data.captures.length > 0) setCaptures(data.captures);
-        else setCaptures(store.getCaptures());
-
         if (data.reports && data.reports.length > 0) setReports(data.reports);
-        else setReports(store.getReports());
-
         if (data.demands && data.demands.length > 0) setDemands(data.demands);
-        else setDemands(store.getDemands());
-      } else {
-        // Fallback to local store
-        setBusinesses(store.getBusinesses());
-        setCaptures(store.getCaptures());
-        setReports(store.getReports());
-        setDemands(store.getDemands());
       }
-    } catch {
-      setBusinesses(store.getBusinesses());
-      setCaptures(store.getCaptures());
-      setReports(store.getReports());
-      setDemands(store.getDemands());
+    } catch (err) {
+      console.warn("[Admin Fetch Fallback]:", err);
     } finally {
       setIsLoading(false);
     }
   };
 
+  // Fetch geographic hierarchy for cascading filters
   useEffect(() => {
+    fetch("/api/geo?level=tree")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && data.provinces) {
+          setGeoTree(data.provinces);
+        }
+      })
+      .catch((err) => console.warn("[Admin Geo Load Error]:", err));
+
     fetchAdminData();
   }, []);
 
   const handleToggleVerification = async (bizId: string) => {
-    const biz = businesses.find((b) => b.id === bizId) || store.getBusinessById(bizId);
+    const biz = businesses.find((b) => b.id === bizId);
     if (!biz) return;
     const newStatus = biz.verificationStatus === "HIGH_CONFIDENCE" ? "AGENT_VERIFIED" : "HIGH_CONFIDENCE";
 
-    // Update server PostgreSQL database
     try {
       await fetch("/api/admin", {
         method: "PATCH",
@@ -165,14 +231,10 @@ export default function AdminPanelPage() {
           verificationStatus: biz.verificationStatus,
         }),
       });
+      fetchAdminData();
     } catch (err) {
       console.warn("[Admin PATCH verification error]:", err);
     }
-
-    // Update store and local state
-    store.updateBusinessVerification(bizId, newStatus);
-    setBusinesses(businesses.map((b) => (b.id === bizId ? { ...b, verificationStatus: newStatus } : b)));
-    fetchAdminData();
   };
 
   const handleUpdateDataStatus = async (bizId: string, targetDataStatus: "DEMO" | "RESEARCHED" | "VERIFIED") => {
@@ -187,11 +249,92 @@ export default function AdminPanelPage() {
         }),
       });
       if (res.ok) {
-        setBusinesses(businesses.map((b) => (b.id === bizId ? { ...b, dataStatus: targetDataStatus as any } : b)));
         fetchAdminData();
       }
     } catch (err) {
       console.warn("[Admin PATCH dataStatus error]:", err);
+    }
+  };
+
+  const handleArchiveBusiness = async (bizId: string) => {
+    if (!confirm("Are you sure you want to archive this business?")) return;
+    try {
+      const res = await fetch("/api/admin", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "ARCHIVE_BUSINESS",
+          businessId: bizId,
+        }),
+      });
+      if (res.ok) {
+        fetchAdminData();
+      }
+    } catch (err) {
+      console.warn("[Admin Archive error]:", err);
+    }
+  };
+
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingBiz) return;
+    try {
+      const res = await fetch("/api/admin", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "EDIT_BUSINESS",
+          businessId: editingBiz.id,
+          name: editingBiz.name,
+          category: editingBiz.category,
+          phone: editingBiz.phone,
+          cell: editingBiz.location?.cell,
+          sector: editingBiz.location?.sector,
+          district: editingBiz.location?.district,
+          priceRangeMin: editingBiz.priceRangeMin,
+          priceRangeMax: editingBiz.priceRangeMax,
+          dataStatus: editingBiz.dataStatus,
+        }),
+      });
+      if (res.ok) {
+        setIsEditModalOpen(false);
+        setEditingBiz(null);
+        fetchAdminData();
+      }
+    } catch (err) {
+      console.warn("[Admin Save Edit Error]:", err);
+    }
+  };
+
+  const handleCreateBusiness = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const res = await fetch("/api/businesses", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newBizForm),
+      });
+      if (res.ok) {
+        setIsAddModalOpen(false);
+        setNewBizForm({
+          name: "",
+          nameRw: "",
+          category: "food_restaurant",
+          phone: "+250 780 000 0",
+          province: "Kigali City",
+          district: "Gasabo",
+          sector: "Kacyiru",
+          cell: "Kamutwa",
+          addressNote: "",
+          priceRangeMin: 1000,
+          priceRangeMax: 15000,
+          dataStatus: "DEMO",
+          products: [{ name: "", priceMin: 1000, priceMax: 5000, unit: "item" }],
+        });
+        fetchAdminData();
+      }
+    } catch (err) {
+      console.warn("[Admin Create Biz Error]:", err);
     }
   };
 
@@ -200,31 +343,53 @@ export default function AdminPanelPage() {
       await fetch("/api/admin", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "RESOLVE_REPORT",
-          reportId,
-          status,
-        }),
+        body: JSON.stringify({ action: "RESOLVE_REPORT", reportId, status }),
       });
+      fetchAdminData();
     } catch (err) {
       console.warn("[Admin PATCH report error]:", err);
     }
-
-    store.updateReportStatus(reportId, status);
-    setReports(reports.map((r) => (r.id === reportId ? { ...r, status } : r)));
   };
 
-  const filteredBusinesses = businesses.filter((b) =>
-    b.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (b.location?.community || (b as any).cell || "").toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Geographic cascading options
+  const activeProvinceObj = geoTree.find((p) => p.name.toLowerCase().includes(selectedProvince.toLowerCase()) || p.code.toLowerCase() === selectedProvince.toLowerCase());
+  const availableDistricts = activeProvinceObj ? activeProvinceObj.districts : geoTree.flatMap((p) => p.districts || []);
+  const activeDistrictObj = availableDistricts.find((d: any) => d.name.toLowerCase() === selectedDistrict.toLowerCase());
+  const availableSectors = activeDistrictObj ? activeDistrictObj.sectors : availableDistricts.flatMap((d: any) => d.sectors || []);
+  const activeSectorObj = availableSectors.find((s: any) => s.name.toLowerCase() === selectedSector.toLowerCase());
+  const availableCells = activeSectorObj ? activeSectorObj.cells : [];
+
+  // Filter businesses
+  const filteredBusinesses = businesses.filter((b) => {
+    // Search match
+    const q = searchTerm.toLowerCase();
+    const matchesSearch = !searchTerm || 
+      b.name.toLowerCase().includes(q) ||
+      (b.location?.community || (b as any).cell || "").toLowerCase().includes(q) ||
+      (b.category || "").toLowerCase().includes(q);
+
+    if (!matchesSearch) return false;
+
+    // Lifecycle filter
+    if (lifecycleFilter === "DEMO" && (b as any).dataStatus !== "DEMO") return false;
+    if (lifecycleFilter === "RESEARCHED" && (b as any).dataStatus !== "RESEARCHED") return false;
+    if (lifecycleFilter === "VERIFIED" && (b as any).dataStatus !== "VERIFIED") return false;
+    if (lifecycleFilter === "DUPLICATES" && !(b as any).isPotentialDuplicate) return false;
+
+    // Geographic filters
+    if (selectedDistrict !== "all" && b.location?.district.toLowerCase() !== selectedDistrict.toLowerCase()) return false;
+    if (selectedSector !== "all" && b.location?.sector.toLowerCase() !== selectedSector.toLowerCase()) return false;
+    if (selectedCell !== "all" && b.location?.cell.toLowerCase() !== selectedCell.toLowerCase()) return false;
+
+    return true;
+  });
 
   const isPermittedAdmin = user?.role === "SUPER_ADMIN" || user?.role === "COMMUNITY_ADMIN" || user?.role === "MODERATOR";
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       
-      {/* Role Check Notice if Not Admin */}
+      {/* Role Notice if Not Admin */}
       {!isPermittedAdmin && (
         <div className="mb-6 p-4 rounded-2xl bg-amber-50 border border-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-3">
@@ -234,7 +399,7 @@ export default function AdminPanelPage() {
                 Viewing in {user?.role.replace("_", " ") || "Guest"} Mode
               </div>
               <div className="text-xs text-amber-700">
-                To test administrator actions and database verification updates, switch to Super Admin or Community Admin.
+                Switch to Super Admin to test administrative geographic data progression and database modifications.
               </div>
             </div>
           </div>
@@ -247,7 +412,7 @@ export default function AdminPanelPage() {
         </div>
       )}
 
-      {/* Top Banner */}
+      {/* Top Banner with Real Neon PostgreSQL Counters */}
       <div className="bg-slate-900 rounded-3xl p-6 sm:p-8 text-white shadow-elevated mb-8 flex flex-col md:flex-row md:items-center justify-between gap-6 border border-slate-800">
         <div className="space-y-2">
           <div className="flex items-center gap-2">
@@ -255,7 +420,7 @@ export default function AdminPanelPage() {
               <Shield className="w-5 h-5" />
             </span>
             <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider">
-              {user?.role.replace("_", " ") || "SUPER ADMIN"} CONSOLE
+              {user?.role.replace("_", " ") || "SUPER ADMIN"} CONSOLE • NEON POSTGRESQL
             </span>
           </div>
 
@@ -264,22 +429,27 @@ export default function AdminPanelPage() {
           </h1>
 
           <p className="text-xs sm:text-sm text-slate-400 max-w-xl">
-            {t.admin.subtitle}
+            {t.admin.subtitle} Manage verified community commerce and sample test dataset across Rwanda.
           </p>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs shrink-0">
+        {/* Real DB Metrics Cards */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs shrink-0">
           <div className="bg-slate-800 p-3 rounded-xl border border-slate-700">
             <div className="text-slate-400 font-medium">Total Listed</div>
-            <div className="text-xl font-bold text-white">{businesses.length} Businesses</div>
+            <div className="text-xl font-bold text-white">{metrics.totalBusinesses} Businesses</div>
           </div>
           <div className="bg-slate-800 p-3 rounded-xl border border-slate-700">
-            <div className="text-amber-400 font-medium">Demo / Synthetic</div>
-            <div className="text-xl font-bold text-amber-400">{metrics.demoCount || 0} Samples</div>
+            <div className="text-amber-400 font-medium">DEMO Samples</div>
+            <div className="text-xl font-bold text-amber-400">{metrics.demoCount} Samples</div>
           </div>
-          <div className="bg-slate-800 p-3 rounded-xl border border-slate-700 col-span-2 sm:col-span-1">
+          <div className="bg-slate-800 p-3 rounded-xl border border-slate-700">
             <div className="text-emerald-400 font-medium">Ground Verified</div>
-            <div className="text-xl font-bold text-emerald-400">{metrics.verifiedDataCount || metrics.verifiedCount || 0} Active</div>
+            <div className="text-xl font-bold text-emerald-400">{metrics.verifiedDataCount} Verified</div>
+          </div>
+          <div className="bg-slate-800 p-3 rounded-xl border border-slate-700">
+            <div className="text-blue-400 font-medium">Products / Services</div>
+            <div className="text-xl font-bold text-blue-400">{metrics.totalProducts} ({metrics.estimatedProductsCount} Est.)</div>
           </div>
         </div>
       </div>
@@ -292,24 +462,33 @@ export default function AdminPanelPage() {
           </div>
           <div>
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="font-bold text-sm">Rwanda-Wide Geographic Coverage</span>
+              <span className="font-bold text-sm">Rwanda Nationwide Administrative Hierarchy Active</span>
               <span className="text-[10px] bg-emerald-500/30 text-emerald-300 font-extrabold px-2 py-0.5 rounded-full uppercase">
-                7-Tier Hierarchy Active
+                7-Tier Architecture
               </span>
             </div>
             <div className="text-xs text-slate-300 mt-0.5">
-              5 Provinces • 11 Districts • 6 Focus Sectors (<strong>Kacyiru</strong>, <strong>Nyamirambo</strong>, Muhoza, Ngoma, Gisenyi, Kigabiro) • 12 Cells • Local Areas & Landmarks (MINAGRI KG 569 St)
+              <strong>{metrics.totalProvinces} Provinces</strong> • <strong>{metrics.totalDistricts} Official Districts (100% Covered)</strong> • <strong>{metrics.totalSectors} Sectors</strong> • <strong>{metrics.totalCells} Cells</strong> • <strong>{metrics.totalLocalAreas} Discovery Landmarks</strong> (MINAGRI KG 569 St, Biryogo, etc.)
             </div>
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
+          {metrics.potentialDuplicatesCount > 0 && (
+            <button
+              onClick={() => setLifecycleFilter("DUPLICATES")}
+              className="text-xs bg-amber-500/20 text-amber-300 border border-amber-500/40 px-3 py-1.5 rounded-xl font-bold flex items-center gap-1.5 hover:bg-amber-500/30 transition-colors"
+            >
+              <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
+              <span>{metrics.potentialDuplicatesCount} Possible Duplicates</span>
+            </button>
+          )}
           <span className="text-xs bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-700 font-semibold text-emerald-300">
-            2 Assigned Agents
+            {metrics.agentCount} Community Agents
           </span>
         </div>
       </div>
 
-      {/* Tabs */}
+      {/* Tabs Navigation */}
       <div className="flex items-center gap-2 border-b border-slate-200 pb-3 mb-6 overflow-x-auto no-scrollbar">
         {[
           { id: "businesses", label: t.admin.tabs.businesses, count: businesses.length, icon: StoreIcon },
@@ -346,97 +525,301 @@ export default function AdminPanelPage() {
       {/* Businesses Tab */}
       {activeTab === "businesses" && (
         <div className="space-y-4">
-          <div className="flex items-center justify-between gap-4">
+          
+          {/* Controls Bar: Search + Add Business + Refresh */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
             <div className="relative flex-1 max-w-md">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
               <input
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Search registered local businesses..."
-                className="w-full pl-9 pr-4 py-2 text-xs rounded-xl border border-slate-200 bg-white focus:outline-hidden focus:border-emerald-500"
+                placeholder="Search by business name, category, cell, sector..."
+                className="w-full pl-9 pr-4 py-2.5 text-xs rounded-xl border border-slate-200 bg-white focus:outline-hidden focus:border-emerald-500 shadow-xs"
               />
             </div>
-            <button
-              onClick={fetchAdminData}
-              className="p-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 transition-colors"
-              title="Refresh database records"
-            >
-              <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin text-emerald-600" : ""}`} />
-            </button>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setIsAddModalOpen(true)}
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs transition-colors"
+              >
+                <Plus className="w-4 h-4" />
+                <span>+ Add Business / Sample</span>
+              </button>
+              <button
+                onClick={fetchAdminData}
+                className="p-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 transition-colors"
+                title="Refresh database records"
+              >
+                <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin text-emerald-600" : ""}`} />
+              </button>
+            </div>
           </div>
 
+          {/* 5-Level Cascading Geographic Filters */}
+          <div className="bg-slate-50 border border-slate-200 p-3.5 rounded-2xl space-y-2.5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-xs font-bold text-slate-700">
+                <Filter className="w-3.5 h-3.5 text-emerald-600" />
+                <span>Nationwide 5-Level Geographic Drill-Down</span>
+              </div>
+              {(selectedProvince !== "all" || selectedDistrict !== "all" || selectedSector !== "all" || selectedCell !== "all") && (
+                <button
+                  onClick={() => {
+                    setSelectedProvince("all");
+                    setSelectedDistrict("all");
+                    setSelectedSector("all");
+                    setSelectedCell("all");
+                  }}
+                  className="text-[11px] text-emerald-700 hover:underline font-semibold"
+                >
+                  Reset Geographic Filters
+                </button>
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs">
+              {/* Province Select */}
+              <div>
+                <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Province (5)</label>
+                <select
+                  value={selectedProvince}
+                  onChange={(e) => {
+                    setSelectedProvince(e.target.value);
+                    setSelectedDistrict("all");
+                    setSelectedSector("all");
+                    setSelectedCell("all");
+                  }}
+                  className="w-full p-2 text-xs rounded-xl border border-slate-200 bg-white text-slate-800 focus:outline-hidden focus:border-emerald-500 font-medium"
+                >
+                  <option value="all">All Provinces (5)</option>
+                  <option value="KIGALI">City of Kigali</option>
+                  <option value="NORTH">Northern Province</option>
+                  <option value="SOUTH">Southern Province</option>
+                  <option value="EAST">Eastern Province</option>
+                  <option value="WEST">Western Province</option>
+                </select>
+              </div>
+
+              {/* District Select */}
+              <div>
+                <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">District (30)</label>
+                <select
+                  value={selectedDistrict}
+                  onChange={(e) => {
+                    setSelectedDistrict(e.target.value);
+                    setSelectedSector("all");
+                    setSelectedCell("all");
+                  }}
+                  className="w-full p-2 text-xs rounded-xl border border-slate-200 bg-white text-slate-800 focus:outline-hidden focus:border-emerald-500 font-medium"
+                >
+                  <option value="all">All Districts ({availableDistricts.length})</option>
+                  {availableDistricts.map((d: any) => (
+                    <option key={d.id || d.code} value={d.name}>
+                      {d.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Sector Select */}
+              <div>
+                <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Sector ({availableSectors.length})</label>
+                <select
+                  value={selectedSector}
+                  onChange={(e) => {
+                    setSelectedSector(e.target.value);
+                    setSelectedCell("all");
+                  }}
+                  className="w-full p-2 text-xs rounded-xl border border-slate-200 bg-white text-slate-800 focus:outline-hidden focus:border-emerald-500 font-medium"
+                >
+                  <option value="all">All Sectors ({availableSectors.length})</option>
+                  {availableSectors.map((s: any) => (
+                    <option key={s.id || s.code} value={s.name}>
+                      {s.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Cell Select */}
+              <div>
+                <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Cell ({availableCells.length})</label>
+                <select
+                  value={selectedCell}
+                  onChange={(e) => setSelectedCell(e.target.value)}
+                  className="w-full p-2 text-xs rounded-xl border border-slate-200 bg-white text-slate-800 focus:outline-hidden focus:border-emerald-500 font-medium"
+                  disabled={availableCells.length === 0}
+                >
+                  <option value="all">All Cells ({availableCells.length})</option>
+                  {availableCells.map((c: any) => (
+                    <option key={c.id} value={c.name}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* Lifecycle Status Filter Sub-Tabs */}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {[
+              { id: "ALL", label: `All Businesses (${businesses.length})` },
+              { id: "DEMO", label: `Demo / Samples (${metrics.demoCount})` },
+              { id: "RESEARCHED", label: `Researched (${metrics.researchedCount})` },
+              { id: "VERIFIED", label: `Ground Verified (${metrics.verifiedDataCount})` },
+              ...(metrics.potentialDuplicatesCount > 0 ? [{ id: "DUPLICATES", label: `⚠️ Duplicates (${metrics.potentialDuplicatesCount})` }] : []),
+            ].map((f) => (
+              <button
+                key={f.id}
+                onClick={() => setLifecycleFilter(f.id as any)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-colors ${
+                  lifecycleFilter === f.id
+                    ? "bg-slate-900 text-white shadow-xs"
+                    : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Business Records List */}
           <div className="bg-white rounded-3xl border border-slate-200 shadow-card overflow-hidden">
+            <div className="p-4 border-b border-slate-100 flex items-center justify-between text-xs text-slate-500">
+              <span>Showing <strong>{filteredBusinesses.length}</strong> of {businesses.length} records</span>
+              <span>Sorted by latest updates</span>
+            </div>
+
             <div className="divide-y divide-slate-100">
-              {filteredBusinesses.map((biz) => (
-                <div key={biz.id} className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-slate-50/50 transition-colors">
-                  <div className="flex items-start gap-3">
-                    <div className="w-12 h-12 rounded-xl bg-slate-100 overflow-hidden shrink-0 border border-slate-200">
-                      <img src={biz.coverImage} alt={biz.name} className="w-full h-full object-cover" />
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <Link href={`/business/${biz.id}`} className="font-bold text-slate-900 text-sm hover:text-emerald-700">
-                          {biz.name}
-                        </Link>
-                        <VerificationBadge status={biz.verificationStatus} />
-                        <DataStatusBadge status={(biz as any).dataStatus} />
+              {filteredBusinesses.length === 0 ? (
+                <div className="p-12 text-center text-xs text-slate-400">
+                  No businesses matching the selected geographic or lifecycle filters.
+                </div>
+              ) : (
+                filteredBusinesses.map((biz) => (
+                  <div key={biz.id} className="p-4 sm:p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4 hover:bg-slate-50/50 transition-colors">
+                    <div className="flex items-start gap-3 flex-1 min-w-0">
+                      <div className="w-12 h-12 rounded-xl bg-slate-100 overflow-hidden shrink-0 border border-slate-200">
+                        <img src={biz.coverImage} alt={biz.name} className="w-full h-full object-cover" />
                       </div>
-                      <div className="text-xs text-slate-500 mt-0.5">
-                        {biz.category} • {(biz as any).localArea?.name || biz.location?.community || (biz as any).cell || "Rwanda"} • Phone: {biz.phone}
-                        {(biz as any).priceRangeMin && (biz as any).priceRangeMax && (
-                          <span className="ml-2 text-amber-700 font-semibold">
-                            (Est. {(biz as any).priceRangeMin.toLocaleString()} - {(biz as any).priceRangeMax.toLocaleString()} RWF)
-                          </span>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <Link href={`/business/${biz.id}`} className="font-bold text-slate-900 text-sm hover:text-emerald-700 truncate">
+                            {biz.name}
+                          </Link>
+                          <VerificationBadge status={biz.verificationStatus} />
+                          <DataStatusBadge status={(biz as any).dataStatus} />
+                          {(biz as any).isPotentialDuplicate && (
+                            <span className="text-[10px] bg-amber-100 text-amber-800 font-bold px-1.5 py-0.5 rounded flex items-center gap-1">
+                              <AlertTriangle className="w-3 h-3 text-amber-600" />
+                              Possible Duplicate
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-xs text-slate-500 mt-0.5">
+                          <span className="font-medium text-slate-700">{biz.categoryDisplay || biz.category}</span> • {(biz as any).localArea?.name || `${biz.location?.cell}, ${biz.location?.sector}`} • {biz.location?.district} District • Phone: <span className="font-mono text-slate-700">{biz.phone}</span>
+                          {(biz as any).priceRangeMin && (biz as any).priceRangeMax && (
+                            <span className="ml-2 text-amber-700 font-semibold">
+                              (Est. {(biz as any).priceRangeMin.toLocaleString()} - {(biz as any).priceRangeMax.toLocaleString()} RWF)
+                            </span>
+                          )}
+                        </div>
+                        {(biz as any).products && (biz as any).products.length > 0 && (
+                          <div className="flex items-center gap-1.5 flex-wrap mt-1 text-[11px] text-slate-600">
+                            <Tag className="w-3 h-3 text-slate-400 shrink-0" />
+                            {(biz as any).products.slice(0, 3).map((p: any, idx: number) => (
+                              <span key={idx} className="bg-slate-100 px-1.5 py-0.5 rounded text-slate-700 font-medium">
+                                {p.name} {p.priceMin && p.priceMax ? `(${p.priceMin.toLocaleString()}–${p.priceMax.toLocaleString()} RWF)` : `(${p.price?.toLocaleString()} RWF)`}
+                              </span>
+                            ))}
+                            {(biz as any).products.length > 3 && (
+                              <span className="text-slate-400">+{((biz as any).products.length - 3)} more</span>
+                            )}
+                          </div>
                         )}
                       </div>
                     </div>
-                  </div>
 
-                  <div className="flex items-center gap-2 self-end sm:self-center flex-wrap">
-                    {/* Lifecycle Promotion Controls */}
-                    {(biz as any).dataStatus === "DEMO" && (
-                      <button
-                        onClick={() => handleUpdateDataStatus(biz.id, "VERIFIED")}
-                        className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold shadow-xs transition-colors"
-                        title="Certify as ground-verified"
-                      >
-                        ✓ Promote to Verified
-                      </button>
-                    )}
-                    {(biz as any).dataStatus === "RESEARCHED" && (
-                      <button
-                        onClick={() => handleUpdateDataStatus(biz.id, "VERIFIED")}
-                        className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold shadow-xs transition-colors"
-                      >
-                        ✓ Certify Verified
-                      </button>
-                    )}
-                    {(biz as any).dataStatus === "VERIFIED" && (
-                      <button
-                        onClick={() => handleUpdateDataStatus(biz.id, "DEMO")}
-                        className="px-2 py-1 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-500 text-[10px] font-medium transition-colors"
-                        title="Revert back to demo synthetic record for testing"
-                      >
-                        Reset to Demo
-                      </button>
-                    )}
+                    <div className="flex items-center gap-2 self-end lg:self-center flex-wrap shrink-0">
+                      {/* Lifecycle Progression Buttons */}
+                      {(biz as any).dataStatus === "DEMO" && (
+                        <>
+                          <button
+                            onClick={() => handleUpdateDataStatus(biz.id, "RESEARCHED")}
+                            className="px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 text-[11px] font-bold transition-colors"
+                            title="Promote to field researched status"
+                          >
+                            &rarr; Researched
+                          </button>
+                          <button
+                            onClick={() => handleUpdateDataStatus(biz.id, "VERIFIED")}
+                            className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold shadow-xs transition-colors"
+                            title="Certify as ground-verified"
+                          >
+                            ✓ Promote to Verified
+                          </button>
+                        </>
+                      )}
 
-                    <button
-                      onClick={() => handleToggleVerification(biz.id)}
-                      className="px-3 py-1.5 rounded-lg border border-slate-200 hover:border-emerald-500 hover:bg-emerald-50 text-xs font-semibold text-slate-700 hover:text-emerald-700 transition-colors"
-                    >
-                      Toggle Confidence
-                    </button>
-                    <Link
-                      href={`/business/${biz.id}`}
-                      className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-xs font-semibold text-slate-700 transition-colors"
-                    >
-                      View Live
-                    </Link>
+                      {(biz as any).dataStatus === "RESEARCHED" && (
+                        <>
+                          <button
+                            onClick={() => handleUpdateDataStatus(biz.id, "VERIFIED")}
+                            className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold shadow-xs transition-colors"
+                          >
+                            ✓ Certify Verified
+                          </button>
+                          <button
+                            onClick={() => handleUpdateDataStatus(biz.id, "DEMO")}
+                            className="px-2 py-1 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-500 text-[10px] font-medium transition-colors"
+                          >
+                            Revert to Demo
+                          </button>
+                        </>
+                      )}
+
+                      {(biz as any).dataStatus === "VERIFIED" && (
+                        <button
+                          onClick={() => handleUpdateDataStatus(biz.id, "DEMO")}
+                          className="px-2 py-1 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-500 text-[10px] font-medium transition-colors"
+                          title="Reset back to demo sample record"
+                        >
+                          Reset to Demo
+                        </button>
+                      )}
+
+                      <button
+                        onClick={() => {
+                          setEditingBiz(biz);
+                          setIsEditModalOpen(true);
+                        }}
+                        className="p-1.5 rounded-lg border border-slate-200 hover:border-slate-300 text-slate-600 hover:text-slate-900 transition-colors"
+                        title="Edit Business Record"
+                      >
+                        <Edit2 className="w-3.5 h-3.5" />
+                      </button>
+
+                      <button
+                        onClick={() => handleArchiveBusiness(biz.id)}
+                        className="p-1.5 rounded-lg border border-red-200 hover:bg-red-50 text-red-600 transition-colors"
+                        title="Archive Business"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+
+                      <Link
+                        href={`/business/${biz.id}`}
+                        className="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-xs font-semibold text-slate-700 transition-colors"
+                      >
+                        View Live
+                      </Link>
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))
+              )}
             </div>
           </div>
         </div>
@@ -461,9 +844,6 @@ export default function AdminPanelPage() {
                   </div>
                   <div className="text-xs text-slate-600">
                     Extracted {cap.extractedItems?.length || 0} line items • Total: {cap.extractedTotal?.toLocaleString() || 0} RWF
-                  </div>
-                  <div className="text-[11px] text-slate-500 font-mono bg-white p-2 rounded-lg border border-slate-200 max-w-xl truncate">
-                    {cap.rawOcrText || "No raw text available"}
                   </div>
                 </div>
                 <div className="shrink-0 flex items-center gap-2">
@@ -499,7 +879,6 @@ export default function AdminPanelPage() {
                       </span>
                     </div>
                     <p className="text-slate-600">{rep.details}</p>
-                    <div className="text-[10px] text-slate-400">Reported by: {rep.reportedBy || "Resident"} • Status: {rep.status}</div>
                   </div>
 
                   {rep.status === "OPEN" && (
@@ -529,14 +908,14 @@ export default function AdminPanelPage() {
       {activeTab === "demands" && (
         <div className="bg-white rounded-3xl border border-slate-200 shadow-card p-6 space-y-4">
           <h3 className="font-bold text-slate-900 text-base">
-            Aggregated Community Search Demands
+            Aggregated Community Search Demands ({demands.length})
           </h3>
           <div className="divide-y divide-slate-100">
             {demands.map((d) => (
               <div key={d.id} className="py-3 flex items-center justify-between text-xs">
                 <div>
                   <div className="font-bold text-slate-900">"{d.queryTerm}"</div>
-                  <div className="text-slate-500">{d.description || `${d.cell}, ${d.sector}`}</div>
+                  <div className="text-slate-500">{d.category} • {d.cell || "All Cells"}, {d.sector}</div>
                 </div>
                 <div className="text-right">
                   <div className="font-bold text-amber-600">{d.searchCount} searches</div>
@@ -548,46 +927,276 @@ export default function AdminPanelPage() {
         </div>
       )}
 
-      {/* Audit & Governance Tab */}
+      {/* Audit Trail Tab */}
       {activeTab === "audit" && (
         <div className="bg-white rounded-3xl border border-slate-200 shadow-card p-6 space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="font-bold text-slate-900 text-base">
               PostgreSQL Immutable Audit Trail ({auditLogs.length})
             </h3>
-            <span className="text-xs text-slate-500 font-medium">
-              Permanent Event Log
-            </span>
+            <span className="text-xs text-slate-500 font-medium">Permanent Event Log</span>
           </div>
 
-          {auditLogs.length === 0 ? (
-            <div className="text-center py-8 text-xs text-slate-500">
-              No audit logs recorded yet. Perform actions like OTP login, verification, or review creation to populate audit records.
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {auditLogs.map((log) => (
-                <div key={log.id} className="p-3 rounded-xl border border-slate-100 bg-slate-50 flex items-center justify-between text-xs">
-                  <div className="space-y-0.5">
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded text-[10px] uppercase">
-                        {log.action}
-                      </span>
-                      <span className="font-medium text-slate-800">{log.entityType}: {log.entityId}</span>
-                    </div>
-                    <div className="text-[11px] text-slate-500">
-                      Actor: {log.actor?.name || "System"} ({log.actor?.role || "SYSTEM"}) • {new Date(log.createdAt).toLocaleString()}
-                    </div>
-                  </div>
-                  {log.metadata && (
-                    <span className="text-[10px] font-mono text-slate-400 max-w-xs truncate">
-                      {log.metadata}
+          <div className="space-y-2">
+            {auditLogs.map((log) => (
+              <div key={log.id} className="p-3 rounded-xl border border-slate-100 bg-slate-50 flex items-center justify-between text-xs">
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded text-[10px] uppercase">
+                      {log.action}
                     </span>
-                  )}
+                    <span className="font-medium text-slate-800">{log.entityType}: {log.entityId}</span>
+                  </div>
+                  <div className="text-[11px] text-slate-500">
+                    Actor: {log.actor?.name || "System"} ({log.actor?.role || "SYSTEM"}) • {new Date(log.createdAt).toLocaleString()}
+                  </div>
                 </div>
-              ))}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Add New Business / Sample */}
+      {isAddModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-xl w-full p-6 shadow-2xl border border-slate-200 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+              <h3 className="font-black text-lg text-slate-900">Add Business / Demo Sample Record</h3>
+              <button onClick={() => setIsAddModalOpen(false)} className="text-slate-400 hover:text-slate-600">
+                <X className="w-5 h-5" />
+              </button>
             </div>
-          )}
+
+            <form onSubmit={handleCreateBusiness} className="space-y-4 pt-4 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Business Name (EN/RW)</label>
+                  <input
+                    type="text"
+                    required
+                    value={newBizForm.name}
+                    onChange={(e) => setNewBizForm({ ...newBizForm, name: e.target.value })}
+                    placeholder="e.g. Kacyiru Modern Bakery"
+                    className="w-full p-2.5 rounded-xl border border-slate-200 bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Category</label>
+                  <select
+                    value={newBizForm.category}
+                    onChange={(e) => setNewBizForm({ ...newBizForm, category: e.target.value })}
+                    className="w-full p-2.5 rounded-xl border border-slate-200 bg-white"
+                  >
+                    {CATEGORY_OPTIONS.map((c) => (
+                      <option key={c.id} value={c.id}>{c.label}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Phone Number (Demo designated)</label>
+                  <input
+                    type="text"
+                    required
+                    value={newBizForm.phone}
+                    onChange={(e) => setNewBizForm({ ...newBizForm, phone: e.target.value })}
+                    placeholder="+250 780 000 0XX (Demo)"
+                    className="w-full p-2.5 rounded-xl border border-slate-200 bg-white font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Data Status</label>
+                  <select
+                    value={newBizForm.dataStatus}
+                    onChange={(e) => setNewBizForm({ ...newBizForm, dataStatus: e.target.value })}
+                    className="w-full p-2.5 rounded-xl border border-slate-200 bg-white font-bold text-amber-700"
+                  >
+                    <option value="DEMO">DEMO (Synthetic Sample)</option>
+                    <option value="RESEARCHED">RESEARCHED (Field In-Progress)</option>
+                    <option value="VERIFIED">VERIFIED (Audited on Ground)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Province</label>
+                  <input
+                    type="text"
+                    value={newBizForm.province}
+                    onChange={(e) => setNewBizForm({ ...newBizForm, province: e.target.value })}
+                    className="w-full p-2 rounded-xl border border-slate-200 bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">District</label>
+                  <input
+                    type="text"
+                    value={newBizForm.district}
+                    onChange={(e) => setNewBizForm({ ...newBizForm, district: e.target.value })}
+                    className="w-full p-2 rounded-xl border border-slate-200 bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Sector</label>
+                  <input
+                    type="text"
+                    value={newBizForm.sector}
+                    onChange={(e) => setNewBizForm({ ...newBizForm, sector: e.target.value })}
+                    className="w-full p-2 rounded-xl border border-slate-200 bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Cell</label>
+                  <input
+                    type="text"
+                    value={newBizForm.cell}
+                    onChange={(e) => setNewBizForm({ ...newBizForm, cell: e.target.value })}
+                    className="w-full p-2 rounded-xl border border-slate-200 bg-white"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">Address / Landmark Note</label>
+                <input
+                  type="text"
+                  value={newBizForm.addressNote}
+                  onChange={(e) => setNewBizForm({ ...newBizForm, addressNote: e.target.value })}
+                  placeholder="e.g. Near MINAGRI Gate, KG 569 St"
+                  className="w-full p-2.5 rounded-xl border border-slate-200 bg-white"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Price Min (RWF)</label>
+                  <input
+                    type="number"
+                    value={newBizForm.priceRangeMin}
+                    onChange={(e) => setNewBizForm({ ...newBizForm, priceRangeMin: Number(e.target.value) })}
+                    className="w-full p-2 rounded-xl border border-slate-200 bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Price Max (RWF)</label>
+                  <input
+                    type="number"
+                    value={newBizForm.priceRangeMax}
+                    onChange={(e) => setNewBizForm({ ...newBizForm, priceRangeMax: Number(e.target.value) })}
+                    className="w-full p-2 rounded-xl border border-slate-200 bg-white"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-2 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsAddModalOpen(false)}
+                  className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 font-bold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-xs"
+                >
+                  Create Record
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Edit Business */}
+      {isEditModalOpen && editingBiz && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+              <h3 className="font-black text-lg text-slate-900">Edit Business Record</h3>
+              <button onClick={() => setIsEditModalOpen(false)} className="text-slate-400 hover:text-slate-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEdit} className="space-y-4 pt-4 text-xs">
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">Business Name</label>
+                <input
+                  type="text"
+                  required
+                  value={editingBiz.name}
+                  onChange={(e) => setEditingBiz({ ...editingBiz, name: e.target.value })}
+                  className="w-full p-2.5 rounded-xl border border-slate-200 bg-white"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Phone</label>
+                  <input
+                    type="text"
+                    value={editingBiz.phone}
+                    onChange={(e) => setEditingBiz({ ...editingBiz, phone: e.target.value })}
+                    className="w-full p-2.5 rounded-xl border border-slate-200 bg-white font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Data Lifecycle Status</label>
+                  <select
+                    value={editingBiz.dataStatus}
+                    onChange={(e) => setEditingBiz({ ...editingBiz, dataStatus: e.target.value })}
+                    className="w-full p-2.5 rounded-xl border border-slate-200 bg-white font-bold text-emerald-800"
+                  >
+                    <option value="DEMO">DEMO (Synthetic Sample)</option>
+                    <option value="RESEARCHED">RESEARCHED (Field In-Progress)</option>
+                    <option value="VERIFIED">VERIFIED (Audited on Ground)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Estimated Min Price (RWF)</label>
+                  <input
+                    type="number"
+                    value={editingBiz.priceRangeMin || 0}
+                    onChange={(e) => setEditingBiz({ ...editingBiz, priceRangeMin: Number(e.target.value) })}
+                    className="w-full p-2 rounded-xl border border-slate-200 bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Estimated Max Price (RWF)</label>
+                  <input
+                    type="number"
+                    value={editingBiz.priceRangeMax || 0}
+                    onChange={(e) => setEditingBiz({ ...editingBiz, priceRangeMax: Number(e.target.value) })}
+                    className="w-full p-2 rounded-xl border border-slate-200 bg-white"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-2 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsEditModalOpen(false)}
+                  className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 font-bold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-xs"
+                >
+                  Save Changes
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
 
