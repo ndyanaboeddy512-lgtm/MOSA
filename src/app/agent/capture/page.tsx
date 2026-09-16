@@ -109,10 +109,10 @@ export default function PhysicalCapturePage() {
   };
 
   // Publish to business catalogue
-  const handlePublish = () => {
+  const handlePublish = async () => {
     if (!parseResult || !targetBusinessId) return;
 
-    // Create the capture record
+    // 1. Create the capture record in client store
     const record = store.addCapture({
       businessId: targetBusinessId,
       businessName: parseResult.merchantName,
@@ -131,8 +131,28 @@ export default function PhysicalCapturePage() {
       verifiedAt: new Date().toISOString(),
     });
 
-    // Publish line items into the target business's live catalogue
+    // 2. Publish line items into client store
     store.verifyCaptureAndPublish(record.id, parseResult.items, targetBusinessId);
+
+    // 3. Persist to PostgreSQL database via API
+    try {
+      await fetch("/api/capture/ocr", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "publish",
+          rawText: inputText,
+          documentType,
+          businessId: targetBusinessId,
+          merchantName: parseResult.merchantName,
+          totalAmount: parseResult.totalAmount,
+          items: parseResult.items,
+        }),
+      });
+    } catch (err) {
+      console.warn("[Capture Publish DB sync error]:", err);
+    }
+
     setPublishSuccess(true);
 
     setTimeout(() => {

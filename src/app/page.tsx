@@ -31,8 +31,22 @@ export default function HomePage() {
   const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
-    const list = store.getBusinesses({ category: selectedCategory });
-    setBusinesses(list);
+    async function loadBusinesses() {
+      try {
+        const url = selectedCategory !== "all" ? `/api/businesses?category=${encodeURIComponent(selectedCategory)}` : "/api/businesses";
+        const res = await fetch(url);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.businesses && data.businesses.length > 0) {
+            setBusinesses(data.businesses);
+            return;
+          }
+        }
+      } catch {}
+      const list = store.getBusinesses({ category: selectedCategory });
+      setBusinesses(list);
+    }
+    loadBusinesses();
   }, [selectedCategory]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {

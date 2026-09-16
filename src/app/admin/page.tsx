@@ -10,7 +10,7 @@ import { VerificationBadge } from "@/components/common/Badge";
 import { 
   Shield, 
   Users, 
-  Store, 
+  Store as StoreIcon, 
   FileText, 
   AlertTriangle, 
   CheckCircle2, 
@@ -19,38 +19,161 @@ import {
   TrendingUp,
   Award,
   ChevronRight,
-  Sparkles
+  Sparkles,
+  History,
+  RefreshCw,
+  Lock
 } from "lucide-react";
+
+interface AdminAuditLog {
+  id: string;
+  action: string;
+  entityType: string;
+  entityId: string;
+  metadata?: string | null;
+  createdAt: string;
+  actor?: { id: string; name: string; role: string } | null;
+}
 
 export default function AdminPanelPage() {
   const { lang, t } = useLanguage();
-  const { user } = useAuth();
+  const { user, switchDemoRole } = useAuth();
 
-  const [activeTab, setActiveTab] = useState<"businesses" | "captures" | "reports" | "demands">("businesses");
+  const [activeTab, setActiveTab] = useState<"businesses" | "captures" | "reports" | "demands" | "audit">("businesses");
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [captures, setCaptures] = useState<PhysicalCaptureRecord[]>([]);
   const [reports, setReports] = useState<ModerationReport[]>([]);
   const [demands, setDemands] = useState<CommunityDemandSignal[]>([]);
+  const [auditLogs, setAuditLogs] = useState<AdminAuditLog[]>([]);
+  const [metrics, setMetrics] = useState<{
+    totalBusinesses: number;
+    verifiedCount: number;
+    unverifiedCount: number;
+    totalUsers: number;
+    agentCount: number;
+    openReportsCount: number;
+    totalCaptures: number;
+  }>({
+    totalBusinesses: 0,
+    verifiedCount: 0,
+    unverifiedCount: 0,
+    totalUsers: 0,
+    agentCount: 0,
+    openReportsCount: 0,
+    totalCaptures: 0,
+  });
   const [searchTerm, setSearchTerm] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    setBusinesses(store.getBusinesses());
-    setCaptures(store.getCaptures());
-    setReports(store.getReports());
-    setDemands(store.getDemands());
-  }, []);
+  const fetchAdminData = async () => {
+    setIsLoading(true);
+    try {
+      const res = await fetch("/api/admin");
+      if (res.ok) {
+        const data = await res.json();
+        if (data.metrics) setMetrics(data.metrics);
+        if (data.auditLogs) setAuditLogs(data.auditLogs);
+        if (data.businesses && data.businesses.length > 0) {
+          // Format DB businesses or keep store format
+          setBusinesses(data.businesses.map((b: any) => ({
+            id: b.id,
+            name: b.name,
+            nameRw: b.nameRw || b.name,
+            category: b.category,
+            description: b.description || "",
+            descriptionRw: b.descriptionRw || "",
+            location: {
+              district: b.district || "Nyarugenge",
+              sector: b.sector || "Nyamirambo",
+              cell: b.cell || "Biryogo",
+              community: `${b.cell || "Biryogo"}, ${b.sector || "Nyamirambo"}`,
+              coordinates: [b.latitude || -1.9706, b.longitude || 30.0444],
+            },
+            contactPhone: b.phone || "+250788000000",
+            verificationStatus: b.verificationStatus,
+            isOpenNow: b.isOpenNow,
+            rating: 4.8,
+            reviewsCount: 12,
+            coverImage: b.coverImage || "https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=800&auto=format&fit=crop&q=60",
+            priceRange: b.priceRange || "MODERATE",
+            tags: [b.category],
+            status: b.status,
+          })));
+        } else {
+          setBusinesses(store.getBusinesses());
+        }
+        if (data.captures && data.captures.length > 0) setCaptures(data.captures);
+        else setCaptures(store.getCaptures());
 
-  const handleToggleVerification = (bizId: string) => {
-    const biz = store.getBusinessById(bizId);
-    if (!biz) return;
-    const newStatus = biz.verificationStatus === "HIGH_CONFIDENCE" ? "AGENT_VERIFIED" : "HIGH_CONFIDENCE";
-    store.updateBusinessVerification(bizId, newStatus);
-    setBusinesses([...store.getBusinesses()]);
+        if (data.reports && data.reports.length > 0) setReports(data.reports);
+        else setReports(store.getReports());
+
+        if (data.demands && data.demands.length > 0) setDemands(data.demands);
+        else setDemands(store.getDemands());
+      } else {
+        // Fallback to local store
+        setBusinesses(store.getBusinesses());
+        setCaptures(store.getCaptures());
+        setReports(store.getReports());
+        setDemands(store.getDemands());
+      }
+    } catch {
+      setBusinesses(store.getBusinesses());
+      setCaptures(store.getCaptures());
+      setReports(store.getReports());
+      setDemands(store.getDemands());
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleResolveReport = (reportId: string, status: "RESOLVED" | "DISMISSED") => {
+  useEffect(() => {
+    fetchAdminData();
+  }, []);
+
+  const handleToggleVerification = async (bizId: string) => {
+    const biz = businesses.find((b) => b.id === bizId) || store.getBusinessById(bizId);
+    if (!biz) return;
+    const newStatus = biz.verificationStatus === "HIGH_CONFIDENCE" ? "AGENT_VERIFIED" : "HIGH_CONFIDENCE";
+
+    // Update server PostgreSQL database
+    try {
+      await fetch("/api/admin", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "TOGGLE_VERIFICATION",
+          businessId: bizId,
+          verificationStatus: biz.verificationStatus,
+        }),
+      });
+    } catch (err) {
+      console.warn("[Admin PATCH verification error]:", err);
+    }
+
+    // Update store and local state
+    store.updateBusinessVerification(bizId, newStatus);
+    setBusinesses(businesses.map((b) => (b.id === bizId ? { ...b, verificationStatus: newStatus } : b)));
+    fetchAdminData();
+  };
+
+  const handleResolveReport = async (reportId: string, status: "RESOLVED" | "DISMISSED") => {
+    try {
+      await fetch("/api/admin", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "RESOLVE_REPORT",
+          reportId,
+          status,
+        }),
+      });
+    } catch (err) {
+      console.warn("[Admin PATCH report error]:", err);
+    }
+
     store.updateReportStatus(reportId, status);
-    setReports([...store.getReports()]);
+    setReports(reports.map((r) => (r.id === reportId ? { ...r, status } : r)));
   };
 
   const filteredBusinesses = businesses.filter((b) =>
@@ -58,9 +181,34 @@ export default function AdminPanelPage() {
     b.location.community.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const isPermittedAdmin = user?.role === "SUPER_ADMIN" || user?.role === "COMMUNITY_ADMIN" || user?.role === "MODERATOR";
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       
+      {/* Role Check Notice if Not Admin */}
+      {!isPermittedAdmin && (
+        <div className="mb-6 p-4 rounded-2xl bg-amber-50 border border-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <Lock className="w-5 h-5 text-amber-600 shrink-0" />
+            <div>
+              <div className="font-bold text-sm text-amber-900">
+                Viewing in {user?.role.replace("_", " ") || "Guest"} Mode
+              </div>
+              <div className="text-xs text-amber-700">
+                To test administrator actions and database verification updates, switch to Super Admin or Community Admin.
+              </div>
+            </div>
+          </div>
+          <button
+            onClick={() => switchDemoRole("SUPER_ADMIN")}
+            className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl shadow-xs transition-colors shrink-0"
+          >
+            Switch to Super Admin
+          </button>
+        </div>
+      )}
+
       {/* Top Banner */}
       <div className="bg-slate-900 rounded-3xl p-6 sm:p-8 text-white shadow-elevated mb-8 flex flex-col md:flex-row md:items-center justify-between gap-6 border border-slate-800">
         <div className="space-y-2">
@@ -97,10 +245,11 @@ export default function AdminPanelPage() {
       {/* Tabs */}
       <div className="flex items-center gap-2 border-b border-slate-200 pb-3 mb-6 overflow-x-auto no-scrollbar">
         {[
-          { id: "businesses", label: t.admin.tabs.businesses, count: businesses.length, icon: Store },
+          { id: "businesses", label: t.admin.tabs.businesses, count: businesses.length, icon: StoreIcon },
           { id: "captures", label: t.admin.tabs.ocrCaptures, count: captures.length, icon: FileText },
           { id: "reports", label: t.admin.tabs.moderation, count: reports.length, icon: AlertTriangle },
           { id: "demands", label: t.admin.tabs.demand, count: demands.length, icon: TrendingUp },
+          { id: "audit", label: "Audit & Governance", count: auditLogs.length, icon: History },
         ].map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -129,63 +278,65 @@ export default function AdminPanelPage() {
 
       {/* Businesses Tab */}
       {activeTab === "businesses" && (
-        <div className="bg-white rounded-3xl border border-slate-200 shadow-card p-6 space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
-            <div className="relative flex-1 max-w-sm">
+        <div className="space-y-4">
+          <div className="flex items-center justify-between gap-4">
+            <div className="relative flex-1 max-w-md">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
               <input
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Search businesses by name or community..."
-                className="w-full pl-9 pr-4 py-2 bg-slate-50 rounded-xl border border-slate-300 text-xs outline-none"
+                placeholder="Search registered local businesses..."
+                className="w-full pl-9 pr-4 py-2 text-xs rounded-xl border border-slate-200 bg-white focus:outline-hidden focus:border-emerald-500"
               />
-              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
             </div>
-
-            <span className="text-xs text-slate-500">
-              Showing {filteredBusinesses.length} of {businesses.length} businesses
-            </span>
+            <button
+              onClick={fetchAdminData}
+              className="p-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 transition-colors"
+              title="Refresh database records"
+            >
+              <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin text-emerald-600" : ""}`} />
+            </button>
           </div>
 
-          <div className="divide-y divide-slate-100 overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead>
-                <tr className="text-slate-400 uppercase font-semibold text-[10px]">
-                  <th className="py-2.5">Business</th>
-                  <th className="py-2.5">Category</th>
-                  <th className="py-2.5">Location</th>
-                  <th className="py-2.5">Status</th>
-                  <th className="py-2.5">Items</th>
-                  <th className="py-2.5 text-right">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 font-medium">
-                {filteredBusinesses.map((b) => (
-                  <tr key={b.id} className="hover:bg-slate-50/80 transition-colors">
-                    <td className="py-3">
-                      <Link href={`/business/${b.id}`} className="font-bold text-slate-900 hover:text-emerald-700">
-                        {b.name}
-                      </Link>
-                      <div className="text-[10px] text-slate-400">{b.phone}</div>
-                    </td>
-                    <td className="py-3 text-slate-600">{b.categoryDisplay}</td>
-                    <td className="py-3 text-slate-600">{b.location.community}, {b.location.cell}</td>
-                    <td className="py-3">
-                      <VerificationBadge status={b.verificationStatus} size="sm" />
-                    </td>
-                    <td className="py-3 text-slate-700 font-bold">{b.products.length}</td>
-                    <td className="py-3 text-right">
-                      <button
-                        onClick={() => handleToggleVerification(b.id)}
-                        className="px-2.5 py-1 text-[11px] font-bold rounded-lg border border-slate-200 hover:bg-slate-100 transition-colors cursor-pointer"
-                      >
-                        {b.verificationStatus === "HIGH_CONFIDENCE" ? "Downgrade" : "Promote Trust"}
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-card overflow-hidden">
+            <div className="divide-y divide-slate-100">
+              {filteredBusinesses.map((biz) => (
+                <div key={biz.id} className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-slate-50/50 transition-colors">
+                  <div className="flex items-start gap-3">
+                    <div className="w-12 h-12 rounded-xl bg-slate-100 overflow-hidden shrink-0 border border-slate-200">
+                      <img src={biz.coverImage} alt={biz.name} className="w-full h-full object-cover" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <Link href={`/business/${biz.id}`} className="font-bold text-slate-900 text-sm hover:text-emerald-700">
+                          {biz.name}
+                        </Link>
+                        <VerificationBadge status={biz.verificationStatus} />
+                      </div>
+                      <div className="text-xs text-slate-500 mt-0.5">
+                        {biz.category} • {biz.location.community} • Phone: {biz.phone}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 self-end sm:self-center">
+                    <button
+                      onClick={() => handleToggleVerification(biz.id)}
+                      className="px-3 py-1.5 rounded-lg border border-slate-200 hover:border-emerald-500 hover:bg-emerald-50 text-xs font-semibold text-slate-700 hover:text-emerald-700 transition-colors"
+                    >
+                      Toggle Verification
+                    </button>
+                    <Link
+                      href={`/business/${biz.id}`}
+                      className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-xs font-semibold text-slate-700 transition-colors"
+                    >
+                      View Live
+                    </Link>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       )}
@@ -194,22 +345,30 @@ export default function AdminPanelPage() {
       {activeTab === "captures" && (
         <div className="bg-white rounded-3xl border border-slate-200 shadow-card p-6 space-y-4">
           <h3 className="font-bold text-slate-900 text-base">
-            OCR & Physical Evidence Captures ({captures.length})
+            Physical OCR Extracted Records ({captures.length})
           </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-4">
             {captures.map((cap) => (
-              <div key={cap.id} className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2 text-xs">
-                <div className="flex items-center justify-between font-bold">
-                  <span className="text-slate-900">{cap.businessName}</span>
-                  <span className="text-emerald-700 font-semibold bg-emerald-50 px-2 py-0.5 rounded">
-                    ✓ {cap.status}
+              <div key={cap.id} className="p-4 rounded-2xl border border-slate-200 bg-slate-50/60 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-sm text-slate-900">{cap.businessName || "Local Merchant"}</span>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-semibold uppercase">
+                      {cap.documentType}
+                    </span>
+                    <span className="text-[10px] text-slate-400">Agent: {cap.agentName}</span>
+                  </div>
+                  <div className="text-xs text-slate-600">
+                    Extracted {cap.extractedItems?.length || 0} line items • Total: {cap.extractedTotal?.toLocaleString() || 0} RWF
+                  </div>
+                  <div className="text-[11px] text-slate-500 font-mono bg-white p-2 rounded-lg border border-slate-200 max-w-xl truncate">
+                    {cap.rawOcrText || "No raw text available"}
+                  </div>
+                </div>
+                <div className="shrink-0 flex items-center gap-2">
+                  <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-200">
+                    {cap.status}
                   </span>
-                </div>
-                <div className="text-slate-500 font-mono text-[11px]">
-                  Agent: {cap.agentName} • Type: {cap.documentType} • Total: {cap.extractedTotal?.toLocaleString() || 0} Frw
-                </div>
-                <div className="text-[10px] text-slate-400">
-                  Customer Phone & Card Data: Automatically Redacted (Safe Evidence Storage)
                 </div>
               </div>
             ))}
@@ -217,44 +376,42 @@ export default function AdminPanelPage() {
         </div>
       )}
 
-      {/* Moderation Queue Tab */}
+      {/* Reports Tab */}
       {activeTab === "reports" && (
         <div className="bg-white rounded-3xl border border-slate-200 shadow-card p-6 space-y-4">
           <h3 className="font-bold text-slate-900 text-base">
-            Community Reports & Moderation Queue
+            Community Moderation Queue ({reports.length})
           </h3>
-
           {reports.length === 0 ? (
-            <div className="text-center py-12 text-slate-400 text-xs">
-              <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto mb-2" />
-              <span>All clear! No pending community flags.</span>
+            <div className="text-center py-8 text-xs text-slate-500">
+              No open moderation reports in queue.
             </div>
           ) : (
-            <div className="divide-y divide-slate-100">
+            <div className="space-y-3">
               {reports.map((rep) => (
-                <div key={rep.id} className="py-3.5 flex items-center justify-between gap-4 text-xs">
-                  <div className="space-y-1">
+                <div key={rep.id} className="p-4 rounded-2xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="space-y-1 text-xs">
                     <div className="flex items-center gap-2">
                       <span className="font-bold text-slate-900">{rep.businessName}</span>
-                      <span className="text-[10px] font-bold px-2 py-0.2 rounded bg-red-100 text-red-800">
+                      <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-bold text-[10px]">
                         {rep.reason}
                       </span>
                     </div>
                     <p className="text-slate-600">{rep.details}</p>
-                    <div className="text-[10px] text-slate-400">Reported by: {rep.reportedBy} • Status: {rep.status}</div>
+                    <div className="text-[10px] text-slate-400">Reported by: {rep.reportedBy || "Resident"} • Status: {rep.status}</div>
                   </div>
 
                   {rep.status === "OPEN" && (
                     <div className="flex items-center gap-2 shrink-0">
                       <button
                         onClick={() => handleResolveReport(rep.id, "RESOLVED")}
-                        className="px-3 py-1 bg-emerald-600 text-white rounded-lg text-xs font-semibold"
+                        className="px-3 py-1 bg-emerald-600 text-white rounded-lg text-xs font-semibold hover:bg-emerald-700 transition-colors"
                       >
                         Resolve
                       </button>
                       <button
                         onClick={() => handleResolveReport(rep.id, "DISMISSED")}
-                        className="px-3 py-1 bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold"
+                        className="px-3 py-1 bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold hover:bg-slate-300 transition-colors"
                       >
                         Dismiss
                       </button>
@@ -278,7 +435,7 @@ export default function AdminPanelPage() {
               <div key={d.id} className="py-3 flex items-center justify-between text-xs">
                 <div>
                   <div className="font-bold text-slate-900">"{d.queryTerm}"</div>
-                  <div className="text-slate-500">{d.description}</div>
+                  <div className="text-slate-500">{d.description || `${d.cell}, ${d.sector}`}</div>
                 </div>
                 <div className="text-right">
                   <div className="font-bold text-amber-600">{d.searchCount} searches</div>
@@ -287,6 +444,49 @@ export default function AdminPanelPage() {
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* Audit & Governance Tab */}
+      {activeTab === "audit" && (
+        <div className="bg-white rounded-3xl border border-slate-200 shadow-card p-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="font-bold text-slate-900 text-base">
+              PostgreSQL Immutable Audit Trail ({auditLogs.length})
+            </h3>
+            <span className="text-xs text-slate-500 font-medium">
+              Permanent Event Log
+            </span>
+          </div>
+
+          {auditLogs.length === 0 ? (
+            <div className="text-center py-8 text-xs text-slate-500">
+              No audit logs recorded yet. Perform actions like OTP login, verification, or review creation to populate audit records.
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {auditLogs.map((log) => (
+                <div key={log.id} className="p-3 rounded-xl border border-slate-100 bg-slate-50 flex items-center justify-between text-xs">
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded text-[10px] uppercase">
+                        {log.action}
+                      </span>
+                      <span className="font-medium text-slate-800">{log.entityType}: {log.entityId}</span>
+                    </div>
+                    <div className="text-[11px] text-slate-500">
+                      Actor: {log.actor?.name || "System"} ({log.actor?.role || "SYSTEM"}) • {new Date(log.createdAt).toLocaleString()}
+                    </div>
+                  </div>
+                  {log.metadata && (
+                    <span className="text-[10px] font-mono text-slate-400 max-w-xs truncate">
+                      {log.metadata}
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

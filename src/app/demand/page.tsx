@@ -23,11 +23,26 @@ export default function DemandRadarPage() {
   const [selectedCell, setSelectedCell] = useState("all");
 
   useEffect(() => {
-    let list = store.getDemands();
-    if (selectedCell !== "all") {
-      list = list.filter((d) => d.cell.toLowerCase().includes(selectedCell.toLowerCase()));
+    async function loadDemands() {
+      try {
+        const url = selectedCell !== "all" ? `/api/demand?cell=${encodeURIComponent(selectedCell)}` : "/api/demand";
+        const res = await fetch(url);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.demands && data.demands.length > 0) {
+            setDemands(data.demands);
+            return;
+          }
+        }
+      } catch {}
+
+      let list = store.getDemands();
+      if (selectedCell !== "all") {
+        list = list.filter((d) => d.cell.toLowerCase().includes(selectedCell.toLowerCase()));
+      }
+      setDemands(list);
     }
-    setDemands(list);
+    loadDemands();
   }, [selectedCell]);
 
   return (

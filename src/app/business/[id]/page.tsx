@@ -65,7 +65,7 @@ export default function BusinessProfilePage({ params }: { params: Promise<{ id: 
     );
   }
 
-  const handleAddReview = (e: React.FormEvent) => {
+  const handleAddReview = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newComment.trim()) return;
 
@@ -81,9 +81,26 @@ export default function BusinessProfilePage({ params }: { params: Promise<{ id: 
 
     setReviews([rev, ...reviews]);
     setNewComment("");
+
+    // Persist to PostgreSQL database
+    try {
+      await fetch("/api/reviews", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          businessId: business.id,
+          userName: user?.name || "Verified Resident",
+          userRole: user?.role || "CUSTOMER",
+          rating: newRating,
+          comment: newComment,
+        }),
+      });
+    } catch (err) {
+      console.warn("[Review POST DB sync error]:", err);
+    }
   };
 
-  const handleReportSubmit = (e: React.FormEvent) => {
+  const handleReportSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     store.submitReport({
       businessId: business.id,
@@ -93,6 +110,22 @@ export default function BusinessProfilePage({ params }: { params: Promise<{ id: 
       details: reportDetails,
     });
     setReportSubmitted(true);
+
+    // Persist to PostgreSQL database
+    try {
+      await fetch("/api/reports", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          businessId: business.id,
+          reason: reportReason,
+          details: reportDetails,
+        }),
+      });
+    } catch (err) {
+      console.warn("[Report POST DB sync error]:", err);
+    }
+
     setTimeout(() => {
       setReportModalOpen(false);
       setReportSubmitted(false);

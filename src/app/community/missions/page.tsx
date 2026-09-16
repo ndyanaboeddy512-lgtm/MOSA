@@ -27,13 +27,37 @@ export default function MissionsPage() {
   const [completedMissionId, setCompletedMissionId] = useState<string | null>(null);
 
   useEffect(() => {
-    setMissions(store.getMissions());
+    async function loadMissions() {
+      try {
+        const res = await fetch("/api/missions");
+        if (res.ok) {
+          const data = await res.json();
+          if (data.missions && data.missions.length > 0) {
+            setMissions(data.missions);
+            return;
+          }
+        }
+      } catch {}
+      setMissions(store.getMissions());
+    }
+    loadMissions();
   }, []);
 
-  const handleAcceptMission = (missionId: string) => {
+  const handleAcceptMission = async (missionId: string) => {
     store.completeMission(missionId);
     setCompletedMissionId(missionId);
     setMissions([...store.getMissions()]);
+
+    try {
+      await fetch("/api/missions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ missionId }),
+      });
+    } catch (err) {
+      console.warn("[Mission completion DB sync error]:", err);
+    }
+
     setTimeout(() => {
       setCompletedMissionId(null);
     }, 3000);

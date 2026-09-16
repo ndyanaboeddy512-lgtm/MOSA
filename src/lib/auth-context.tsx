@@ -25,8 +25,8 @@ export const DEMO_USERS: Record<Role, DemoUser> = {
     badges: ["Super Administrator", "Governance Lead"],
   },
   COMMUNITY_ADMIN: {
-    id: "user-comm-admin",
     name: "Patrick Ndayisaba",
+    id: "user-comm-admin",
     role: "COMMUNITY_ADMIN",
     phone: "+250788000002",
     community: "Nyamirambo Sector",
@@ -75,48 +75,80 @@ export const DEMO_USERS: Record<Role, DemoUser> = {
 
 interface AuthContextType {
   user: UserSession | null;
-  switchDemoRole: (role: Role) => void;
+  switchDemoRole: (role: Role) => Promise<void>;
   loginWithPhone: (phone: string, role?: Role) => Promise<{ success: boolean; otp: string }>;
-  verifyOtp: (code: string) => boolean;
-  logout: () => void;
+  verifyOtp: (code: string) => Promise<boolean>;
+  logout: () => Promise<void>;
   isAuthenticated: boolean;
 }
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
-  switchDemoRole: () => {},
+  switchDemoRole: async () => {},
   loginWithPhone: async () => ({ success: true, otp: "1234" }),
-  verifyOtp: () => true,
-  logout: () => {},
+  verifyOtp: async () => true,
+  logout: async () => {},
   isAuthenticated: false,
 });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  // Default to Community Agent for rich out-of-the-box experience or Customer
   const [user, setUser] = useState<UserSession | null>(null);
   const [pendingPhone, setPendingPhone] = useState<string | null>(null);
-  const [expectedOtp, setExpectedOtp] = useState<string>("1234");
+  const [expectedOtp, setExpectedOtp] = useState<string>("7294");
 
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem("mosa_user_session");
-      if (saved) {
-        setUser(JSON.parse(saved));
-      } else {
-        // Initialize with Community Agent so full functionality is immediately accessible
-        const defaultUser = {
-          ...DEMO_USERS.COMMUNITY_AGENT,
-          referralCode: "MOSA-BIR-77",
-        };
-        setUser(defaultUser);
-        localStorage.setItem("mosa_user_session", JSON.stringify(defaultUser));
+    async function initAuth() {
+      // 1. Check if server already has active session cookie
+      try {
+        const res = await fetch("/api/auth/me");
+        if (res.ok) {
+          const data = await res.json();
+          if (data.user) {
+            setUser(data.user);
+            localStorage.setItem("mosa_user_session", JSON.stringify(data.user));
+            return;
+          }
+        }
+      } catch {
+        // Fallback to local
       }
-    } catch {
-      setUser(null);
+
+      // 2. Check local storage
+      try {
+        const saved = localStorage.getItem("mosa_user_session");
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          setUser(parsed);
+          // Sync server cookie in background
+          fetch("/api/auth/demo-switch", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ role: parsed.role }),
+          }).catch(() => {});
+          return;
+        }
+      } catch {
+        // Continue to default
+      }
+
+      // 3. Default to Community Agent for rich out-of-the-box experience
+      const defaultUser = {
+        ...DEMO_USERS.COMMUNITY_AGENT,
+        referralCode: "MOSA-BIR-77",
+      };
+      setUser(defaultUser);
+      localStorage.setItem("mosa_user_session", JSON.stringify(defaultUser));
+      fetch("/api/auth/demo-switch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role: "COMMUNITY_AGENT" }),
+      }).catch(() => {});
     }
+
+    initAuth();
   }, []);
 
-  const switchDemoRole = (role: Role) => {
+  const switchDemoRole = async (role: Role) => {
     const demo = DEMO_USERS[role];
     const session: UserSession = {
       ...demo,
@@ -126,17 +158,64 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (typeof window !== "undefined") {
       localStorage.setItem("mosa_user_session", JSON.stringify(session));
     }
+
+    // Set server HTTP-only cookie and PostgreSQL session
+    try {
+      await fetch("/api/auth/demo-switch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role }),
+      });
+    } catch (err) {
+      console.warn("[Demo switch server sync error]:", err);
+    }
   };
 
   const loginWithPhone = async (phone: string, role: Role = "CUSTOMER") => {
     setPendingPhone(phone);
-    const mockOtp = "7294"; // Deterministic demo OTP
-    setExpectedOtp(mockOtp);
-    return { success: true, otp: mockOtp };
+
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone, role }),
+      });
+      const data = await res.json();
+      const code = data.code || "7294";
+      setExpectedOtp(code);
+      return { success: true, otp: code };
+    } catch {
+      const mockOtp = "7294";
+      setExpectedOtp(mockOtp);
+      return { success: true, otp: mockOtp };
+    }
   };
 
-  const verifyOtp = (code: string) => {
-    if (code === expectedOtp || code === "1234" || code.length === 4) {
+  const verifyOtp = async (code: string): Promise<boolean> => {
+    try {
+      const res = await fetch("/api/auth/otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          phone: pendingPhone || "+250788999888",
+          code,
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.user) {
+          setUser(data.user);
+          localStorage.setItem("mosa_user_session", JSON.stringify(data.user));
+          return true;
+        }
+      }
+    } catch (err) {
+      console.warn("[Verify OTP server error, using fallback]:", err);
+    }
+
+    // Dev fallback if offline
+    if (code === expectedOtp || code === "1234" || code === "7294" || code.length === 4) {
       const session: UserSession = {
         id: `user-${Date.now()}`,
         name: "Verified Resident",
@@ -156,7 +235,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return false;
   };
 
-  const logout = () => {
+  const logout = async () => {
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+    } catch {}
     setUser(null);
     if (typeof window !== "undefined") {
       localStorage.removeItem("mosa_user_session");

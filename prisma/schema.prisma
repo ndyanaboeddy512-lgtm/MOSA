@@ -1,5 +1,5 @@
 // MOSA Database Schema
-// Scalable relational architecture supporting PostgreSQL / Supabase / Neon / SQLite
+// Scalable relational architecture supporting PostgreSQL / Neon / Supabase
 
 datasource db {
   provider = "postgresql"
@@ -59,12 +59,16 @@ model User {
   id              String         @id @default(cuid())
   phone           String         @unique
   name            String
+  passwordHash    String?
   role            Role           @default(CUSTOMER)
+  language        String         @default("rw") // rw, en, fr, sw
   community       String?
   assignedCell    String?
   points          Int            @default(0)
+  badges          String[]       @default([])
   referralCode    String         @unique
   referredById    String?
+  status          String         @default("ACTIVE") // ACTIVE, SUSPENDED
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
 
@@ -76,6 +80,35 @@ model User {
   reports         Report[]
   auditLogs       AuditLog[]
   notifications   Notification[]
+  sessions        Session[]
+  claims          BusinessClaim[]
+
+  @@index([phone])
+  @@index([role])
+}
+
+model Session {
+  id           String    @id @default(cuid())
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token        String    @unique
+  expiresAt    DateTime
+  createdAt    DateTime  @default(now())
+
+  @@index([token])
+  @@index([userId])
+}
+
+model OtpVerification {
+  id           String    @id @default(cuid())
+  phone        String
+  code         String
+  attempts     Int       @default(0)
+  expiresAt    DateTime
+  createdAt    DateTime  @default(now())
+
+  @@index([phone])
+  @@index([createdAt])
 }
 
 model Community {
@@ -93,15 +126,24 @@ model Community {
 
   businesses   Business[]
   demands      CommunityDemand[]
+
+  @@index([cell])
+  @@index([sector])
 }
 
 model Business {
   id                 String             @id @default(cuid())
   name               String
   nameRw             String?
+  nameFr             String?
+  nameSw             String?
   category           String
+  categoryDisplay    String             @default("General")
+  categoryDisplayRw  String             @default("Rusange")
   description        String
   descriptionRw      String?
+  descriptionFr      String?
+  descriptionSw      String?
   phone              String
   whatsapp           String?
   communityId        String?
@@ -116,6 +158,7 @@ model Business {
   isOpenNow          Boolean            @default(true)
   coverImage         String?
   priceRange         String             @default("MODERATE")
+  status             String             @default("ACTIVE") // ACTIVE, SUSPENDED, PENDING
   viewsCount         Int                @default(0)
   contactClicksCount Int                @default(0)
   searchCount        Int                @default(0)
@@ -138,16 +181,27 @@ model Business {
   offers             Offer[]
   claims             BusinessClaim[]
   viewEvents         BusinessViewEvent[]
+
+  @@index([category])
+  @@index([cell])
+  @@index([verificationStatus])
+  @@index([status])
+  @@index([updatedAt])
+  @@index([isOpenNow])
 }
 
 model BusinessClaim {
   id          String    @id @default(cuid())
   businessId  String
-  business    Business  @relation(fields: [businessId], references: [id])
+  business    Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
   userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   claimPhone  String
   status      String    @default("PENDING") // PENDING, APPROVED, REJECTED
   claimedAt   DateTime  @default(now())
+
+  @@index([businessId])
+  @@index([userId])
 }
 
 model Product {
@@ -156,6 +210,8 @@ model Product {
   business        Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
   name            String
   nameRw          String?
+  nameFr          String?
+  nameSw          String?
   description     String?
   price           Float
   currency        String        @default("RWF")
@@ -170,6 +226,9 @@ model Product {
 
   receiptItemId   String?       @unique
   receiptItem     ReceiptItem?  @relation(fields: [receiptItemId], references: [id])
+
+  @@index([businessId])
+  @@index([category])
 }
 
 model BusinessHour {
@@ -181,6 +240,8 @@ model BusinessHour {
   open        String
   close       String
   isClosed    Boolean   @default(false)
+
+  @@index([businessId])
 }
 
 model BusinessMedia {
@@ -191,6 +252,8 @@ model BusinessMedia {
   caption     String?
   isCover     Boolean   @default(false)
   createdAt   DateTime  @default(now())
+
+  @@index([businessId])
 }
 
 model ReceiptCapture {
@@ -212,6 +275,10 @@ model ReceiptCapture {
   verifiedAt       DateTime?
 
   items            ReceiptItem[]
+
+  @@index([agentId])
+  @@index([businessId])
+  @@index([status])
 }
 
 model ReceiptItem {
@@ -225,6 +292,8 @@ model ReceiptItem {
   confidence   Float           @default(0.9)
   
   product      Product?
+
+  @@index([captureId])
 }
 
 model VerificationRecord {
@@ -236,6 +305,9 @@ model VerificationRecord {
   type        String    // AGENT_AUDIT, LOCATION_GPS, COMMUNITY_CONFIRMATION, OWNER_CLAIM
   notes       String?
   createdAt   DateTime  @default(now())
+
+  @@index([businessId])
+  @@index([userId])
 }
 
 model Review {
@@ -249,6 +321,9 @@ model Review {
   commentRw     String?
   verifiedVisit Boolean   @default(true)
   createdAt     DateTime  @default(now())
+
+  @@index([businessId])
+  @@index([userId])
 }
 
 model Report {
@@ -261,6 +336,9 @@ model Report {
   details     String
   status      ReportStatus  @default(OPEN)
   createdAt   DateTime      @default(now())
+
+  @@index([businessId])
+  @@index([status])
 }
 
 model Offer {
@@ -272,6 +350,8 @@ model Offer {
   discount    String
   validUntil  DateTime
   createdAt   DateTime  @default(now())
+
+  @@index([businessId])
 }
 
 model Mission {
@@ -284,7 +364,10 @@ model Mission {
   pointsReward Int
   badgeReward String?
   category    String
+  isCompleted Boolean   @default(false)
   createdAt   DateTime  @default(now())
+
+  @@index([targetArea])
 }
 
 model CommunityDemand {
@@ -295,19 +378,25 @@ model CommunityDemand {
   cell                  String
   category              String
   queryTerm             String
+  queryTermRw           String?
   searchCount           Int         @default(1)
   activeBusinessesCount Int         @default(0)
   opportunityScore      String      @default("HIGH")
   updatedAt             DateTime    @updatedAt
+
+  @@index([cell])
+  @@index([opportunityScore])
 }
 
 model SearchEvent {
-  id          String    @id @default(cuid())
-  query       String
-  sector      String?
-  cell        String?
-  resultsCount Int
-  createdAt   DateTime  @default(now())
+  id           String    @id @default(cuid())
+  query        String
+  sector       String?
+  cell         String?
+  resultsCount Int       @default(0)
+  createdAt    DateTime  @default(now())
+
+  @@index([createdAt])
 }
 
 model BusinessViewEvent {
@@ -316,6 +405,8 @@ model BusinessViewEvent {
   business    Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
   referrer    String?
   createdAt   DateTime  @default(now())
+
+  @@index([businessId])
 }
 
 model Notification {
@@ -326,15 +417,23 @@ model Notification {
   message   String
   isRead    Boolean   @default(false)
   createdAt DateTime  @default(now())
+
+  @@index([userId])
 }
 
 model AuditLog {
-  id        String    @id @default(cuid())
-  userId    String?
-  user      User?     @relation(fields: [userId], references: [id])
-  action    String
-  entity    String
-  entityId  String
-  metadata  String?
-  createdAt DateTime  @default(now())
+  id          String    @id @default(cuid())
+  actorId     String?
+  actor       User?     @relation(fields: [actorId], references: [id])
+  action      String
+  entityType  String
+  entityId    String
+  metadata    String?   // JSON representation of changes/context
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime  @default(now())
+
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  @@index([actorId])
 }

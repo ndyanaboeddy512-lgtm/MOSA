@@ -135,28 +135,29 @@ export function Navbar() {
               </span>
             </Link>
 
-            {/* Language Switcher */}
+            {/* 4-Language Switcher */}
             <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200">
-              <button
-                onClick={() => setLang("rw")}
-                className={`px-2 py-1 text-xs font-semibold rounded-md transition-all ${
-                  lang === "rw"
-                    ? "bg-white text-emerald-700 shadow-xs"
-                    : "text-slate-500 hover:text-slate-900"
-                }`}
-              >
-                RW
-              </button>
-              <button
-                onClick={() => setLang("en")}
-                className={`px-2 py-1 text-xs font-semibold rounded-md transition-all ${
-                  lang === "en"
-                    ? "bg-white text-emerald-700 shadow-xs"
-                    : "text-slate-500 hover:text-slate-900"
-                }`}
-              >
-                EN
-              </button>
+              {(
+                [
+                  { code: "rw", label: "RW", flag: "🇷🇼", title: "Kinyarwanda" },
+                  { code: "en", label: "EN", flag: "🇬🇧", title: "English" },
+                  { code: "fr", label: "FR", flag: "🇫🇷", title: "Français" },
+                  { code: "sw", label: "SW", flag: "🇹🇿", title: "Kiswahili" },
+                ] as const
+              ).map((l) => (
+                <button
+                  key={l.code}
+                  onClick={() => setLang(l.code)}
+                  title={l.title}
+                  className={`px-1.5 sm:px-2 py-1 text-[11px] sm:text-xs font-bold rounded-md transition-all ${
+                    lang === l.code
+                      ? "bg-white text-emerald-700 shadow-xs"
+                      : "text-slate-500 hover:text-slate-900"
+                  }`}
+                >
+                  {l.label}
+                </button>
+              ))}
             </div>
 
             {/* Demo Persona Switcher */}
@@ -241,6 +242,33 @@ export function Navbar() {
             >
               Change
             </button>
+          </div>
+
+          {/* Mobile Language Selector */}
+          <div className="py-2.5 border-b border-slate-100 flex items-center justify-between">
+            <span className="text-xs font-semibold text-slate-500">Language:</span>
+            <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+              {(
+                [
+                  { code: "rw", label: "RW 🇷🇼" },
+                  { code: "en", label: "EN 🇬🇧" },
+                  { code: "fr", label: "FR 🇫🇷" },
+                  { code: "sw", label: "SW 🇹🇿" },
+                ] as const
+              ).map((l) => (
+                <button
+                  key={l.code}
+                  onClick={() => setLang(l.code)}
+                  className={`px-2 py-1 text-xs font-bold rounded-md transition-all ${
+                    lang === l.code
+                      ? "bg-white text-emerald-700 shadow-xs"
+                      : "text-slate-500 hover:text-slate-900"
+                  }`}
+                >
+                  {l.label}
+                </button>
+              ))}
+            </div>
           </div>
 
           {navLinks.map((link) => {

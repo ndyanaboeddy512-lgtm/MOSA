@@ -30,9 +30,9 @@ export default function LoginPage() {
     setStep("otp");
   };
 
-  const handleOtpSubmit = (e: React.FormEvent) => {
+  const handleOtpSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const ok = verifyOtp(otp);
+    const ok = await verifyOtp(otp);
     if (ok) {
       router.push("/");
     } else {

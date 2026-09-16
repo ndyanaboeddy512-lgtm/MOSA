@@ -27,14 +27,32 @@ export default function ExplorePage() {
   const [selectedPin, setSelectedPin] = useState<Business | null>(null);
 
   useEffect(() => {
-    let list = store.getBusinesses({ category: selectedCategory });
-    if (selectedCell !== "all") {
-      list = list.filter((b) => b.location.cell.toLowerCase().includes(selectedCell.toLowerCase()));
+    async function loadBusinesses() {
+      try {
+        const params = new URLSearchParams();
+        if (selectedCategory !== "all") params.set("category", selectedCategory);
+        if (selectedCell !== "all") params.set("cell", selectedCell);
+        const res = await fetch(`/api/businesses?${params.toString()}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.businesses && data.businesses.length > 0) {
+            setBusinesses(data.businesses);
+            if (!selectedPin) setSelectedPin(data.businesses[0]);
+            return;
+          }
+        }
+      } catch {}
+
+      let list = store.getBusinesses({ category: selectedCategory });
+      if (selectedCell !== "all") {
+        list = list.filter((b) => b.location.cell.toLowerCase().includes(selectedCell.toLowerCase()));
+      }
+      setBusinesses(list);
+      if (list.length > 0 && !selectedPin) {
+        setSelectedPin(list[0]);
+      }
     }
-    setBusinesses(list);
-    if (list.length > 0 && !selectedPin) {
-      setSelectedPin(list[0]);
-    }
+    loadBusinesses();
   }, [selectedCategory, selectedCell]);
 
   return (
