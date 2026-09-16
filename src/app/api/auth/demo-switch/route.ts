@@ -71,6 +71,19 @@ export async function POST(request: Request) {
       );
     }
 
+    // Production Security Guard:
+    // Prohibit privilege escalation via unauthenticated demo-switch in production
+    // unless explicitly permitted via ENABLE_DEMO_SWITCH=true for staging evaluations.
+    if (
+      process.env.NODE_ENV === "production" &&
+      process.env.ENABLE_DEMO_SWITCH !== "true"
+    ) {
+      return NextResponse.json(
+        { error: "Demo role switching is disabled in production. Authenticate via verified phone OTP." },
+        { status: 403 }
+      );
+    }
+
     // Upsert demo user in PostgreSQL database
     let user;
     try {

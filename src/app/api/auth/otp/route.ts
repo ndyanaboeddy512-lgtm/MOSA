@@ -37,7 +37,7 @@ export async function POST(request: Request) {
       create: {
         phone: cleanPhone,
         name: name || `Resident ${cleanPhone.slice(-4)}`,
-        role: (role as Role) || Role.CUSTOMER,
+        role: (role === "SUPER_ADMIN" || role === "COMMUNITY_ADMIN") ? Role.CUSTOMER : ((role as Role) || Role.CUSTOMER),
         referralCode,
         language: "rw",
         community: "Nyamirambo",
