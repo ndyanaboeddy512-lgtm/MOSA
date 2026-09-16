@@ -5,8 +5,8 @@ import Link from "next/link";
 import { Business } from "@/types";
 import { useLanguage } from "@/lib/i18n";
 import { store } from "@/lib/store";
-import { VerificationBadge } from "@/components/common/Badge";
-import { MapPin, Phone, MessageCircle, Clock, ChevronRight } from "lucide-react";
+import { VerificationBadge, DataStatusBadge } from "@/components/common/Badge";
+import { MapPin, Phone, MessageCircle, Clock, ChevronRight, Tag } from "lucide-react";
 
 interface BusinessCardProps {
   business: Business;
@@ -22,6 +22,7 @@ export function BusinessCard({ business }: BusinessCardProps) {
 
   const displayName = lang === "rw" && business.nameRw ? business.nameRw : business.name;
   const displayCategory = lang === "rw" && business.categoryDisplayRw ? business.categoryDisplayRw : business.categoryDisplay;
+  const locationLabel = (business as any).localArea?.name || (business as any).addressNote || (business as any).cell || (business as any).sector || "Rwanda";
 
   return (
     <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-card hover:shadow-elevated transition-all duration-200 flex flex-col group">
@@ -36,8 +37,11 @@ export function BusinessCard({ business }: BusinessCardProps) {
         <div className="absolute inset-0 bg-gradient-to-t from-slate-900/60 via-transparent to-transparent" />
 
         {/* Top Badges */}
-        <div className="absolute top-3 left-3 right-3 flex items-center justify-between">
-          <VerificationBadge status={business.verificationStatus} size="sm" />
+        <div className="absolute top-3 left-3 right-3 flex items-center justify-between gap-1 flex-wrap">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <VerificationBadge status={business.verificationStatus} size="sm" />
+            <DataStatusBadge status={business.dataStatus} size="sm" />
+          </div>
           
           <span
             className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-full backdrop-blur-md shadow-xs ${
@@ -70,9 +74,9 @@ export function BusinessCard({ business }: BusinessCardProps) {
             <span className="font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded">
               {displayCategory}
             </span>
-            <span className="flex items-center gap-1 text-slate-500">
-              <MapPin className="w-3 h-3 text-slate-400" />
-              {business.location?.community || (business as any).cell || "Nyamirambo"}
+            <span className="flex items-center gap-1 text-slate-500 max-w-[50%] truncate" title={locationLabel}>
+              <MapPin className="w-3 h-3 text-emerald-600 shrink-0" />
+              <span className="truncate font-medium">{locationLabel}</span>
             </span>
           </div>
 
@@ -86,11 +90,25 @@ export function BusinessCard({ business }: BusinessCardProps) {
             {lang === "rw" && business.descriptionRw ? business.descriptionRw : business.description}
           </p>
 
-          {/* Sample Verified Price Items */}
+          {/* Estimated Price Range Banner for DEMO records */}
+          {business.priceRangeMin && business.priceRangeMax && (
+            <div className="mt-2.5 flex items-center gap-1.5 text-xs text-amber-900 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-lg">
+              <Tag className="w-3 h-3 text-amber-700 shrink-0" />
+              <span className="text-[11px] font-semibold">
+                {lang === "rw" ? "Igiciro Giteganyijwe:" : "Estimated Range:"}{" "}
+                <strong>{business.priceRangeMin.toLocaleString()} – {business.priceRangeMax.toLocaleString()} Frw</strong>
+              </span>
+            </div>
+          )}
+
+          {/* Sample Prices */}
           {business.products && business.products.length > 0 && (
             <div className="mt-3 pt-2.5 border-t border-slate-100 space-y-1.5">
-              <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
-                {lang === "rw" ? "Ibiciro Byemejwe" : "Sample Verified Prices"}
+              <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider flex items-center justify-between">
+                <span>{business.dataStatus === "DEMO" ? (lang === "rw" ? "Ibiciro Biteganyijwe" : "Sample Estimated Prices") : (lang === "rw" ? "Ibiciro Byemejwe" : "Sample Verified Prices")}</span>
+                {business.dataStatus === "DEMO" && (
+                  <span className="text-[9px] text-amber-700 bg-amber-100 px-1.5 py-0.2 rounded font-bold">ESTIMATED</span>
+                )}
               </div>
               <div className="space-y-1">
                 {business.products.slice(0, 2).map((prod) => (
@@ -99,7 +117,11 @@ export function BusinessCard({ business }: BusinessCardProps) {
                       {lang === "rw" && prod.nameRw ? prod.nameRw : prod.name}
                     </span>
                     <span className="font-bold text-slate-900 shrink-0">
-                      {prod.price.toLocaleString()} Frw
+                      {prod.isEstimated || prod.priceType === "ESTIMATED" ? "~" : ""}
+                      {prod.priceMin && prod.priceMax
+                        ? `${prod.priceMin.toLocaleString()} - ${prod.priceMax.toLocaleString()} Frw`
+                        : `${prod.price.toLocaleString()} Frw`}
+                      {(prod.isEstimated || prod.priceType === "ESTIMATED") && <span className="text-[10px] text-slate-500 ml-1 font-normal">(Est.)</span>}
                     </span>
                   </div>
                 ))}

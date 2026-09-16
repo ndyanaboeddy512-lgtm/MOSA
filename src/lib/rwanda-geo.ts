@@ -97,6 +97,34 @@ export const RWANDA_HIERARCHY: Record<string, ProvinceNode> = {
         name: "Gasabo",
         nameRw: "Gasabo",
         sectors: {
+          kacyiru: {
+            name: "Kacyiru",
+            nameRw: "Kacyiru",
+            cells: {
+              kamutwa: {
+                name: "Kamutwa",
+                nameRw: "Kamutwa",
+                communities: [
+                  { name: "MINAGRI Area (KG 569 St)", nameRw: "Ahegereye MINAGRI (KG 569 St)", code: "kacyiru_minagri", lat: -1.942, lng: 30.088 },
+                  { name: "Kamutwa Center", nameRw: "Kamutwa Rwagakoco", code: "kamutwa_center", lat: -1.945, lng: 30.085 },
+                ],
+              },
+              kibaza: {
+                name: "Kibaza",
+                nameRw: "Kibaza",
+                communities: [
+                  { name: "Kibaza Hill", nameRw: "Kibaza", code: "kibaza_hill", lat: -1.948, lng: 30.092 },
+                ],
+              },
+              kamatamu: {
+                name: "Kamatamu",
+                nameRw: "Kamatamu",
+                communities: [
+                  { name: "Kamatamu Valley", nameRw: "Kamatamu", code: "kamatamu_valley", lat: -1.941, lng: 30.095 },
+                ],
+              },
+            },
+          },
           kimironko: {
             name: "Kimironko",
             nameRw: "Kimironko",
@@ -140,8 +168,11 @@ export const RWANDA_HIERARCHY: Record<string, ProvinceNode> = {
 export const POPULAR_COMMUNITIES = [
   { id: "cosmos", name: "Cosmos, Nyamirambo", sector: "Nyamirambo", cell: "Biryogo", count: 18 },
   { id: "biryogo_car_free", name: "Biryogo Car-Free Zone", sector: "Nyamirambo", cell: "Biryogo", count: 24 },
+  { id: "kacyiru_minagri", name: "MINAGRI Area (KG 569 St), Kacyiru", sector: "Kacyiru", cell: "Kamutwa", count: 8 },
   { id: "tapi_rouge", name: "Tapi Rouge", sector: "Nyamirambo", cell: "Rwezamenyo", count: 12 },
+  { id: "kamutwa_center", name: "Kamutwa, Kacyiru", sector: "Kacyiru", cell: "Kamutwa", count: 6 },
   { id: "mumena_stadium", name: "Mumena Stadium Area", sector: "Nyamirambo", cell: "Mumena", count: 9 },
+  { id: "kibaza_hill", name: "Kibaza, Kacyiru", sector: "Kacyiru", cell: "Kibaza", count: 5 },
   { id: "kivugiza", name: "Kivugiza", sector: "Nyamirambo", cell: "Mumena", count: 7 },
   { id: "kuri_40", name: "Kuri 40 (Mirongo Ine)", sector: "Nyamirambo", cell: "Rwezamenyo", count: 14 },
 ];

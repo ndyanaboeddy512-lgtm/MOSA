@@ -27,6 +27,18 @@ enum VerificationStatus {
   HIGH_CONFIDENCE
 }
 
+enum DataStatus {
+  DEMO
+  RESEARCHED
+  VERIFIED
+}
+
+enum PriceType {
+  FIXED
+  ESTIMATED
+  RANGE
+}
+
 enum DocumentType {
   RECEIPT
   MENU
@@ -72,16 +84,17 @@ model User {
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
 
-  businessesOwned Business[]     @relation("OwnerBusinesses")
-  businessesAgent Business[]     @relation("AgentBusinesses")
-  captures        ReceiptCapture[]
-  verifications   VerificationRecord[]
-  reviews         Review[]
-  reports         Report[]
-  auditLogs       AuditLog[]
-  notifications   Notification[]
-  sessions        Session[]
-  claims          BusinessClaim[]
+  businessesOwned  Business[]        @relation("OwnerBusinesses")
+  businessesAgent  Business[]        @relation("AgentBusinesses")
+  captures         ReceiptCapture[]
+  verifications    VerificationRecord[]
+  reviews          Review[]
+  reports          Report[]
+  auditLogs        AuditLog[]
+  notifications    Notification[]
+  sessions         Session[]
+  claims           BusinessClaim[]
+  agentAssignments AgentAssignment[]
 
   @@index([phone])
   @@index([role])
@@ -111,6 +124,114 @@ model OtpVerification {
   @@index([createdAt])
 }
 
+// 7-Tier Geographic Hierarchy Models for Rwanda & Regional Expansion
+
+model GeographicProvince {
+  id        String   @id @default(cuid())
+  code      String   @unique // "KIGALI", "NORTH", "SOUTH", "EAST", "WEST"
+  name      String   // "City of Kigali", "Northern Province", etc.
+  nameRw    String   // "Umujyi wa Kigali", "Intara y'Amajyaruguru", etc.
+  createdAt DateTime @default(now())
+
+  districts  GeographicDistrict[]
+  businesses Business[]
+}
+
+model GeographicDistrict {
+  id         String   @id @default(cuid())
+  code       String   @unique // "GASABO", "NYARUGENGE", "KICUKIRO", "MUSANZE", etc.
+  provinceId String
+  province   GeographicProvince @relation(fields: [provinceId], references: [id], onDelete: Cascade)
+  name       String   // "Gasabo", "Nyarugenge", "Musanze", etc.
+  nameRw     String
+  latitude   Float
+  longitude  Float
+  createdAt  DateTime @default(now())
+
+  sectors    GeographicSector[]
+  businesses Business[]
+
+  @@index([provinceId])
+}
+
+model GeographicSector {
+  id          String   @id @default(cuid())
+  code        String   @unique // "KACYIRU", "NYAMIRAMBO", "MUHOZA", etc.
+  districtId  String
+  districtRel GeographicDistrict @relation(fields: [districtId], references: [id], onDelete: Cascade)
+  name        String   // "Kacyiru", "Nyamirambo"
+  nameRw      String
+  latitude    Float
+  longitude   Float
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  cells       GeographicCell[]
+  localAreas  LocalArea[]
+  businesses  Business[]
+  agents      AgentAssignment[]
+  demands     CommunityDemand[]
+
+  @@index([districtId])
+}
+
+model GeographicCell {
+  id        String   @id @default(cuid())
+  sectorId  String
+  sectorRel GeographicSector @relation(fields: [sectorId], references: [id], onDelete: Cascade)
+  name      String   // "Kamutwa", "Kibaza", "Kamatamu", "Biryogo", etc.
+  nameRw    String
+  latitude  Float?
+  longitude Float?
+  createdAt DateTime @default(now())
+
+  localAreas LocalArea[]
+  businesses Business[]
+  agents     AgentAssignment[]
+
+  @@unique([sectorId, name])
+  @@index([sectorId])
+}
+
+model LocalArea {
+  id          String   @id @default(cuid())
+  sectorId    String
+  sectorRel   GeographicSector @relation(fields: [sectorId], references: [id], onDelete: Cascade)
+  cellId      String?
+  cellRel     GeographicCell?  @relation(fields: [cellId], references: [id], onDelete: SetNull)
+  name        String   // "MINAGRI Area", "Biryogo Car-Free Zone", "Cosmos Commercial Strip"
+  nameRw      String
+  type        String   @default("LOCALITY") // "LOCALITY", "LANDMARK", "MARKET", "CORRIDOR"
+  landmark    String?  // "Ministry of Agriculture and Animal Resources (KG 569 St)"
+  addressNote String?  // "KG 569 St, near MINAGRI HQ"
+  latitude    Float?
+  longitude   Float?
+  createdAt   DateTime @default(now())
+
+  businesses  Business[]
+
+  @@index([sectorId])
+  @@index([cellId])
+}
+
+model AgentAssignment {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sectorId   String
+  sectorRel  GeographicSector @relation(fields: [sectorId], references: [id], onDelete: Cascade)
+  cellId     String?
+  cellRel    GeographicCell?  @relation(fields: [cellId], references: [id], onDelete: SetNull)
+  assignedAt DateTime @default(now())
+  status     String   @default("ACTIVE") // ACTIVE, INACTIVE
+
+  @@index([userId])
+  @@index([sectorId])
+  @@index([cellId])
+}
+
+// Backwards-compatible Community model for pilot queries
 model Community {
   id           String      @id @default(cuid())
   name         String
@@ -146,8 +267,31 @@ model Business {
   descriptionSw      String?
   phone              String
   whatsapp           String?
+  
+  // Data Lifecycle Status
+  dataStatus         DataStatus         @default(DEMO)
+  source             String             @default("SAMPLE_SEED") // SAMPLE_SEED, AGENT_FIELD_AUDIT, OWNER_REGISTRATION
+  priceRangeMin      Float?
+  priceRangeMax      Float?
+  lastVerifiedAt     DateTime?
+
+  // Legacy Community link for backwards compatibility
   communityId        String?
   community          Community?         @relation(fields: [communityId], references: [id])
+  
+  // Relational Geographic Foreign Keys
+  provinceId         String?
+  provinceRel        GeographicProvince? @relation(fields: [provinceId], references: [id])
+  districtId         String?
+  districtRel        GeographicDistrict? @relation(fields: [districtId], references: [id])
+  sectorId           String?
+  sectorRel          GeographicSector?   @relation(fields: [sectorId], references: [id])
+  cellId             String?
+  cellRel            GeographicCell?     @relation(fields: [cellId], references: [id])
+  localAreaId        String?
+  localArea          LocalArea?          @relation(fields: [localAreaId], references: [id])
+
+  // Denormalized strings for rapid filtering and backwards compatibility
   cell               String             @default("Biryogo")
   sector             String             @default("Nyamirambo")
   district           String             @default("Nyarugenge")
@@ -184,6 +328,10 @@ model Business {
 
   @@index([category])
   @@index([cell])
+  @@index([sector])
+  @@index([sectorId])
+  @@index([cellId])
+  @@index([dataStatus])
   @@index([verificationStatus])
   @@index([status])
   @@index([updatedAt])
@@ -214,10 +362,15 @@ model Product {
   nameSw          String?
   description     String?
   price           Float
+  priceMin        Float?
+  priceMax        Float?
+  priceType       PriceType     @default(FIXED)
   currency        String        @default("RWF")
   unit            String?       @default("item")
   isAvailable     Boolean       @default(true)
+  isEstimated     Boolean       @default(false)
   category        String?
+  dataStatus      DataStatus    @default(DEMO)
   extractedFrom   DocumentType?
   confidenceScore Float?
   verifiedByAgent Boolean       @default(false)
@@ -229,6 +382,7 @@ model Product {
 
   @@index([businessId])
   @@index([category])
+  @@index([dataStatus])
 }
 
 model BusinessHour {
@@ -371,20 +525,23 @@ model Mission {
 }
 
 model CommunityDemand {
-  id                    String      @id @default(cuid())
+  id                    String            @id @default(cuid())
   communityId           String?
-  community             Community?  @relation(fields: [communityId], references: [id])
+  community             Community?        @relation(fields: [communityId], references: [id])
+  sectorId              String?
+  sectorRel             GeographicSector? @relation(fields: [sectorId], references: [id])
   sector                String
   cell                  String
   category              String
   queryTerm             String
   queryTermRw           String?
-  searchCount           Int         @default(1)
-  activeBusinessesCount Int         @default(0)
-  opportunityScore      String      @default("HIGH")
-  updatedAt             DateTime    @updatedAt
+  searchCount           Int               @default(1)
+  activeBusinessesCount Int               @default(0)
+  opportunityScore      String            @default("HIGH")
+  updatedAt             DateTime          @updatedAt
 
   @@index([cell])
+  @@index([sector])
   @@index([opportunityScore])
 }
 

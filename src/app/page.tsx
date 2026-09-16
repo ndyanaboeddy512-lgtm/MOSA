@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useLanguage } from "@/lib/i18n";
+import { useLocation } from "@/lib/location-context";
 import { store } from "@/lib/store";
 import { Business } from "@/types";
 import { DemandTicker } from "@/components/discovery/DemandTicker";
@@ -20,12 +21,15 @@ import {
   Users,
   Store,
   CheckCircle2,
-  FileSpreadsheet
+  FileSpreadsheet,
+  ChevronDown,
+  Globe
 } from "lucide-react";
 
 export default function HomePage() {
   const router = useRouter();
   const { lang, t } = useLanguage();
+  const { currentSector, currentCell, currentLocalArea, displayLabel, openSelector, setSector, setFullLocation, resetLocation } = useLocation();
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
@@ -33,11 +37,16 @@ export default function HomePage() {
   useEffect(() => {
     async function loadBusinesses() {
       try {
-        const url = selectedCategory !== "all" ? `/api/businesses?category=${encodeURIComponent(selectedCategory)}` : "/api/businesses";
-        const res = await fetch(url);
+        const params = new URLSearchParams();
+        if (selectedCategory !== "all") params.set("category", selectedCategory);
+        if (currentSector && currentSector !== "all") params.set("sector", currentSector);
+        if (currentCell) params.set("cell", currentCell);
+        if (currentLocalArea) params.set("community", currentLocalArea);
+        
+        const res = await fetch(`/api/businesses?${params.toString()}`);
         if (res.ok) {
           const data = await res.json();
-          if (data.businesses && data.businesses.length > 0) {
+          if (data.businesses) {
             setBusinesses(data.businesses);
             return;
           }
@@ -47,7 +56,7 @@ export default function HomePage() {
       setBusinesses(list);
     }
     loadBusinesses();
-  }, [selectedCategory]);
+  }, [selectedCategory, currentSector, currentCell, currentLocalArea]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -58,7 +67,6 @@ export default function HomePage() {
 
   const handleCategoryChange = (cat: string) => {
     setSelectedCategory(cat);
-    setBusinesses(store.getBusinesses({ category: cat }));
   };
 
   return (
@@ -71,12 +79,22 @@ export default function HomePage() {
         
         <div className="relative max-w-5xl mx-auto text-center space-y-6">
           
-          {/* Top Community Hub Badge */}
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-700/80 border border-emerald-500/40 text-emerald-100 text-xs font-semibold backdrop-blur-md">
-            <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
-            <MapPin className="w-3.5 h-3.5 text-amber-400" />
-            <span>{t.hero.communityBadge}</span>
-          </div>
+          {/* Top Community Hub Badge - Interactive Selector */}
+          <button
+            onClick={openSelector}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-emerald-800/90 hover:bg-emerald-700/90 border border-emerald-500/50 text-emerald-100 text-xs font-semibold backdrop-blur-md transition-all shadow-lg hover:scale-105 group cursor-pointer"
+            title="Change active discovery location"
+          >
+            <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
+            <MapPin className="w-4 h-4 text-amber-400" />
+            <span>
+              {lang === "rw" ? "Agace k'Ibanze:" : "Active Community Hub:"}{" "}
+              <strong className="text-white underline decoration-amber-400 decoration-2 font-bold">{displayLabel}</strong>
+            </span>
+            <span className="text-[10px] bg-emerald-950/70 px-2 py-0.5 rounded-full text-emerald-300 font-bold ml-1 group-hover:bg-amber-400 group-hover:text-slate-950 transition-colors">
+              {lang === "rw" ? "Hindura Agace" : "Switch Hub"} ▾
+            </span>
+          </button>
 
           {/* Master Headline */}
           <h1 className="text-3xl sm:text-5xl md:text-6xl font-extrabold tracking-tight max-w-4xl mx-auto leading-tight sm:leading-none">
@@ -189,6 +207,61 @@ export default function HomePage() {
         
         {/* Real-time Demand Ticker */}
         <DemandTicker />
+
+        {/* Active Geographic Discovery Header */}
+        <div className="bg-white rounded-2xl border border-slate-200 p-4 mb-4 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center justify-center shrink-0">
+              <MapPin className="w-5 h-5 text-emerald-600" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="font-extrabold text-slate-900 text-base sm:text-lg">
+                  {currentSector === "all" ? "All Rwanda (Ahantu Hose)" : displayLabel}
+                </h3>
+                {currentSector === "Kacyiru" && (
+                  <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full uppercase">
+                    New Expansion Sector
+                  </span>
+                )}
+                <span className="text-xs bg-slate-100 text-slate-600 px-2.5 py-0.5 rounded-full font-semibold">
+                  {businesses.length} {lang === "rw" ? "amaduka n'abanyamyuga" : "local businesses"}
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 mt-0.5">
+                {currentSector === "Kacyiru"
+                  ? (lang === "rw" ? "Uruhererekane rwa Kacyiru: MINAGRI (KG 569 St), Kamutwa, Kibaza na Kamatamu" : "Kacyiru Sector (Gasabo) · Featuring MINAGRI Area (KG 569 St), Kamutwa, Kibaza & Kamatamu")
+                  : currentSector === "Nyamirambo"
+                  ? (lang === "rw" ? "Uruhererekane rwa Nyamirambo: Biryogo, Cosmos, Tapi Rouge, Mumena na Cyivugiza" : "Nyamirambo Sector (Nyarugenge) · Featuring Biryogo Car-Free Zone, Cosmos & Tapi Rouge")
+                  : (lang === "rw" ? "Irembo ry'ubucuruzi bwo mu bice bitandukanye by'u Rwanda" : "Discovering verified neighborhood commerce across Rwanda")}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            {currentSector === "Kacyiru" ? (
+              <button
+                onClick={() => setSector("Nyamirambo")}
+                className="text-xs font-semibold px-3 py-1.5 rounded-xl border border-slate-200 hover:border-emerald-500 hover:bg-emerald-50 text-slate-700 transition-colors"
+              >
+                Switch to Nyamirambo
+              </button>
+            ) : (
+              <button
+                onClick={() => setSector("Kacyiru")}
+                className="text-xs font-semibold px-3 py-1.5 rounded-xl border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 transition-colors"
+              >
+                Switch to Kacyiru
+              </button>
+            )}
+            <button
+              onClick={openSelector}
+              className="text-xs font-bold px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white transition-colors"
+            >
+              {lang === "rw" ? "Hitamo Ahandi" : "All Locations"} ▾
+            </button>
+          </div>
+        </div>
 
         {/* Category Filter Pills */}
         <div className="bg-white p-3 sm:p-4 rounded-2xl border border-slate-200 shadow-xs mb-8">

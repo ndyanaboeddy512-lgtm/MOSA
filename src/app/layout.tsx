@@ -2,9 +2,11 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { LanguageProvider } from "@/lib/i18n";
 import { AuthProvider } from "@/lib/auth-context";
+import { LocationProvider } from "@/lib/location-context";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { OfflineBanner } from "@/components/common/OfflineBanner";
+import { LocationSelectorModal } from "@/components/layout/LocationSelectorModal";
 
 export const metadata: Metadata = {
   title: "MOSA — Micro-Opportunity & Service Access | Rwanda",
@@ -19,6 +21,7 @@ export const metadata: Metadata = {
     "MOSA",
     "Rwanda",
     "Kigali",
+    "Kacyiru",
     "Nyamirambo",
     "Community Commerce",
     "Local Business Discovery",
@@ -45,10 +48,13 @@ export default function RootLayout({
       <body className="min-h-screen flex flex-col antialiased text-slate-900 bg-slate-50 font-sans selection:bg-emerald-100 selection:text-emerald-900">
         <LanguageProvider>
           <AuthProvider>
-            <OfflineBanner />
-            <Navbar />
-            <main className="flex-1 w-full">{children}</main>
-            <Footer />
+            <LocationProvider>
+              <OfflineBanner />
+              <Navbar />
+              <LocationSelectorModal />
+              <main className="flex-1 w-full">{children}</main>
+              <Footer />
+            </LocationProvider>
           </AuthProvider>
         </LanguageProvider>
       </body>

@@ -67,3 +67,40 @@ export function VerificationBadge({ status, size = "md", showText = true }: Veri
     </span>
   );
 }
+
+export function DataStatusBadge({
+  status,
+  size = "sm",
+}: {
+  status?: "DEMO" | "RESEARCHED" | "VERIFIED" | string;
+  size?: "sm" | "md";
+}) {
+  const { lang } = useLanguage();
+  if (!status || status === "VERIFIED") return null;
+
+  if (status === "DEMO") {
+    const textMap: Record<string, string> = {
+      rw: "ICYITEGEREREZO / DEMO",
+      en: "DEMO / SAMPLE RECORD",
+      fr: "ÉCHANTILLON / DÉMO",
+      sw: "KUMBUKUMBU YA MFANO",
+    };
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-500 text-slate-950 font-extrabold text-[10px] tracking-wider uppercase shadow-xs border border-amber-600">
+        <span>⚠️</span>
+        <span>{textMap[lang] || textMap.en}</span>
+      </span>
+    );
+  }
+
+  if (status === "RESEARCHED") {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-sky-100 text-sky-900 font-semibold text-[10px] tracking-wide border border-sky-300">
+        <span>🔬</span>
+        <span>{lang === "rw" ? "UBUSHAKASHATSI" : "PRE-RESEARCHED"}</span>
+      </span>
+    );
+  }
+
+  return null;
+}

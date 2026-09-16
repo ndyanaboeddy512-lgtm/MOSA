@@ -13,6 +13,16 @@ export type VerificationStatus =
   | "BUSINESS_VERIFIED" 
   | "HIGH_CONFIDENCE";
 
+export type DataStatus = 
+  | "DEMO" 
+  | "RESEARCHED" 
+  | "VERIFIED";
+
+export type PriceType = 
+  | "FIXED" 
+  | "ESTIMATED" 
+  | "RANGE";
+
 export type BusinessCategory = 
   | "salon_barber"
   | "tailor_crafts"
@@ -24,14 +34,77 @@ export type BusinessCategory =
   | "art_culture"
   | "services";
 
+export interface GeographicProvince {
+  id: string;
+  code: string;
+  name: string;
+  nameRw: string;
+}
+
+export interface GeographicDistrict {
+  id: string;
+  code: string;
+  provinceId: string;
+  name: string;
+  nameRw: string;
+  latitude: number;
+  longitude: number;
+}
+
+export interface GeographicSector {
+  id: string;
+  code: string;
+  districtId: string;
+  name: string;
+  nameRw: string;
+  latitude: number;
+  longitude: number;
+  description?: string;
+  isActive: boolean;
+  cells?: GeographicCell[];
+  localAreas?: LocalArea[];
+}
+
+export interface GeographicCell {
+  id: string;
+  sectorId: string;
+  name: string;
+  nameRw: string;
+  latitude?: number;
+  longitude?: number;
+  localAreas?: LocalArea[];
+}
+
+export interface LocalArea {
+  id: string;
+  sectorId: string;
+  cellId?: string;
+  name: string;
+  nameRw: string;
+  type: "LOCALITY" | "LANDMARK" | "MARKET" | "CORRIDOR";
+  landmark?: string;
+  addressNote?: string;
+  latitude?: number;
+  longitude?: number;
+}
+
+export interface AgentAssignment {
+  id: string;
+  userId: string;
+  sectorId: string;
+  cellId?: string;
+  assignedAt: string;
+  status: "ACTIVE" | "INACTIVE";
+}
+
 export interface RwandaLocation {
   country: "Rwanda";
   province: string;      // e.g. "Kigali City"
-  district: string;      // e.g. "Nyarugenge"
-  sector: string;        // e.g. "Nyamirambo"
-  cell: string;          // e.g. "Biryogo", "Rwezamenyo", "Mumena"
-  community: string;     // e.g. "Cosmos", "Biryogo Car-Free Zone", "Tapi Rouge", "Kivugiza"
-  addressNote?: string;  // e.g. "Next to Cosmos Bar, near Mosque"
+  district: string;      // e.g. "Nyarugenge", "Gasabo"
+  sector: string;        // e.g. "Nyamirambo", "Kacyiru"
+  cell: string;          // e.g. "Biryogo", "Kamutwa", "Kibaza"
+  community: string;     // e.g. "Cosmos", "MINAGRI Area", "Biryogo Car-Free Zone"
+  addressNote?: string;  // e.g. "KG 569 St, near MINAGRI HQ"
   coordinates: {
     lat: number;
     lng: number;
@@ -45,9 +118,14 @@ export interface ProductItem {
   nameRw?: string;
   description?: string;
   price: number;
+  priceMin?: number;
+  priceMax?: number;
+  priceType?: PriceType;
   currency: "RWF";
   unit?: string; // e.g. "service", "item", "kg", "plate", "meter"
   isAvailable: boolean;
+  isEstimated?: boolean;
+  dataStatus?: DataStatus;
   category?: string;
   extractedFrom?: "RECEIPT" | "MENU" | "PRICE_BOARD" | "STOREFRONT_SIGN" | "MANUAL";
   confidenceScore?: number;
@@ -74,6 +152,18 @@ export interface Business {
   descriptionRw?: string;
   phone: string;
   whatsapp?: string;
+  dataStatus?: DataStatus;
+  source?: string;
+  addressNote?: string;
+  priceRangeMin?: number;
+  priceRangeMax?: number;
+  lastVerifiedAt?: string;
+  provinceId?: string;
+  districtId?: string;
+  sectorId?: string;
+  cellId?: string;
+  localAreaId?: string;
+  localArea?: LocalArea;
   location: RwandaLocation;
   verificationStatus: VerificationStatus;
   verificationDetails: {
@@ -115,7 +205,9 @@ export interface PhysicalCaptureRecord {
   documentType: "RECEIPT" | "MENU" | "PRICE_BOARD" | "STOREFRONT_SIGN";
   imageUrl: string;
   rawOcrText?: string;
+  merchantDetected?: string;
   extractedMerchant?: string;
+  dateDetected?: string;
   extractedDate?: string;
   extractedItems: {
     id: string;
@@ -155,7 +247,7 @@ export interface CommunityMission {
   titleRw: string;
   description: string;
   descriptionRw: string;
-  targetArea: string; // e.g. "Biryogo", "Cosmos"
+  targetArea: string; // e.g. "Biryogo", "Cosmos", "Kamutwa"
   pointsReward: number;
   badgeReward?: string;
   category: "DISCOVER" | "VERIFY" | "UPDATE" | "RECOMMEND";

@@ -6,9 +6,16 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const cell = searchParams.get("cell");
+    const sector = searchParams.get("sector");
 
     const where: any = {};
-    if (cell) {
+    if (sector && sector !== "all") {
+      where.OR = [
+        { sector: { contains: sector, mode: "insensitive" } },
+        { sectorRel: { name: { contains: sector, mode: "insensitive" } } },
+      ];
+    }
+    if (cell && cell !== "all") {
       where.cell = { contains: cell, mode: "insensitive" };
     }
 

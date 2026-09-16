@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useLanguage } from "@/lib/i18n";
 import { useAuth, DEMO_USERS } from "@/lib/auth-context";
+import { useLocation } from "@/lib/location-context";
 import { Role } from "@/types";
 import { 
   Compass, 
@@ -27,10 +28,9 @@ export function Navbar() {
   const pathname = usePathname();
   const { lang, setLang, t } = useLanguage();
   const { user, switchDemoRole } = useAuth();
+  const { displayLabel, openSelector } = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [roleDropdownOpen, setRoleDropdownOpen] = useState(false);
-  const [communityModalOpen, setCommunityModalOpen] = useState(false);
-  const [selectedCommunity, setSelectedCommunity] = useState("Biryogo, Nyamirambo");
 
   const navLinks = [
     { href: "/", label: t.nav.home, icon: Compass },
@@ -74,12 +74,13 @@ export function Navbar() {
 
             {/* Quick Community Indicator */}
             <button
-              onClick={() => setCommunityModalOpen(true)}
-              className="hidden md:flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-full transition-colors"
+              onClick={openSelector}
+              className="hidden md:flex items-center gap-1.5 px-3 py-1 text-xs font-semibold text-emerald-900 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-full transition-all shadow-xs"
+              title="Change active discovery community"
             >
               <MapPin className="w-3.5 h-3.5 text-emerald-600" />
-              <span>{selectedCommunity}</span>
-              <ChevronDown className="w-3 h-3 text-slate-400" />
+              <span>{displayLabel}</span>
+              <ChevronDown className="w-3 h-3 text-emerald-600" />
             </button>
           </div>
 
@@ -232,11 +233,11 @@ export function Navbar() {
       {mobileMenuOpen && (
         <div className="lg:hidden border-t border-slate-200 bg-white px-4 pt-2 pb-6 space-y-1 shadow-lg">
           <div className="py-2 border-b border-slate-100 flex items-center justify-between text-xs text-slate-600">
-            <span>Location: <strong>{selectedCommunity}</strong></span>
+            <span>Location: <strong>{displayLabel}</strong></span>
             <button 
               onClick={() => {
                 setMobileMenuOpen(false);
-                setCommunityModalOpen(true);
+                openSelector();
               }}
               className="text-emerald-600 font-semibold"
             >
@@ -269,6 +270,20 @@ export function Navbar() {
                 </button>
               ))}
             </div>
+            <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+              <span className="text-xs font-semibold text-slate-500">Community:</span>
+              <button
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  openSelector();
+                }}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-900 bg-emerald-50 border border-emerald-200 rounded-full"
+              >
+                <MapPin className="w-3.5 h-3.5 text-emerald-600" />
+                <span>{displayLabel}</span>
+                <ChevronDown className="w-3 h-3 text-emerald-600" />
+              </button>
+            </div>
           </div>
 
           {navLinks.map((link) => {
@@ -299,66 +314,6 @@ export function Navbar() {
               <span>{activePortal.label}</span>
             </Link>
           )}
-        </div>
-      )}
-
-      {/* Community Selector Modal */}
-      {communityModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 animate-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <div className="flex items-center gap-2">
-                <MapPin className="w-5 h-5 text-emerald-600" />
-                <h3 className="font-bold text-slate-900 text-lg">
-                  {lang === "rw" ? "Hitamo Agace k'Iwanyu" : "Select Local Community"}
-                </h3>
-              </div>
-              <button
-                onClick={() => setCommunityModalOpen(false)}
-                className="p-1 rounded-full text-slate-400 hover:text-slate-600"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <p className="text-xs text-slate-500 mt-2">
-              {lang === "rw"
-                ? "MOSA yibanda ku gace ukoreramo cyangwa utuyemo kugira ngo ikwereke ubucuruzi buhagaze hafi yawe."
-                : "MOSA prioritizes businesses, services, and offers physically nearest to your community."}
-            </p>
-
-            <div className="mt-4 space-y-2 max-h-64 overflow-y-auto">
-              {[
-                { name: "Biryogo Car-Free Zone", sector: "Nyamirambo, Nyarugenge", businesses: 24 },
-                { name: "Cosmos & Commercial Center", sector: "Nyamirambo, Nyarugenge", businesses: 18 },
-                { name: "Tapi Rouge & Maison des Jeunes", sector: "Nyamirambo, Nyarugenge", businesses: 14 },
-                { name: "Kivugiza & Mumena Stadium", sector: "Nyamirambo, Nyarugenge", businesses: 12 },
-                { name: "Kuri 40 (Mirongo Ine)", sector: "Nyamirambo, Nyarugenge", businesses: 16 },
-                { name: "Kimironko Market Area", sector: "Kimironko, Gasabo", businesses: 9 },
-              ].map((comm) => (
-                <button
-                  key={comm.name}
-                  onClick={() => {
-                    setSelectedCommunity(comm.name);
-                    setCommunityModalOpen(false);
-                  }}
-                  className={`w-full text-left p-3 rounded-xl border flex items-center justify-between transition-all ${
-                    selectedCommunity.includes(comm.name)
-                      ? "border-emerald-500 bg-emerald-50/50"
-                      : "border-slate-200 hover:border-slate-300 hover:bg-slate-50"
-                  }`}
-                >
-                  <div>
-                    <div className="font-semibold text-slate-900 text-sm">{comm.name}</div>
-                    <div className="text-xs text-slate-500">{comm.sector}</div>
-                  </div>
-                  <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
-                    {comm.businesses} {lang === "rw" ? "amaduka" : "businesses"}
-                  </span>
-                </button>
-              ))}
-            </div>
-          </div>
         </div>
       )}
     </header>

@@ -1,8 +1,8 @@
-import { Business, RwandaLocation, ProductItem, BusinessHours } from "@/types";
+import { Business, RwandaLocation, ProductItem, BusinessHours, DataStatus, PriceType } from "@/types";
 
 /**
  * Format any raw business record (e.g. from Prisma or fallback)
- * into a typed, safe Business object guaranteed to have .location, .products, etc.
+ * into a typed, safe Business object guaranteed to have .location, .products, .dataStatus, etc.
  */
 export function formatBusinessRecord(raw: any): Business {
   if (!raw) return raw;
@@ -14,17 +14,21 @@ export function formatBusinessRecord(raw: any): Business {
   // Build safe RwandaLocation
   const location: RwandaLocation = {
     country: "Rwanda",
-    province: raw.location?.province || "Kigali City",
-    district: raw.district || raw.location?.district || "Nyarugenge",
-    sector: raw.sector || raw.location?.sector || "Nyamirambo",
-    cell: raw.cell || raw.location?.cell || "Biryogo",
-    community: raw.location?.community || raw.addressNote || raw.cell || "Nyamirambo",
+    province: raw.location?.province || raw.provinceRel?.name || (raw.district === "Gasabo" ? "Kigali City" : "Kigali City"),
+    district: raw.district || raw.districtRel?.name || raw.location?.district || (raw.sector === "Kacyiru" ? "Gasabo" : "Nyarugenge"),
+    sector: raw.sector || raw.sectorRel?.name || raw.location?.sector || "Nyamirambo",
+    cell: raw.cell || raw.cellRel?.name || raw.location?.cell || (raw.sector === "Kacyiru" ? "Kamutwa" : "Biryogo"),
+    community: raw.location?.community || raw.localArea?.name || raw.addressNote || raw.cell || "Nyamirambo",
     addressNote: raw.addressNote || raw.location?.addressNote || "",
     coordinates: {
       lat,
       lng,
     },
   };
+
+  // Determine dataStatus cleanly
+  const dataStatus: DataStatus = (raw.dataStatus as DataStatus) || 
+    (raw.verificationStatus === "AGENT_VERIFIED" || raw.verificationStatus === "HIGH_CONFIDENCE" ? "VERIFIED" : "DEMO");
 
   // Build safe products list
   const products: ProductItem[] = Array.isArray(raw.products)
@@ -35,13 +39,18 @@ export function formatBusinessRecord(raw: any): Business {
         nameRw: p.nameRw || p.name,
         description: p.description || undefined,
         price: Number(p.price) || 0,
+        priceMin: typeof p.priceMin === "number" ? p.priceMin : undefined,
+        priceMax: typeof p.priceMax === "number" ? p.priceMax : undefined,
+        priceType: (p.priceType as PriceType) || (p.priceMin && p.priceMax ? "RANGE" : (p.isEstimated ? "ESTIMATED" : "FIXED")),
+        isEstimated: Boolean(p.isEstimated || p.priceType === "ESTIMATED" || p.priceType === "RANGE"),
+        dataStatus: (p.dataStatus as DataStatus) || dataStatus,
         currency: "RWF",
         unit: p.unit || "item",
         isAvailable: typeof p.isAvailable === "boolean" ? p.isAvailable : true,
         category: p.category || undefined,
         extractedFrom: p.extractedFrom || "MANUAL",
         confidenceScore: typeof p.confidenceScore === "number" ? p.confidenceScore : undefined,
-        verifiedByAgent: typeof p.verifiedByAgent === "boolean" ? p.verifiedByAgent : true,
+        verifiedByAgent: typeof p.verifiedByAgent === "boolean" ? p.verifiedByAgent : (dataStatus === "VERIFIED"),
         lastVerifiedAt: p.updatedAt ? new Date(p.updatedAt).toISOString() : (p.createdAt ? new Date(p.createdAt).toISOString() : undefined),
       }))
     : [];
@@ -67,17 +76,39 @@ export function formatBusinessRecord(raw: any): Business {
     categoryDisplayRw: raw.categoryDisplayRw || "Ubucuruzi bw'Agace",
     description: raw.description || "",
     descriptionRw: raw.descriptionRw || raw.description || "",
-    phone: raw.phone || "+250788000000",
+    phone: raw.phone || (dataStatus === "DEMO" ? "+250780000000" : "+250788000000"),
     whatsapp: raw.whatsapp || undefined,
+    dataStatus,
+    source: raw.source || (dataStatus === "DEMO" ? "SAMPLE_SEED" : "AGENT_FIELD_AUDIT"),
+    priceRangeMin: typeof raw.priceRangeMin === "number" ? raw.priceRangeMin : undefined,
+    priceRangeMax: typeof raw.priceRangeMax === "number" ? raw.priceRangeMax : undefined,
+    lastVerifiedAt: raw.lastVerifiedAt ? new Date(raw.lastVerifiedAt).toISOString() : undefined,
+    provinceId: raw.provinceId || undefined,
+    districtId: raw.districtId || undefined,
+    sectorId: raw.sectorId || undefined,
+    cellId: raw.cellId || undefined,
+    localAreaId: raw.localAreaId || undefined,
+    localArea: raw.localArea ? {
+      id: raw.localArea.id,
+      sectorId: raw.localArea.sectorId,
+      cellId: raw.localArea.cellId || undefined,
+      name: raw.localArea.name,
+      nameRw: raw.localArea.nameRw || raw.localArea.name,
+      type: raw.localArea.type || "LOCALITY",
+      landmark: raw.localArea.landmark || undefined,
+      addressNote: raw.localArea.addressNote || undefined,
+      latitude: raw.localArea.latitude || undefined,
+      longitude: raw.localArea.longitude || undefined,
+    } : undefined,
     location,
-    verificationStatus: raw.verificationStatus || "UNVERIFIED",
+    verificationStatus: raw.verificationStatus || (dataStatus === "DEMO" ? "UNVERIFIED" : "AGENT_VERIFIED"),
     verificationDetails: raw.verificationDetails || {
       agentVerified: raw.verificationStatus === "AGENT_VERIFIED" || raw.verificationStatus === "HIGH_CONFIDENCE",
-      agentName: raw.agent?.name || "Emmanuel Hakizimana",
+      agentName: raw.agent?.name || (raw.sector === "Kacyiru" ? "Alice Mukamana" : "Emmanuel Hakizimana"),
       agentVerifiedAt: raw.createdAt ? new Date(raw.createdAt).toISOString() : undefined,
-      locationConfirmed: true,
+      locationConfirmed: dataStatus === "VERIFIED",
       ownerConfirmed: raw.verificationStatus === "BUSINESS_VERIFIED",
-      communityConfirmationsCount: 14,
+      communityConfirmationsCount: dataStatus === "VERIFIED" ? 14 : 0,
       recentActivityDate: raw.updatedAt ? new Date(raw.updatedAt).toISOString() : new Date().toISOString(),
     },
     photos: Array.isArray(raw.photos) && raw.photos.length > 0

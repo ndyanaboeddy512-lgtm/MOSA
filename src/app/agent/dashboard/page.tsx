@@ -32,24 +32,51 @@ export default function AgentDashboardPage() {
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [captures, setCaptures] = useState<PhysicalCaptureRecord[]>([]);
   const [newBizModalOpen, setNewBizModalOpen] = useState(false);
+  const [activeJurisdiction, setActiveJurisdiction] = useState<"Kacyiru" | "Nyamirambo">("Kacyiru");
 
   // New business form fields
   const [bizName, setBizName] = useState("");
+  const [bizNameRw, setBizNameRw] = useState("");
   const [bizCategory, setBizCategory] = useState("salon_barber");
   const [bizPhone, setBizPhone] = useState("+250788");
-  const [bizCommunity, setBizCommunity] = useState("Biryogo Car-Free Zone");
-  const [bizCell, setBizCell] = useState("Biryogo");
+  const [bizSector, setBizSector] = useState("Kacyiru");
+  const [bizCell, setBizCell] = useState("Kamutwa");
+  const [bizCommunity, setBizCommunity] = useState("MINAGRI Area (KG 569 St)");
   const [bizDescription, setBizDescription] = useState("");
+  const [bizPriceMin, setBizPriceMin] = useState("2000");
+  const [bizPriceMax, setBizPriceMax] = useState("5000");
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    setBusinesses(store.getBusinesses());
-    setCaptures(store.getCaptures());
+    async function loadData() {
+      try {
+        const res = await fetch("/api/businesses");
+        if (res.ok) {
+          const data = await res.json();
+          if (data.businesses) setBusinesses(data.businesses);
+        }
+      } catch {}
+      setCaptures(store.getCaptures());
+    }
+    loadData();
   }, []);
 
-  const handleRegisterBusiness = (e: React.FormEvent) => {
+  const handleSectorSelectChange = (sector: string) => {
+    setBizSector(sector);
+    if (sector === "Kacyiru") {
+      setBizCell("Kamutwa");
+      setBizCommunity("MINAGRI Area (KG 569 St)");
+    } else {
+      setBizCell("Biryogo");
+      setBizCommunity("Biryogo Car-Free Zone");
+    }
+  };
+
+  const handleRegisterBusiness = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!bizName.trim()) return;
 
+    setSubmitting(true);
     const categoryMap: Record<string, { display: string; displayRw: string }> = {
       salon_barber: { display: "Salons & Barbers", displayRw: "Za Salo & Kogosha" },
       tailor_crafts: { display: "Tailors & Craftsmen", displayRw: "Abadozi & Ubukorikori" },
@@ -62,53 +89,48 @@ export default function AgentDashboardPage() {
       services: { display: "Other Services", displayRw: "Izindi Serivisi" },
     };
 
-    const newBiz = store.registerBusiness({
-      name: bizName,
-      category: bizCategory as any,
-      categoryDisplay: categoryMap[bizCategory].display,
-      categoryDisplayRw: categoryMap[bizCategory].displayRw,
-      description: bizDescription || "Neighborhood local business registered on the ground by certified agent.",
-      phone: bizPhone,
-      location: {
-        country: "Rwanda",
-        province: "Kigali City",
-        district: "Nyarugenge",
-        sector: "Nyamirambo",
+    try {
+      const payload = {
+        name: bizName,
+        nameRw: bizNameRw || bizName,
+        category: bizCategory,
+        categoryDisplay: categoryMap[bizCategory]?.display || "Local Business",
+        categoryDisplayRw: categoryMap[bizCategory]?.displayRw || "Ubucuruzi bw'Agace",
+        description: bizDescription || "Neighborhood local business registered on the ground by certified agent.",
+        descriptionRw: bizDescription,
+        phone: bizPhone,
+        sector: bizSector,
+        district: bizSector === "Kacyiru" ? "Gasabo" : "Nyarugenge",
         cell: bizCell,
-        community: bizCommunity,
-        coordinates: { lat: -1.981, lng: 30.046 },
-      },
-      verificationStatus: "AGENT_VERIFIED",
-      verificationDetails: {
-        agentVerified: true,
-        agentName: user?.name || "Emmanuel Hakizimana",
-        agentVerifiedAt: new Date().toISOString().split("T")[0],
-        locationConfirmed: true,
-        ownerConfirmed: false,
-        communityConfirmationsCount: 1,
-        recentActivityDate: new Date().toISOString().split("T")[0],
-      },
-      photos: ["https://images.unsplash.com/photo-1544816155-12df9643f363?w=800&auto=format&fit=crop&q=60"],
-      coverImage: "https://images.unsplash.com/photo-1544816155-12df9643f363?w=800&auto=format&fit=crop&q=60",
-      openingHours: [
-        { day: "Monday", dayRw: "Kuwa Mbere", open: "08:00", close: "20:00", isClosed: false },
-        { day: "Tuesday", dayRw: "Kuwa Kabiri", open: "08:00", close: "20:00", isClosed: false },
-        { day: "Wednesday", dayRw: "Kuwa Gatatu", open: "08:00", close: "20:00", isClosed: false },
-        { day: "Thursday", dayRw: "Kuwa Kane", open: "08:00", close: "20:00", isClosed: false },
-        { day: "Friday", dayRw: "Kuwa Gatanu", open: "08:00", close: "20:00", isClosed: false },
-        { day: "Saturday", dayRw: "Kuwa Gatandatu", open: "08:00", close: "21:00", isClosed: false },
-        { day: "Sunday", dayRw: "Ku Cyumweru", open: "09:00", close: "18:00", isClosed: false },
-      ],
-      isOpenNow: true,
-      priceRange: "LOW",
-      products: [],
-      createdByAgentId: user?.id || "agent-1",
-    });
+        addressNote: bizCommunity,
+        priceRangeMin: parseInt(bizPriceMin) || null,
+        priceRangeMax: parseInt(bizPriceMax) || null,
+        dataStatus: "VERIFIED",
+        source: "COMMUNITY_AGENT",
+      };
 
-    setBusinesses([newBiz, ...businesses]);
-    setNewBizModalOpen(false);
-    setBizName("");
-    setBizDescription("");
+      const res = await fetch("/api/businesses", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.business) {
+          setBusinesses([data.business, ...businesses]);
+          setNewBizModalOpen(false);
+          setBizName("");
+          setBizNameRw("");
+          setBizDescription("");
+          return;
+        }
+      }
+    } catch (err) {
+      console.warn("Agent business registration error:", err);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -366,28 +388,73 @@ export default function AgentDashboardPage() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Sector (Umurenge)</label>
+                  <select
+                    value={bizSector}
+                    onChange={(e) => handleSectorSelectChange(e.target.value)}
+                    className="w-full p-2.5 bg-slate-50 rounded-xl border border-slate-300 text-xs outline-none"
+                  >
+                    <option value="Kacyiru">Kacyiru (Gasabo)</option>
+                    <option value="Nyamirambo">Nyamirambo (Nyarugenge)</option>
+                  </select>
+                </div>
+
+                <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">Cell (Akagari)</label>
                   <select
                     value={bizCell}
                     onChange={(e) => setBizCell(e.target.value)}
                     className="w-full p-2.5 bg-slate-50 rounded-xl border border-slate-300 text-xs outline-none"
                   >
-                    <option value="Biryogo">Biryogo</option>
-                    <option value="Rwezamenyo">Rwezamenyo</option>
-                    <option value="Mumena">Mumena</option>
-                    <option value="Cyivugiza">Cyivugiza</option>
+                    {bizSector === "Kacyiru" ? (
+                      <>
+                        <option value="Kamutwa">Kamutwa</option>
+                        <option value="Kibaza">Kibaza</option>
+                        <option value="Kamatamu">Kamatamu</option>
+                      </>
+                    ) : (
+                      <>
+                        <option value="Biryogo">Biryogo</option>
+                        <option value="Rwezamenyo">Rwezamenyo</option>
+                        <option value="Mumena">Mumena</option>
+                        <option value="Cyivugiza">Cyivugiza</option>
+                      </>
+                    )}
                   </select>
                 </div>
+              </div>
 
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Community / Area</label>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Landmark / Local Area</label>
                   <input
                     type="text"
                     value={bizCommunity}
                     onChange={(e) => setBizCommunity(e.target.value)}
-                    placeholder="e.g. Cosmos, Tapi Rouge"
+                    placeholder="e.g. MINAGRI Area (KG 569 St)"
                     className="w-full p-2.5 bg-slate-50 rounded-xl border border-slate-300 text-xs outline-none"
                   />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Est. Price Range (RWF)</label>
+                  <div className="flex items-center gap-1">
+                    <input
+                      type="number"
+                      value={bizPriceMin}
+                      onChange={(e) => setBizPriceMin(e.target.value)}
+                      placeholder="Min"
+                      className="w-1/2 p-2.5 bg-slate-50 rounded-xl border border-slate-300 text-xs outline-none"
+                    />
+                    <span className="text-slate-400 text-xs">-</span>
+                    <input
+                      type="number"
+                      value={bizPriceMax}
+                      onChange={(e) => setBizPriceMax(e.target.value)}
+                      placeholder="Max"
+                      className="w-1/2 p-2.5 bg-slate-50 rounded-xl border border-slate-300 text-xs outline-none"
+                    />
+                  </div>
                 </div>
               </div>
 

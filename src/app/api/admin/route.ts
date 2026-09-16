@@ -17,10 +17,15 @@ export async function GET() {
     const [
       totalBusinesses,
       verifiedCount,
+      demoCount,
+      researchedCount,
+      verifiedDataCount,
       totalUsers,
       agentCount,
       openReportsCount,
       totalCaptures,
+      totalSectors,
+      totalCells,
       recentAuditLogs,
       businesses,
       captures,
@@ -29,10 +34,15 @@ export async function GET() {
     ] = await Promise.all([
       prisma.business.count(),
       prisma.business.count({ where: { verificationStatus: { in: [VerificationStatus.AGENT_VERIFIED, VerificationStatus.HIGH_CONFIDENCE] } } }),
+      prisma.business.count({ where: { dataStatus: "DEMO" } }),
+      prisma.business.count({ where: { dataStatus: "RESEARCHED" } }),
+      prisma.business.count({ where: { dataStatus: "VERIFIED" } }),
       prisma.user.count(),
       prisma.user.count({ where: { role: Role.COMMUNITY_AGENT } }),
       prisma.report.count({ where: { status: ReportStatus.OPEN } }),
       prisma.receiptCapture.count(),
+      prisma.geographicSector.count(),
+      prisma.geographicCell.count(),
       prisma.auditLog.findMany({
         take: 20,
         orderBy: { createdAt: "desc" },
@@ -41,7 +51,7 @@ export async function GET() {
       prisma.business.findMany({
         take: 50,
         orderBy: { updatedAt: "desc" },
-        include: { products: true, verifications: true },
+        include: { products: true, verifications: true, localArea: true },
       }),
       prisma.receiptCapture.findMany({
         take: 30,
@@ -68,10 +78,15 @@ export async function GET() {
         totalBusinesses,
         verifiedCount,
         unverifiedCount: totalBusinesses - verifiedCount,
+        demoCount,
+        researchedCount,
+        verifiedDataCount,
         totalUsers,
         agentCount,
         openReportsCount,
         totalCaptures,
+        totalSectors,
+        totalCells,
       },
       auditLogs: recentAuditLogs,
       businesses: businesses.map(formatBusinessRecord),
@@ -190,6 +205,32 @@ export async function PATCH(request: Request) {
       });
 
       return NextResponse.json({ success: true, status: bizStatus });
+    }
+
+    if (action === "UPDATE_DATA_STATUS" && businessId) {
+      const { dataStatus: targetDataStatus } = body;
+      const validStatuses = ["DEMO", "RESEARCHED", "VERIFIED"];
+      if (!validStatuses.includes(targetDataStatus)) {
+        return NextResponse.json({ error: "Invalid dataStatus" }, { status: 400 });
+      }
+
+      const updated = await prisma.business.update({
+        where: { id: businessId },
+        data: {
+          dataStatus: targetDataStatus as any,
+          lastVerifiedAt: targetDataStatus === "VERIFIED" ? new Date() : undefined,
+        },
+      });
+
+      await logAuditEvent({
+        actorId: auth.user.id,
+        action: "BUSINESS_DATA_STATUS_MODIFIED",
+        entityType: "BUSINESS",
+        entityId: businessId,
+        metadata: { newDataStatus: targetDataStatus },
+      });
+
+      return NextResponse.json({ success: true, dataStatus: updated.dataStatus });
     }
 
     return NextResponse.json({ error: "Invalid action or parameters" }, { status: 400 });

@@ -4,9 +4,22 @@ import { store } from "@/lib/store";
 import { getCurrentUser } from "@/lib/auth";
 import { logAuditEvent } from "@/lib/audit";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const { searchParams } = new URL(request.url);
+    const sector = searchParams.get("sector");
+    const targetArea = searchParams.get("targetArea");
+
+    const where: any = {};
+    if (sector && sector !== "all") {
+      where.targetArea = { contains: sector, mode: "insensitive" };
+    }
+    if (targetArea && targetArea !== "all") {
+      where.targetArea = { contains: targetArea, mode: "insensitive" };
+    }
+
     const missions = await prisma.mission.findMany({
+      where,
       orderBy: { createdAt: "desc" },
     });
 

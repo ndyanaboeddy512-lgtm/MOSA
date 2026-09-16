@@ -6,7 +6,7 @@ import { useLanguage } from "@/lib/i18n";
 import { useAuth } from "@/lib/auth-context";
 import { store } from "@/lib/store";
 import { Business, PhysicalCaptureRecord, ModerationReport, CommunityDemandSignal } from "@/types";
-import { VerificationBadge } from "@/components/common/Badge";
+import { VerificationBadge, DataStatusBadge } from "@/components/common/Badge";
 import { 
   Shield, 
   Users, 
@@ -22,7 +22,9 @@ import {
   Sparkles,
   History,
   RefreshCw,
-  Lock
+  Lock,
+  Globe,
+  Tag
 } from "lucide-react";
 
 interface AdminAuditLog {
@@ -49,18 +51,28 @@ export default function AdminPanelPage() {
     totalBusinesses: number;
     verifiedCount: number;
     unverifiedCount: number;
+    demoCount?: number;
+    researchedCount?: number;
+    verifiedDataCount?: number;
     totalUsers: number;
     agentCount: number;
     openReportsCount: number;
     totalCaptures: number;
+    totalSectors?: number;
+    totalCells?: number;
   }>({
     totalBusinesses: 0,
     verifiedCount: 0,
     unverifiedCount: 0,
+    demoCount: 0,
+    researchedCount: 0,
+    verifiedDataCount: 0,
     totalUsers: 0,
     agentCount: 0,
     openReportsCount: 0,
     totalCaptures: 0,
+    totalSectors: 6,
+    totalCells: 12,
   });
   const [searchTerm, setSearchTerm] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -90,12 +102,18 @@ export default function AdminPanelPage() {
               coordinates: [b.latitude || -1.9706, b.longitude || 30.0444],
             },
             contactPhone: b.phone || "+250788000000",
+            phone: b.phone || "+250788000000",
             verificationStatus: b.verificationStatus,
+            dataStatus: b.dataStatus || "VERIFIED",
+            source: b.source,
+            localArea: b.localArea,
             isOpenNow: b.isOpenNow,
             rating: 4.8,
             reviewsCount: 12,
             coverImage: b.coverImage || "https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=800&auto=format&fit=crop&q=60",
             priceRange: b.priceRange || "MODERATE",
+            priceRangeMin: b.priceRangeMin,
+            priceRangeMax: b.priceRangeMax,
             tags: [b.category],
             status: b.status,
           })));
@@ -155,6 +173,26 @@ export default function AdminPanelPage() {
     store.updateBusinessVerification(bizId, newStatus);
     setBusinesses(businesses.map((b) => (b.id === bizId ? { ...b, verificationStatus: newStatus } : b)));
     fetchAdminData();
+  };
+
+  const handleUpdateDataStatus = async (bizId: string, targetDataStatus: "DEMO" | "RESEARCHED" | "VERIFIED") => {
+    try {
+      const res = await fetch("/api/admin", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "UPDATE_DATA_STATUS",
+          businessId: bizId,
+          dataStatus: targetDataStatus,
+        }),
+      });
+      if (res.ok) {
+        setBusinesses(businesses.map((b) => (b.id === bizId ? { ...b, dataStatus: targetDataStatus as any } : b)));
+        fetchAdminData();
+      }
+    } catch (err) {
+      console.warn("[Admin PATCH dataStatus error]:", err);
+    }
   };
 
   const handleResolveReport = async (reportId: string, status: "RESOLVED" | "DISMISSED") => {
@@ -230,15 +268,44 @@ export default function AdminPanelPage() {
           </p>
         </div>
 
-        <div className="grid grid-cols-2 gap-3 text-xs shrink-0">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs shrink-0">
           <div className="bg-slate-800 p-3 rounded-xl border border-slate-700">
             <div className="text-slate-400 font-medium">Total Listed</div>
             <div className="text-xl font-bold text-white">{businesses.length} Businesses</div>
           </div>
           <div className="bg-slate-800 p-3 rounded-xl border border-slate-700">
-            <div className="text-slate-400 font-medium">Reports Queue</div>
-            <div className="text-xl font-bold text-amber-400">{reports.length} Open</div>
+            <div className="text-amber-400 font-medium">Demo / Synthetic</div>
+            <div className="text-xl font-bold text-amber-400">{metrics.demoCount || 0} Samples</div>
           </div>
+          <div className="bg-slate-800 p-3 rounded-xl border border-slate-700 col-span-2 sm:col-span-1">
+            <div className="text-emerald-400 font-medium">Ground Verified</div>
+            <div className="text-xl font-bold text-emerald-400">{metrics.verifiedDataCount || metrics.verifiedCount || 0} Active</div>
+          </div>
+        </div>
+      </div>
+
+      {/* National Geographic Hierarchy Coverage Banner */}
+      <div className="bg-gradient-to-r from-emerald-950 via-slate-900 to-emerald-950 text-white p-4 rounded-2xl border border-emerald-800/40 mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center shrink-0">
+            <Globe className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-bold text-sm">Rwanda-Wide Geographic Coverage</span>
+              <span className="text-[10px] bg-emerald-500/30 text-emerald-300 font-extrabold px-2 py-0.5 rounded-full uppercase">
+                7-Tier Hierarchy Active
+              </span>
+            </div>
+            <div className="text-xs text-slate-300 mt-0.5">
+              5 Provinces • 11 Districts • 6 Focus Sectors (<strong>Kacyiru</strong>, <strong>Nyamirambo</strong>, Muhoza, Ngoma, Gisenyi, Kigabiro) • 12 Cells • Local Areas & Landmarks (MINAGRI KG 569 St)
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <span className="text-xs bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-700 font-semibold text-emerald-300">
+            2 Assigned Agents
+          </span>
         </div>
       </div>
 
@@ -308,24 +375,58 @@ export default function AdminPanelPage() {
                       <img src={biz.coverImage} alt={biz.name} className="w-full h-full object-cover" />
                     </div>
                     <div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <Link href={`/business/${biz.id}`} className="font-bold text-slate-900 text-sm hover:text-emerald-700">
                           {biz.name}
                         </Link>
                         <VerificationBadge status={biz.verificationStatus} />
+                        <DataStatusBadge status={(biz as any).dataStatus} />
                       </div>
                       <div className="text-xs text-slate-500 mt-0.5">
-                        {biz.category} • {biz.location?.community || (biz as any).cell || "Nyamirambo"} • Phone: {biz.phone}
+                        {biz.category} • {(biz as any).localArea?.name || biz.location?.community || (biz as any).cell || "Rwanda"} • Phone: {biz.phone}
+                        {(biz as any).priceRangeMin && (biz as any).priceRangeMax && (
+                          <span className="ml-2 text-amber-700 font-semibold">
+                            (Est. {(biz as any).priceRangeMin.toLocaleString()} - {(biz as any).priceRangeMax.toLocaleString()} RWF)
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 self-end sm:self-center">
+                  <div className="flex items-center gap-2 self-end sm:self-center flex-wrap">
+                    {/* Lifecycle Promotion Controls */}
+                    {(biz as any).dataStatus === "DEMO" && (
+                      <button
+                        onClick={() => handleUpdateDataStatus(biz.id, "VERIFIED")}
+                        className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold shadow-xs transition-colors"
+                        title="Certify as ground-verified"
+                      >
+                        ✓ Promote to Verified
+                      </button>
+                    )}
+                    {(biz as any).dataStatus === "RESEARCHED" && (
+                      <button
+                        onClick={() => handleUpdateDataStatus(biz.id, "VERIFIED")}
+                        className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold shadow-xs transition-colors"
+                      >
+                        ✓ Certify Verified
+                      </button>
+                    )}
+                    {(biz as any).dataStatus === "VERIFIED" && (
+                      <button
+                        onClick={() => handleUpdateDataStatus(biz.id, "DEMO")}
+                        className="px-2 py-1 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-500 text-[10px] font-medium transition-colors"
+                        title="Revert back to demo synthetic record for testing"
+                      >
+                        Reset to Demo
+                      </button>
+                    )}
+
                     <button
                       onClick={() => handleToggleVerification(biz.id)}
                       className="px-3 py-1.5 rounded-lg border border-slate-200 hover:border-emerald-500 hover:bg-emerald-50 text-xs font-semibold text-slate-700 hover:text-emerald-700 transition-colors"
                     >
-                      Toggle Verification
+                      Toggle Confidence
                     </button>
                     <Link
                       href={`/business/${biz.id}`}

@@ -10,6 +10,9 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const category = searchParams.get("category") || undefined;
   const community = searchParams.get("community") || undefined;
+  const sector = searchParams.get("sector") || undefined;
+  const cell = searchParams.get("cell") || undefined;
+  const dataStatus = searchParams.get("dataStatus") || undefined;
   const search = searchParams.get("search") || undefined;
   const openNowOnly = searchParams.get("openNowOnly") === "true";
   const verification = searchParams.get("verification") || undefined;
@@ -23,11 +26,36 @@ export async function GET(request: Request) {
       where.category = category;
     }
 
-    if (community && community !== "all") {
+    if (sector && sector !== "all") {
       where.OR = [
-        { cell: { contains: community, mode: "insensitive" } },
-        { addressNote: { contains: community, mode: "insensitive" } },
+        { sector: { equals: sector, mode: "insensitive" } },
+        { sectorRel: { name: { equals: sector, mode: "insensitive" } } },
       ];
+    }
+
+    if (cell && cell !== "all") {
+      where.AND = where.AND || [];
+      where.AND.push({
+        OR: [
+          { cell: { equals: cell, mode: "insensitive" } },
+          { cellRel: { name: { equals: cell, mode: "insensitive" } } },
+        ],
+      });
+    }
+
+    if (community && community !== "all") {
+      where.AND = where.AND || [];
+      where.AND.push({
+        OR: [
+          { cell: { contains: community, mode: "insensitive" } },
+          { addressNote: { contains: community, mode: "insensitive" } },
+          { localArea: { name: { contains: community, mode: "insensitive" } } },
+        ],
+      });
+    }
+
+    if (dataStatus && dataStatus !== "all") {
+      where.dataStatus = dataStatus;
     }
 
     if (openNowOnly) {
@@ -40,30 +68,31 @@ export async function GET(request: Request) {
 
     if (search) {
       const q = search.trim();
-      where.AND = [
-        {
-          OR: [
-            { name: { contains: q, mode: "insensitive" } },
-            { nameRw: { contains: q, mode: "insensitive" } },
-            { nameFr: { contains: q, mode: "insensitive" } },
-            { nameSw: { contains: q, mode: "insensitive" } },
-            { description: { contains: q, mode: "insensitive" } },
-            { descriptionRw: { contains: q, mode: "insensitive" } },
-            { categoryDisplay: { contains: q, mode: "insensitive" } },
-            { categoryDisplayRw: { contains: q, mode: "insensitive" } },
-            { cell: { contains: q, mode: "insensitive" } },
-            { products: { some: { name: { contains: q, mode: "insensitive" } } } },
-          ],
-        },
-      ];
+      where.AND = where.AND || [];
+      where.AND.push({
+        OR: [
+          { name: { contains: q, mode: "insensitive" } },
+          { nameRw: { contains: q, mode: "insensitive" } },
+          { nameFr: { contains: q, mode: "insensitive" } },
+          { nameSw: { contains: q, mode: "insensitive" } },
+          { description: { contains: q, mode: "insensitive" } },
+          { descriptionRw: { contains: q, mode: "insensitive" } },
+          { categoryDisplay: { contains: q, mode: "insensitive" } },
+          { categoryDisplayRw: { contains: q, mode: "insensitive" } },
+          { cell: { contains: q, mode: "insensitive" } },
+          { sector: { contains: q, mode: "insensitive" } },
+          { addressNote: { contains: q, mode: "insensitive" } },
+          { products: { some: { name: { contains: q, mode: "insensitive" } } } },
+        ],
+      });
 
       // Record search event asynchronously for Demand Intelligence
       prisma.searchEvent
         .create({
           data: {
             query: q,
-            sector: "Nyamirambo",
-            cell: community || "Biryogo",
+            sector: sector || "Nyamirambo",
+            cell: cell || community || "Biryogo",
           },
         })
         .catch(() => {});
@@ -75,12 +104,13 @@ export async function GET(request: Request) {
         products: true,
         reviews: true,
         businessHours: true,
+        localArea: true,
       },
       orderBy: { updatedAt: "desc" },
     });
 
     // If database is empty, return initial seed data to prevent empty states
-    if (businesses.length === 0 && !search && (!category || category === "all")) {
+    if (businesses.length === 0 && !search && (!category || category === "all") && (!sector || sector === "all")) {
       return NextResponse.json({
         success: true,
         source: "seed-fallback",
@@ -129,7 +159,14 @@ export async function POST(request: Request) {
       latitude = -1.981,
       longitude = 30.046,
       priceRange = "LOW",
+      priceRangeMin,
+      priceRangeMax,
       coverImage,
+      sectorId,
+      cellId,
+      localAreaId,
+      dataStatus = "VERIFIED",
+      source,
     } = body;
 
     if (!name || !category) {
@@ -158,8 +195,15 @@ export async function POST(request: Request) {
         longitude: Number(longitude),
         verificationStatus: user?.role === "COMMUNITY_AGENT" ? "AGENT_VERIFIED" : "UNVERIFIED",
         priceRange,
+        priceRangeMin: priceRangeMin ? Number(priceRangeMin) : null,
+        priceRangeMax: priceRangeMax ? Number(priceRangeMax) : null,
         coverImage: coverImage || "https://images.unsplash.com/photo-1544816155-12df9643f363?w=800&auto=format&fit=crop&q=60",
         agentId: user?.id || null,
+        sectorId: sectorId || null,
+        cellId: cellId || null,
+        localAreaId: localAreaId || null,
+        dataStatus: (dataStatus as any) || "VERIFIED",
+        source: source || (user ? "COMMUNITY_AGENT" : "PLATFORM_INPUT"),
       },
     });
 
