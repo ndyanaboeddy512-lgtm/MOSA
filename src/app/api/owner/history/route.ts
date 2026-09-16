@@ -14,20 +14,28 @@ export async function GET(request: Request) {
   }
 
   const { searchParams } = new URL(request.url);
-  const businessId = searchParams.get("businessId");
-
-  if (!businessId) {
-    return NextResponse.json({ error: "businessId query parameter is required" }, { status: 400 });
-  }
+  let businessId = searchParams.get("businessId");
 
   try {
-    const business = await prisma.business.findUnique({
-      where: { id: businessId },
-      select: { ownerId: true },
-    });
+    if (!businessId) {
+      const owned = await prisma.business.findFirst({
+        where: { ownerId: auth.user.id },
+        select: { id: true },
+      });
+      if (owned) {
+        businessId = owned.id;
+      } else {
+        return NextResponse.json({ error: "No business associated with owner" }, { status: 404 });
+      }
+    } else {
+      const business = await prisma.business.findUnique({
+        where: { id: businessId },
+        select: { ownerId: true },
+      });
 
-    if (!business || (business.ownerId !== auth.user.id && auth.user.role !== Role.SUPER_ADMIN)) {
-      return NextResponse.json({ error: "Forbidden: You do not own this business" }, { status: 403 });
+      if (!business || (business.ownerId !== auth.user.id && auth.user.role !== Role.SUPER_ADMIN)) {
+        return NextResponse.json({ error: "Forbidden: You do not own this business" }, { status: 403 });
+      }
     }
 
     const history = await prisma.businessChangeHistory.findMany({
