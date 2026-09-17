@@ -117,6 +117,12 @@ export function formatBusinessRecord(raw: any): Business {
       longitude: raw.localArea.longitude || undefined,
     } : undefined,
     location,
+    latitude: typeof raw.latitude === "number" ? raw.latitude : (location.coordinates?.lat ?? -1.981),
+    longitude: typeof raw.longitude === "number" ? raw.longitude : (location.coordinates?.lng ?? 30.046),
+    province: location.province,
+    district: location.district,
+    sector: location.sector,
+    cell: location.cell,
     // Micro-Business Smart Location & Ground Discovery
     nearestLandmark,
     streetName,
