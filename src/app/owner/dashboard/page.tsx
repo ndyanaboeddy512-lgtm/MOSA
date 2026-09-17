@@ -39,7 +39,13 @@ import {
   Send,
   Trash2,
   Info,
+  Crosshair,
+  Navigation,
+  Compass,
+  ExternalLink,
 } from "lucide-react";
+import { MosaMap } from "@/components/discovery/MosaMap";
+import { calculateLocationCompleteness, getGoogleMapsDirectionsUrl } from "@/lib/location-quality";
 
 const DAYS_OF_WEEK = [
   { day: "Monday", dayRw: "Kuwa Mbere" },
@@ -56,7 +62,7 @@ export default function OwnerDashboardPage() {
   const { user } = useAuth();
 
   const [activeTab, setActiveTab] = useState<
-    "overview" | "profile" | "hours" | "catalog" | "offers" | "assistant" | "history" | "reminders" | "account"
+    "overview" | "profile" | "location" | "hours" | "catalog" | "offers" | "assistant" | "history" | "reminders" | "account"
   >("overview");
 
   const [business, setBusiness] = useState<Business | null>(null);
@@ -115,6 +121,23 @@ export default function OwnerDashboardPage() {
     isOpenNow: true,
   });
 
+  // Location & Navigation Form state
+  const [locationForm, setLocationForm] = useState({
+    sector: "Nyamirambo",
+    cell: "Biryogo",
+    nearestLandmark: "",
+    streetName: "",
+    nearbyPlace: "",
+    locationDescription: "",
+    latitude: -1.981,
+    longitude: 30.046,
+    locationSource: "OWNER_DECLARED" as string,
+    locationAccuracy: undefined as number | undefined,
+    locationVerificationStatus: "UNVERIFIED" as string,
+  });
+  const [isCapturingGps, setIsCapturingGps] = useState(false);
+  const [gpsMessage, setGpsMessage] = useState<string | null>(null);
+
   // Opening Hours state
   const [hoursForm, setHoursForm] = useState<BusinessHours[]>([]);
 
@@ -160,6 +183,21 @@ export default function OwnerDashboardPage() {
             cell: data.business.location?.cell || data.business.cell || "Biryogo",
             addressNote: data.business.location?.addressNote || data.business.addressNote || "",
             isOpenNow: Boolean(data.business.isOpenNow),
+          });
+
+          // Sync location form
+          setLocationForm({
+            sector: data.business.location?.sector || data.business.sector || "Nyamirambo",
+            cell: data.business.location?.cell || data.business.cell || "Biryogo",
+            nearestLandmark: data.business.nearestLandmark || data.business.location?.nearestLandmark || "",
+            streetName: data.business.streetName || data.business.location?.streetName || "",
+            nearbyPlace: data.business.nearbyPlace || data.business.location?.nearbyPlace || "",
+            locationDescription: data.business.locationDescription || data.business.location?.locationDescription || "",
+            latitude: data.business.location?.coordinates?.lat ?? data.business.latitude ?? -1.981,
+            longitude: data.business.location?.coordinates?.lng ?? data.business.longitude ?? 30.046,
+            locationSource: data.business.locationSource || data.business.location?.source || "OWNER_DECLARED",
+            locationAccuracy: data.business.locationAccuracy ?? data.business.location?.accuracy,
+            locationVerificationStatus: data.business.locationVerificationStatus || data.business.location?.verificationStatus || "UNVERIFIED",
           });
 
           // Sync hours form
@@ -290,6 +328,96 @@ export default function OwnerDashboardPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Handle Location & Directions Update
+  const handleLocationSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!business) return;
+
+    try {
+      setLoading(true);
+      setErrorMsg("");
+      const res = await fetch("/api/owner/business", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          businessId: business.id,
+          sector: locationForm.sector,
+          cell: locationForm.cell,
+          nearestLandmark: locationForm.nearestLandmark,
+          streetName: locationForm.streetName,
+          nearbyPlace: locationForm.nearbyPlace,
+          locationDescription: locationForm.locationDescription,
+          latitude: locationForm.latitude,
+          longitude: locationForm.longitude,
+          locationSource: locationForm.locationSource,
+          locationAccuracy: locationForm.locationAccuracy,
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setBusiness(data.business);
+        setHealthReport(data.health);
+        setSaveSuccessMsg(
+          lang === "rw"
+            ? "Aho ubucuruzi buherereye n'amabwiriza byabitswe neza kandi byahise bigaragara ku rubuga rwa MOSA!"
+            : "Location details, landmarks, and navigation instructions saved and synchronized to the live website!"
+        );
+        setTimeout(() => setSaveSuccessMsg(""), 4000);
+      } else {
+        const err = await res.json();
+        setErrorMsg(err.error || "Failed to update location");
+      }
+    } catch (err: any) {
+      setErrorMsg(err.message || "Failed to update location");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Handle Live GPS Capture
+  const handleCaptureCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      setGpsMessage(lang === "rw" ? "GPS ntikora kuri iyi mushakisha" : "Geolocation is not supported by your browser");
+      return;
+    }
+
+    setIsCapturingGps(true);
+    setGpsMessage(null);
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const lat = Number(pos.coords.latitude.toFixed(6));
+        const lng = Number(pos.coords.longitude.toFixed(6));
+        const acc = Math.round(pos.coords.accuracy);
+
+        setLocationForm((prev) => ({
+          ...prev,
+          latitude: lat,
+          longitude: lng,
+          locationSource: "OWNER_DECLARED",
+          locationAccuracy: acc,
+        }));
+        setIsCapturingGps(false);
+        setGpsMessage(
+          lang === "rw"
+            ? `Imyirondoro ya GPS yafashwe neza! (Ubusobanutse: ±${acc}m)`
+            : `Live GPS captured successfully! (Accuracy: ±${acc}m)`
+        );
+        setTimeout(() => setGpsMessage(null), 5000);
+      },
+      (err) => {
+        setIsCapturingGps(false);
+        setGpsMessage(
+          lang === "rw"
+            ? `Ntabwo bishoboka gufata GPS: ${err.message}`
+            : `Unable to acquire GPS: ${err.message}`
+        );
+      },
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
+    );
   };
 
   // Handle Opening Hours Update
@@ -704,7 +832,8 @@ export default function OwnerDashboardPage() {
       <div className="flex items-center gap-1.5 overflow-x-auto pb-2 scrollbar-none border-b border-slate-200 text-xs font-bold">
         {[
           { key: "overview", label: lang === "rw" ? "Incamake" : "Overview", icon: Layers },
-          { key: "profile", label: lang === "rw" ? "Umwirondoro" : "Profile & Location", icon: Store },
+          { key: "profile", label: lang === "rw" ? "Umwirondoro" : "Profile", icon: Store },
+          { key: "location", label: lang === "rw" ? "Aho Mubarizwa" : "Location & Directions", icon: MapPin },
           { key: "hours", label: lang === "rw" ? "Amasaha" : "Opening Hours", icon: Clock },
           { key: "catalog", label: lang === "rw" ? "Ibicuruzwa" : "Catalogue & Prices", icon: Tag, count: business.products.length },
           { key: "offers", label: lang === "rw" ? "Poromosiyo" : "Special Offers", icon: Calendar },
@@ -1121,6 +1250,23 @@ export default function OwnerDashboardPage() {
                 />
               </div>
             </div>
+
+            <div className="flex items-center justify-between p-3.5 bg-emerald-50 rounded-2xl border border-emerald-200">
+              <div className="flex items-center gap-2">
+                <MapPin className="w-4 h-4 text-emerald-700" />
+                <span className="text-xs font-bold text-emerald-950">
+                  {lang === "rw" ? "Amerekezo n'Ikarita by'Ubucuruzi" : "Interactive Map, Nearest Landmark & Navigation"}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveTab("location")}
+                className="px-3 py-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs flex items-center gap-1 cursor-pointer transition-colors"
+              >
+                <span>{lang === "rw" ? "Genzura Ikarita" : "Open Location & Map Tab"}</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
           </div>
 
           <div className="flex items-center justify-between pt-2">
@@ -1142,6 +1288,339 @@ export default function OwnerDashboardPage() {
               className="px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md transition-all cursor-pointer"
             >
               {loading ? "Saving to Database..." : lang === "rw" ? "Bika Impinduka zose" : "Save & Publish Changes"}
+            </button>
+          </div>
+        </form>
+      )}
+
+      {/* TAB CONTENT: LOCATION & DIRECTIONS */}
+      {activeTab === "location" && (
+        <form onSubmit={handleLocationSubmit} className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200 shadow-card space-y-6">
+          <div className="border-b border-slate-100 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                <MapPin className="w-5 h-5 text-emerald-600" />
+                <span>{lang === "rw" ? "Aho Mubarizwa n'Amabwiriza yo Kugera ku Bucuruzi" : "Location, Landmark & Human Navigation"}</span>
+              </h3>
+              <p className="text-xs text-slate-500 mt-1 max-w-2xl">
+                {lang === "rw"
+                  ? "Mu Rwanda, abakiriya bamenya aho ubucuruzi buherereye binyuze mu birango bizwi n'amabwiriza y'inzira kuruta aderesi zanditse. Uzuza ibi bisabwa kugira ngo abaguzi bakubone vuba."
+                  : "In Rwanda, local discovery depends on recognizable landmarks and physical navigation cues. Update your human reference points, landmarks, and GPS pin."}
+              </p>
+            </div>
+
+            {/* Quality Score & Status Pills */}
+            {(() => {
+              const quality = calculateLocationCompleteness({
+                latitude: locationForm.latitude,
+                longitude: locationForm.longitude,
+                locationAccuracy: locationForm.locationAccuracy,
+                locationSource: locationForm.locationSource,
+                locationVerificationStatus: locationForm.locationVerificationStatus,
+                nearestLandmark: locationForm.nearestLandmark,
+                locationDescription: locationForm.locationDescription,
+              });
+
+              return (
+                <div className="flex items-center gap-2 shrink-0">
+                  <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200 text-right">
+                    <span className="text-[10px] uppercase font-bold text-slate-400 block">
+                      {lang === "rw" ? "Ubwiza bw'Aho Mubarizwa" : "Location Completeness"}
+                    </span>
+                    <span
+                      className={`text-xs font-extrabold ${
+                        quality.score >= 75
+                          ? "text-emerald-700"
+                          : quality.score >= 50
+                          ? "text-blue-700"
+                          : "text-amber-700"
+                      }`}
+                    >
+                      {quality.score}% ({quality.level})
+                    </span>
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+
+          {/* Verification & Source Status */}
+          <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 flex flex-wrap items-center justify-between gap-3 text-xs">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-bold text-slate-700">{lang === "rw" ? "Imiterere y'Iyemezwa:" : "Verification Status:"}</span>
+              <span
+                className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
+                  locationForm.locationVerificationStatus === "AGENT_CAPTURED" ||
+                  locationForm.locationVerificationStatus === "AGENT_VERIFIED" ||
+                  locationForm.locationVerificationStatus === "BUSINESS_CONFIRMED"
+                    ? "bg-emerald-100 text-emerald-800"
+                    : "bg-amber-100 text-amber-800"
+                }`}
+              >
+                {locationForm.locationVerificationStatus || "UNVERIFIED"}
+              </span>
+
+              <span className="text-slate-400">•</span>
+
+              <span className="text-slate-600">
+                {lang === "rw" ? "Inkomoko:" : "Source:"} <strong>{locationForm.locationSource || "OWNER_DECLARED"}</strong>
+              </span>
+
+              {locationForm.locationAccuracy && (
+                <>
+                  <span className="text-slate-400">•</span>
+                  <span className="text-slate-600">
+                    {lang === "rw" ? "Ubusobanutse bwa GPS:" : "GPS Accuracy:"} <strong>±{locationForm.locationAccuracy}m</strong>
+                  </span>
+                </>
+              )}
+            </div>
+
+            <a
+              href={getGoogleMapsDirectionsUrl({
+                lat: locationForm.latitude,
+                lng: locationForm.longitude,
+                name: business?.name || "Business",
+              })}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-xs font-bold text-emerald-700 hover:text-emerald-800 transition-colors"
+            >
+              <Navigation className="w-3.5 h-3.5" />
+              <span>{lang === "rw" ? "Suzuma Inzira ya Google Maps" : "Test Live Directions Link"}</span>
+              <ExternalLink className="w-3 h-3 text-slate-400" />
+            </a>
+          </div>
+
+          {/* Administrative Hierarchy (Read/Quick Edit) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs font-bold text-slate-700 mb-1 block">
+                {lang === "rw" ? "Umurenge (Sector)" : "Sector"}
+              </label>
+              <input
+                type="text"
+                value={locationForm.sector}
+                onChange={(e) => setLocationForm({ ...locationForm, sector: e.target.value })}
+                required
+                className="w-full p-3 bg-slate-50 rounded-xl border border-slate-300 text-xs font-semibold outline-none focus:ring-2 focus:ring-emerald-500"
+              />
+            </div>
+
+            <div>
+              <label className="text-xs font-bold text-slate-700 mb-1 block">
+                {lang === "rw" ? "Akagari (Cell)" : "Cell"}
+              </label>
+              <input
+                type="text"
+                value={locationForm.cell}
+                onChange={(e) => setLocationForm({ ...locationForm, cell: e.target.value })}
+                required
+                className="w-full p-3 bg-slate-50 rounded-xl border border-slate-300 text-xs font-semibold outline-none focus:ring-2 focus:ring-emerald-500"
+              />
+            </div>
+          </div>
+
+          {/* Human Reference Points */}
+          <div className="space-y-4">
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                  <MapPin className="w-3.5 h-3.5 text-rose-600" />
+                  <span>{lang === "rw" ? "Ikirango cy'Aho Mwegereye (Nearest Landmark) *" : "Nearest Landmark *"}</span>
+                </label>
+                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded">
+                  High Discovery Value
+                </span>
+              </div>
+              <input
+                type="text"
+                value={locationForm.nearestLandmark}
+                onChange={(e) => setLocationForm({ ...locationForm, nearestLandmark: e.target.value })}
+                placeholder={
+                  lang === "rw"
+                    ? "urugero: Metero 50 inyuma ya Cosmos Junction, hafi y'Umusigiti w'Icyatsi"
+                    : "e.g. 50m behind Cosmos Junction, opposite Green Mosque"
+                }
+                required
+                className="w-full p-3 bg-slate-50 rounded-xl border border-slate-300 text-xs font-medium outline-none focus:ring-2 focus:ring-emerald-500"
+              />
+              <p className="text-[11px] text-slate-500 mt-1">
+                {lang === "rw"
+                  ? "Koresha ahantu hazwi cyane (isoko, amasangano, umusigiti, kiliziya, sitasiyo)."
+                  : "Use well-known local landmarks so search engines and neighborhood residents can locate you easily."}
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs font-bold text-slate-700 mb-1 block">
+                  {lang === "rw" ? "Izina ry'Umuhanda (Street Name - Optional)" : "Street / Road Name (Optional)"}
+                </label>
+                <input
+                  type="text"
+                  value={locationForm.streetName}
+                  onChange={(e) => setLocationForm({ ...locationForm, streetName: e.target.value })}
+                  placeholder="e.g. KG 569 St or KN 20 Ave"
+                  className="w-full p-3 bg-slate-50 rounded-xl border border-slate-300 text-xs outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-700 mb-1 block">
+                  {lang === "rw" ? "Ahantu Hazwi Byegereye (Nearby Place)" : "Nearby Well-Known Place"}
+                </label>
+                <input
+                  type="text"
+                  value={locationForm.nearbyPlace}
+                  onChange={(e) => setLocationForm({ ...locationForm, nearbyPlace: e.target.value })}
+                  placeholder="e.g. Opposite Inyange Milk Zone"
+                  className="w-full p-3 bg-slate-50 rounded-xl border border-slate-300 text-xs outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                  <Compass className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>{lang === "rw" ? "Amabwiriza y'Inzira (Physical Navigation Instructions) *" : "Human Navigation Directions *"}</span>
+                </label>
+                <span className="text-[10px] font-bold text-slate-500">Visible on Public Page</span>
+              </div>
+              <textarea
+                value={locationForm.locationDescription}
+                onChange={(e) => setLocationForm({ ...locationForm, locationDescription: e.target.value })}
+                rows={3}
+                placeholder={
+                  lang === "rw"
+                    ? "urugero: Injirira mu marembo y'ubururu afite ikimenyetso cya MTN, kora intambwe 10, umuryango wa 3 ku kuboko kw'iburyo."
+                    : "e.g. Enter through the blue metal gate next to MTN kiosk, walk down the corridor, 3rd door on the right."
+                }
+                required
+                className="w-full p-3 bg-slate-50 rounded-xl border border-slate-300 text-xs outline-none focus:ring-2 focus:ring-emerald-500 leading-relaxed"
+              />
+              <p className="text-[11px] text-slate-500 mt-1">
+                {lang === "rw"
+                  ? "Ibi bituma umukiriya agera aho mukorera bitamugoye n'ubwo yaba ahageze bwa mbere."
+                  : "Clear pedestrian navigation instructions make first-time visits effortless for your customers."}
+              </p>
+            </div>
+          </div>
+
+          {/* Interactive Map & GPS Acquisition */}
+          <div className="p-5 bg-slate-50 rounded-2xl border border-slate-200 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h4 className="font-bold text-slate-900 text-xs uppercase tracking-wider flex items-center gap-1.5">
+                  <Crosshair className="w-4 h-4 text-emerald-600" />
+                  <span>{lang === "rw" ? "Ikarita n'Imyirondoro ya GPS" : "Interactive Map & Precise Coordinates"}</span>
+                </h4>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  {lang === "rw"
+                    ? "Kanda ku ikarita cyangwa ukurure agapini kugira ngo uhitemo neza aho umuryango w'ubucuruzi buherereye."
+                    : "Drag the map pin or use the button below to update your GPS coordinates from your device."}
+                </p>
+              </div>
+
+              {/* Capture Current GPS Button */}
+              <button
+                type="button"
+                onClick={handleCaptureCurrentLocation}
+                disabled={isCapturingGps}
+                className="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs shadow-xs transition-all flex items-center gap-2 cursor-pointer shrink-0"
+              >
+                <Crosshair className={`w-3.5 h-3.5 text-emerald-400 ${isCapturingGps ? "animate-spin" : ""}`} />
+                <span>
+                  {isCapturingGps
+                    ? lang === "rw"
+                      ? "Gufata GPS..."
+                      : "Acquiring GPS..."
+                    : lang === "rw"
+                    ? "Fata GPS ya Telefoni Yanjye"
+                    : "Capture GPS from My Device"}
+                </span>
+              </button>
+            </div>
+
+            {gpsMessage && (
+              <div className="p-2.5 bg-emerald-100 text-emerald-950 border border-emerald-300 rounded-xl text-xs font-semibold flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0" />
+                <span>{gpsMessage}</span>
+              </div>
+            )}
+
+            {/* Coordinates display */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+              <div className="p-2.5 bg-white rounded-xl border border-slate-200">
+                <span className="text-[10px] font-bold text-slate-400 block uppercase">Latitude</span>
+                <span className="font-mono font-bold text-slate-800">{locationForm.latitude.toFixed(6)}</span>
+              </div>
+              <div className="p-2.5 bg-white rounded-xl border border-slate-200">
+                <span className="text-[10px] font-bold text-slate-400 block uppercase">Longitude</span>
+                <span className="font-mono font-bold text-slate-800">{locationForm.longitude.toFixed(6)}</span>
+              </div>
+              <div className="p-2.5 bg-white rounded-xl border border-slate-200">
+                <span className="text-[10px] font-bold text-slate-400 block uppercase">Source</span>
+                <span className="font-bold text-slate-800">{locationForm.locationSource}</span>
+              </div>
+              <div className="p-2.5 bg-white rounded-xl border border-slate-200">
+                <span className="text-[10px] font-bold text-slate-400 block uppercase">Accuracy</span>
+                <span className="font-bold text-slate-800">
+                  {locationForm.locationAccuracy ? `±${locationForm.locationAccuracy}m` : "Manual"}
+                </span>
+              </div>
+            </div>
+
+            {/* Embedded MosaMap preview with draggable pin */}
+            <div className="rounded-2xl overflow-hidden border border-slate-300 shadow-xs">
+              <MosaMap
+                center={{ lat: locationForm.latitude, lng: locationForm.longitude }}
+                zoom={16}
+                draggablePin={true}
+                draggableCoords={{ lat: locationForm.latitude, lng: locationForm.longitude }}
+                onCoordinateChange={(newCoords) => {
+                  setLocationForm((prev) => ({
+                    ...prev,
+                    latitude: Number(newCoords.lat.toFixed(6)),
+                    longitude: Number(newCoords.lng.toFixed(6)),
+                    locationSource: "OWNER_DECLARED",
+                  }));
+                }}
+                accuracyRadiusMeters={locationForm.locationAccuracy}
+                heightClassName="h-72 sm:h-80"
+                showDirectionsButton={true}
+                interactive={true}
+              />
+            </div>
+            <p className="text-[11px] text-slate-500 italic">
+              💡 {lang === "rw" ? "Inama: Ushobora gukanda ugakurura agapini ku ikarita ukakageza aho umuryango wanyu uri nyakuri." : "Tip: Drag the pin on the map to place it exactly above your shop or workshop entrance."}
+            </p>
+          </div>
+
+          {/* Submit Button */}
+          <div className="flex items-center justify-between pt-2">
+            <button
+              type="button"
+              onClick={() => setActiveTab("overview")}
+              className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors"
+            >
+              {lang === "rw" ? "Reka / Subira Inyuma" : "Cancel"}
+            </button>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md transition-all cursor-pointer flex items-center gap-1.5"
+            >
+              <Check className="w-4 h-4" />
+              <span>
+                {loading
+                  ? "Saving Location..."
+                  : lang === "rw"
+                  ? "Bika Aho Mubarizwa ku Rubuga"
+                  : "Save & Synchronize Location"}
+              </span>
             </button>
           </div>
         </form>

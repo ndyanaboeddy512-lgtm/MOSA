@@ -2,9 +2,11 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
 import { logAuditEvent } from "@/lib/audit";
-import { VerificationStatus } from "@prisma/client";
+import { VerificationStatus, LocationSource, LocationVerificationStatus } from "@prisma/client";
 import { INITIAL_BUSINESSES } from "@/lib/seed-data";
 import { formatBusinessRecord } from "@/lib/format-business";
+import { parseSearchQuery } from "@/lib/search-nlp";
+import { checkNearDuplicates } from "@/lib/location-quality";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -22,21 +24,46 @@ export async function GET(request: Request) {
   const province = searchParams.get("province") || undefined;
   const provinceId = searchParams.get("provinceId") || undefined;
   const checkDuplicate = searchParams.get("checkDuplicate") === "true";
+  const locationVerification = searchParams.get("locationVerification") || searchParams.get("locationVerificationStatus") || undefined;
+  const targetLat = searchParams.get("lat") ? parseFloat(searchParams.get("lat")!) : (searchParams.get("latitude") ? parseFloat(searchParams.get("latitude")!) : undefined);
+  const targetLng = searchParams.get("lng") ? parseFloat(searchParams.get("lng")!) : (searchParams.get("longitude") ? parseFloat(searchParams.get("longitude")!) : undefined);
 
   try {
-    // Duplicate detection check
-    if (checkDuplicate && search) {
-      const nameQuery = search.trim();
-      const existing = await prisma.business.findMany({
+    // Proximity duplicate detection check using Haversine algorithm
+    if (checkDuplicate && (search || searchParams.get("name"))) {
+      const nameQuery = (search || searchParams.get("name") || "").trim();
+      const candidateBusinesses = await prisma.business.findMany({
         where: {
-          name: { contains: nameQuery, mode: "insensitive" as const },
+          status: "ACTIVE",
           OR: [
             ...(sector ? [{ sector: { equals: sector, mode: "insensitive" as const } }] : []),
             ...(cell ? [{ cell: { equals: cell, mode: "insensitive" as const } }] : []),
+            ...(provinceId ? [{ provinceId }] : []),
+            ...(districtId ? [{ districtId }] : []),
           ],
         },
-        select: { id: true, name: true, cell: true, sector: true, district: true, dataStatus: true },
+        select: { id: true, name: true, cell: true, sector: true, district: true, dataStatus: true, latitude: true, longitude: true, category: true },
       });
+
+      if (typeof targetLat === "number" && typeof targetLng === "number") {
+        const dupCheck = checkNearDuplicates(
+          { lat: targetLat, lng: targetLng, name: nameQuery, category },
+          candidateBusinesses,
+          25
+        );
+        return NextResponse.json({
+          success: true,
+          isDuplicate: dupCheck.isNearDuplicate,
+          matchedBusiness: dupCheck.matchedBusiness,
+          distanceMeters: dupCheck.distanceMeters,
+          matchesCount: dupCheck.isNearDuplicate ? 1 : 0,
+        });
+      }
+
+      const existing = candidateBusinesses.filter((b) =>
+        b.name.toLowerCase().includes(nameQuery.toLowerCase()) || nameQuery.toLowerCase().includes(b.name.toLowerCase())
+      );
+
       return NextResponse.json({
         success: true,
         isDuplicate: existing.length > 0,
@@ -105,6 +132,7 @@ export async function GET(request: Request) {
         OR: [
           { cell: { contains: community, mode: "insensitive" } },
           { addressNote: { contains: community, mode: "insensitive" } },
+          { nearestLandmark: { contains: community, mode: "insensitive" } },
           { localArea: { name: { contains: community, mode: "insensitive" } } },
         ],
       });
@@ -122,33 +150,95 @@ export async function GET(request: Request) {
       where.verificationStatus = verification as VerificationStatus;
     }
 
+    if (locationVerification && locationVerification !== "all") {
+      where.locationVerificationStatus = locationVerification as LocationVerificationStatus;
+    }
+
+    let parsedNlp: any = null;
+
     if (search) {
-      const q = search.trim();
+      parsedNlp = parseSearchQuery(search);
+      const q = parsedNlp.cleanQuery || search.trim();
       where.AND = where.AND || [];
-      where.AND.push({
-        OR: [
-          { name: { contains: q, mode: "insensitive" } },
-          { nameRw: { contains: q, mode: "insensitive" } },
-          { nameFr: { contains: q, mode: "insensitive" } },
-          { nameSw: { contains: q, mode: "insensitive" } },
-          { description: { contains: q, mode: "insensitive" } },
-          { descriptionRw: { contains: q, mode: "insensitive" } },
-          { categoryDisplay: { contains: q, mode: "insensitive" } },
-          { categoryDisplayRw: { contains: q, mode: "insensitive" } },
-          { cell: { contains: q, mode: "insensitive" } },
-          { sector: { contains: q, mode: "insensitive" } },
-          { addressNote: { contains: q, mode: "insensitive" } },
-          { products: { some: { name: { contains: q, mode: "insensitive" } } } },
-        ],
-      });
+
+      // If category was auto-detected from NLP query and not explicitly selected
+      if (parsedNlp.detectedCategory && (!category || category === "all")) {
+        where.category = parsedNlp.detectedCategory;
+      }
+
+      // If landmark was detected
+      if (parsedNlp.matchedLandmark) {
+        where.AND.push({
+          OR: [
+            { nearestLandmark: { contains: parsedNlp.matchedLandmark, mode: "insensitive" } },
+            { addressNote: { contains: parsedNlp.matchedLandmark, mode: "insensitive" } },
+            { localArea: { name: { contains: parsedNlp.matchedLandmark, mode: "insensitive" } } },
+            { locationDescription: { contains: parsedNlp.matchedLandmark, mode: "insensitive" } },
+          ],
+        });
+      }
+
+      // If sector was detected
+      if (parsedNlp.matchedSector && (!sector || sector === "all")) {
+        where.AND.push({
+          OR: [
+            { sector: { contains: parsedNlp.matchedSector, mode: "insensitive" } },
+            { sectorRel: { name: { contains: parsedNlp.matchedSector, mode: "insensitive" } } },
+          ],
+        });
+      }
+
+      // If cell was detected
+      if (parsedNlp.matchedCell && (!cell || cell === "all")) {
+        where.AND.push({
+          OR: [
+            { cell: { contains: parsedNlp.matchedCell, mode: "insensitive" } },
+            { cellRel: { name: { contains: parsedNlp.matchedCell, mode: "insensitive" } } },
+          ],
+        });
+      }
+
+      // If price condition detected (e.g. under 2000 Frw)
+      if (parsedNlp.priceMax) {
+        where.AND.push({
+          OR: [
+            { products: { some: { price: { lte: parsedNlp.priceMax } } } },
+            { priceRangeMin: { lte: parsedNlp.priceMax } },
+          ],
+        });
+      }
+
+      // Text query match
+      if (q) {
+        where.AND.push({
+          OR: [
+            { name: { contains: q, mode: "insensitive" } },
+            { nameRw: { contains: q, mode: "insensitive" } },
+            { nameFr: { contains: q, mode: "insensitive" } },
+            { nameSw: { contains: q, mode: "insensitive" } },
+            { description: { contains: q, mode: "insensitive" } },
+            { descriptionRw: { contains: q, mode: "insensitive" } },
+            { categoryDisplay: { contains: q, mode: "insensitive" } },
+            { categoryDisplayRw: { contains: q, mode: "insensitive" } },
+            { nearestLandmark: { contains: q, mode: "insensitive" } },
+            { streetName: { contains: q, mode: "insensitive" } },
+            { nearbyPlace: { contains: q, mode: "insensitive" } },
+            { locationDescription: { contains: q, mode: "insensitive" } },
+            { cell: { contains: q, mode: "insensitive" } },
+            { sector: { contains: q, mode: "insensitive" } },
+            { addressNote: { contains: q, mode: "insensitive" } },
+            { products: { some: { name: { contains: q, mode: "insensitive" } } } },
+          ],
+        });
+      }
 
       // Record search event asynchronously for Demand Intelligence
       prisma.searchEvent
         .create({
           data: {
-            query: q,
-            sector: sector || "Nyamirambo",
-            cell: cell || community || "Biryogo",
+            query: search.trim(),
+            sector: sector || parsedNlp.matchedSector || "Nyamirambo",
+            cell: cell || parsedNlp.matchedCell || community || "Biryogo",
           },
         })
         .catch(() => {});
@@ -181,6 +271,7 @@ export async function GET(request: Request) {
       success: true,
       source: "postgres",
       count: formatted.length,
+      nlpParsed: parsedNlp,
       businesses: formatted,
     });
   } catch (error) {
@@ -213,6 +304,13 @@ export async function POST(request: Request) {
       district = "Nyarugenge",
       province = "Kigali City",
       addressNote,
+      nearestLandmark,
+      streetName,
+      nearbyPlace,
+      locationDescription,
+      locationSource: rawLocationSource,
+      locationAccuracy: rawLocationAccuracy,
+      locationVerificationStatus: rawLocationVerificationStatus,
       latitude = -1.981,
       longitude = 30.046,
       priceRange = "LOW",
@@ -261,6 +359,12 @@ export async function POST(request: Request) {
       if (c) resolvedCellId = c.id;
     }
 
+    const accuracy = rawLocationAccuracy ? Number(rawLocationAccuracy) : null;
+    const locSource: LocationSource = (rawLocationSource as LocationSource) || (accuracy ? LocationSource.GPS_DEVICE : LocationSource.ADMIN_MANUAL);
+    const locVerification: LocationVerificationStatus = (rawLocationVerificationStatus as LocationVerificationStatus) || 
+      (accuracy ? LocationVerificationStatus.AGENT_CAPTURED : 
+       (user?.role === "COMMUNITY_AGENT" ? LocationVerificationStatus.AGENT_VERIFIED : LocationVerificationStatus.UNVERIFIED));
+
     const business = await prisma.business.create({
       data: {
         name,
@@ -276,6 +380,17 @@ export async function POST(request: Request) {
         sector,
         district,
         addressNote,
+        nearestLandmark: nearestLandmark || addressNote || null,
+        streetName: streetName || null,
+        nearbyPlace: nearbyPlace || null,
+        locationDescription: locationDescription || null,
+        locationSource: locSource,
+        locationAccuracy: accuracy,
+        locationVerificationStatus: locVerification,
+        locationCapturedById: accuracy ? (user?.id || null) : null,
+        locationCapturedAt: accuracy ? new Date() : null,
+        locationVerifiedById: user?.role === "COMMUNITY_AGENT" ? user.id : null,
+        locationVerifiedAt: user?.role === "COMMUNITY_AGENT" ? new Date() : null,
         latitude: Number(latitude),
         longitude: Number(longitude),
         verificationStatus: user?.role === "COMMUNITY_AGENT" ? "AGENT_VERIFIED" : "UNVERIFIED",

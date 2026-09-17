@@ -26,8 +26,11 @@ import {
   ExternalLink,
   ChevronRight,
   Plus,
-  Tag
+  Tag,
+  Navigation
 } from "lucide-react";
+import { LocationCard } from "@/components/discovery/LocationCard";
+import { getGoogleMapsDirectionsUrl } from "@/lib/location-quality";
 
 export default function BusinessProfilePage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params);
@@ -192,16 +195,31 @@ export default function BusinessProfilePage({ params }: { params: Promise<{ id: 
             <div className="flex items-center gap-2 text-xs sm:text-sm text-slate-300">
               <MapPin className="w-4 h-4 text-emerald-400 shrink-0" />
               <span>
-                {business.location?.community || (business as any).cell || "Nyamirambo"}, {business.location?.cell || (business as any).cell || "Nyamirambo"}, {business.location?.sector || "Nyamirambo"}
+                {business.nearestLandmark
+                  ? `${business.nearestLandmark} • ${business.location?.cell || "Nyamirambo"}, ${business.location?.sector || "Nyamirambo"}`
+                  : `${business.location?.community || (business as any).cell || "Nyamirambo"}, ${business.location?.cell || (business as any).cell || "Nyamirambo"}, ${business.location?.sector || "Nyamirambo"}`}
               </span>
-              {business.location?.addressNote && (
+              {business.location?.addressNote && !business.nearestLandmark && (
                 <span className="text-slate-400">({business.location.addressNote})</span>
               )}
             </div>
           </div>
 
           {/* Direct CTAs */}
-          <div className="flex items-center gap-3 shrink-0">
+          <div className="flex items-center gap-2.5 shrink-0 flex-wrap">
+            <a
+              href={getGoogleMapsDirectionsUrl(
+                business.location?.coordinates?.lat ?? business.latitude,
+                business.location?.coordinates?.lng ?? business.longitude
+              )}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-4 py-2.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-white font-bold text-xs sm:text-sm border border-slate-700 shadow-md transition-all flex items-center gap-2 cursor-pointer"
+              title="Get Directions via Google Maps"
+            >
+              <Navigation className="w-4 h-4 text-emerald-400" />
+              <span>Directions</span>
+            </a>
             {business.phone && (
               <a
                 href={`tel:${business.phone}`}
@@ -331,6 +349,9 @@ export default function BusinessProfilePage({ params }: { params: Promise<{ id: 
               </div>
             )}
           </div>
+
+          {/* Dedicated Smart Ground Location & Navigation */}
+          <LocationCard business={business} lang={lang} />
 
           {/* Physical Evidence Section (OCR Captures & Receipts) */}
           <div className="bg-slate-50 p-6 rounded-3xl border border-slate-200">

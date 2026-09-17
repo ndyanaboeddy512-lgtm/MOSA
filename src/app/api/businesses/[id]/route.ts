@@ -138,6 +138,77 @@ export async function PATCH(
       return NextResponse.json({ success: true, business: formatBusinessRecord(updated) });
     }
 
+    // Business location update / re-verification action
+    if (action === "UPDATE_LOCATION") {
+      const {
+        latitude,
+        longitude,
+        nearestLandmark,
+        streetName,
+        nearbyPlace,
+        locationDescription,
+        locationSource,
+        locationAccuracy,
+        locationVerificationStatus,
+        sector,
+        cell,
+        district,
+        addressNote,
+      } = body;
+
+      const updateData: any = {};
+      if (typeof latitude === "number") updateData.latitude = latitude;
+      if (typeof longitude === "number") updateData.longitude = longitude;
+      if (nearestLandmark !== undefined) updateData.nearestLandmark = nearestLandmark;
+      if (streetName !== undefined) updateData.streetName = streetName;
+      if (nearbyPlace !== undefined) updateData.nearbyPlace = nearbyPlace;
+      if (locationDescription !== undefined) updateData.locationDescription = locationDescription;
+      if (locationSource) updateData.locationSource = locationSource;
+      if (typeof locationAccuracy === "number") updateData.locationAccuracy = locationAccuracy;
+      if (locationVerificationStatus) updateData.locationVerificationStatus = locationVerificationStatus;
+      if (sector) updateData.sector = sector;
+      if (cell) updateData.cell = cell;
+      if (district) updateData.district = district;
+      if (addressNote) updateData.addressNote = addressNote;
+
+      if (user) {
+        if (locationAccuracy || locationSource === "GPS_DEVICE") {
+          updateData.locationCapturedById = user.id;
+          updateData.locationCapturedAt = new Date();
+        }
+        if (user.role === "COMMUNITY_AGENT" || user.role === "SUPER_ADMIN" || user.role === "COMMUNITY_ADMIN") {
+          updateData.locationVerifiedById = user.id;
+          updateData.locationVerifiedAt = new Date();
+        }
+      }
+
+      updateData.updatedAt = new Date();
+
+      const updated = await prisma.business.update({
+        where: { id },
+        data: updateData,
+        include: { products: true, localArea: true },
+      });
+
+      if (user) {
+        await logAuditEvent({
+          actorId: user.id,
+          action: "BUSINESS_LOCATION_UPDATED",
+          entityType: "BUSINESS",
+          entityId: id,
+          metadata: {
+            latitude: updated.latitude,
+            longitude: updated.longitude,
+            nearestLandmark: updated.nearestLandmark,
+            accuracy: updated.locationAccuracy,
+            verificationStatus: updated.locationVerificationStatus,
+          },
+        });
+      }
+
+      return NextResponse.json({ success: true, business: formatBusinessRecord(updated) });
+    }
+
     return NextResponse.json({ error: "Invalid action parameter" }, { status: 400 });
   } catch (error) {
     console.error("[Business Update Error]:", error);

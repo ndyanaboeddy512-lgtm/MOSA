@@ -7,6 +7,7 @@ import { store } from "@/lib/store";
 import { Business } from "@/types";
 import { BusinessCard } from "@/components/discovery/BusinessCard";
 import { CategoryPills } from "@/components/discovery/CategoryPills";
+import { MosaMap } from "@/components/discovery/MosaMap";
 import { 
   Compass, 
   MapPin, 
@@ -220,81 +221,40 @@ export default function ExplorePage() {
       {viewMode === "map" ? (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Interactive Map Visualizer */}
-          <div className="lg:col-span-2 bg-slate-900 rounded-3xl p-6 relative min-h-[480px] overflow-hidden flex flex-col justify-between border border-slate-800 shadow-2xl">
-            {/* Map Grid styling */}
-            <div className="absolute inset-0 opacity-15 bg-[radial-gradient(#4ade80_1px,transparent_1px)] [background-size:24px_24px] pointer-events-none" />
-            
-            {/* Top Map Bar */}
-            <div className="relative z-10 flex items-center justify-between text-xs text-white">
-              <div className="flex items-center gap-2 bg-slate-800/80 px-3 py-1.5 rounded-full border border-slate-700 backdrop-blur-md">
-                <MapPin className="w-3.5 h-3.5 text-emerald-400" />
-                <span className="font-semibold">
-                  {currentSector === "Kacyiru"
-                    ? "Kacyiru Sector (Gasabo) • MINAGRI (-1.942, 30.088)"
-                    : currentSector === "all"
-                    ? "Rwanda Nationwide Discovery"
-                    : `${currentSector} Sector • Kigali`}
-                </span>
-              </div>
-              <span className="bg-emerald-500/20 text-emerald-300 font-semibold px-2.5 py-1 rounded-full border border-emerald-500/30">
-                {businesses.length} {lang === "rw" ? "Ubucuruzi Bugaragara" : "Pins Loaded"}
-              </span>
-            </div>
-
-            {/* Interactive Pins on Map Plane */}
-            <div className="relative z-10 my-auto h-72 w-full border border-slate-800/60 rounded-2xl bg-slate-950/40 p-4">
-              {/* Road vectors indication */}
-              <div className="absolute top-1/2 left-0 right-0 h-1 bg-slate-800 -translate-y-1/2" />
-              <div className="absolute top-0 bottom-0 left-1/3 w-1 bg-slate-800" />
-              <div className="absolute top-0 bottom-0 right-1/3 w-1 bg-slate-800" />
-
-              {/* Business Pins */}
-              {businesses.map((biz, idx) => {
-                const isSelected = selectedPin?.id === biz.id;
-                // Distribute pins across the map area
-                const positions = [
-                  { top: "25%", left: "30%" },
-                  { top: "45%", left: "35%" },
-                  { top: "35%", left: "65%" },
-                  { top: "65%", left: "70%" },
-                  { top: "70%", left: "25%" },
-                  { top: "50%", left: "50%" },
-                  { top: "20%", left: "60%" },
-                  { top: "75%", left: "55%" },
-                ];
-                const pos = positions[idx % positions.length];
-
-                return (
-                  <button
-                    key={biz.id}
-                    onClick={() => setSelectedPin(biz)}
-                    style={{ top: pos.top, left: pos.left }}
-                    className={`absolute -translate-x-1/2 -translate-y-1/2 group cursor-pointer transition-transform duration-200 ${
-                      isSelected ? "scale-125 z-30" : "scale-100 z-20 hover:scale-115"
-                    }`}
-                  >
-                    <div className={`p-2 rounded-2xl flex items-center gap-1.5 shadow-lg border backdrop-blur-md ${
-                      isSelected
-                        ? "bg-amber-400 text-slate-950 border-amber-300 font-bold"
-                        : "bg-emerald-600 text-white border-emerald-400"
-                    }`}>
-                      <MapPin className="w-4 h-4 shrink-0" />
-                      <span className="text-[10px] max-w-[100px] truncate hidden sm:inline">
-                        {lang === "rw" && biz.nameRw ? biz.nameRw : biz.name}
-                      </span>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Map bottom legend */}
-            <div className="relative z-10 flex items-center justify-between text-[11px] text-slate-400 pt-2 border-t border-slate-800">
-              <span>● Biryogo Car-Free Zone</span>
-              <span>● Cosmos Junction</span>
-              <span>● Tapi Rouge</span>
-              <span>● Mumena Stadium</span>
-            </div>
+          <div className="lg:col-span-2">
+            <MosaMap
+              center={
+                selectedPin
+                  ? {
+                      lat: selectedPin.location?.coordinates?.lat ?? selectedPin.latitude,
+                      lng: selectedPin.location?.coordinates?.lng ?? selectedPin.longitude,
+                    }
+                  : currentSector === "Kacyiru"
+                  ? { lat: -1.942, lng: 30.088 }
+                  : { lat: -1.981, lng: 30.046 }
+              }
+              zoom={currentSector === "all" ? 12 : 15}
+              pins={businesses.map((biz) => ({
+                id: biz.id,
+                name: lang === "rw" && biz.nameRw ? biz.nameRw : biz.name,
+                nameRw: biz.nameRw,
+                category: biz.category,
+                categoryDisplay: biz.categoryDisplay,
+                latitude: biz.location?.coordinates?.lat ?? biz.latitude,
+                longitude: biz.location?.coordinates?.lng ?? biz.longitude,
+                nearestLandmark: biz.nearestLandmark || biz.location?.nearestLandmark || biz.localArea?.name || biz.addressNote,
+                isVerified: biz.verificationStatus === "AGENT_VERIFIED" || biz.dataStatus === "VERIFIED",
+                priceSnippet: biz.products?.[0] ? `${biz.products[0].name}: ${biz.products[0].price.toLocaleString()} Frw` : undefined,
+                coverImage: biz.coverImage,
+              }))}
+              selectedPinId={selectedPin?.id}
+              onSelectPin={(pin) => {
+                const b = businesses.find((x) => x.id === pin.id);
+                if (b) setSelectedPin(b);
+              }}
+              heightClassName="min-h-[500px]"
+              showDirectionsButton={true}
+            />
           </div>
 
           {/* Selected Pin Details Sidebar */}

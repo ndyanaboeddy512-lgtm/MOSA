@@ -13,6 +13,20 @@ export type VerificationStatus =
   | "BUSINESS_VERIFIED" 
   | "HIGH_CONFIDENCE";
 
+export type LocationSource = 
+  | "GPS_DEVICE" 
+  | "AGENT_PIN" 
+  | "MAP_SELECTION" 
+  | "ADMIN_MANUAL" 
+  | "OWNER_REPORTED";
+
+export type LocationVerificationStatus = 
+  | "UNVERIFIED" 
+  | "AGENT_CAPTURED" 
+  | "AGENT_VERIFIED" 
+  | "COMMUNITY_VERIFIED" 
+  | "BUSINESS_CONFIRMED";
+
 export type DataStatus = 
   | "DEMO" 
   | "RESEARCHED" 
@@ -105,10 +119,17 @@ export interface RwandaLocation {
   cell: string;          // e.g. "Biryogo", "Kamutwa", "Kibaza"
   community: string;     // e.g. "Cosmos", "MINAGRI Area", "Biryogo Car-Free Zone"
   addressNote?: string;  // e.g. "KG 569 St, near MINAGRI HQ"
+  nearestLandmark?: string; // e.g. "Near MINAGRI Main Gate"
+  streetName?: string;   // e.g. "KG 569 St"
+  nearbyPlace?: string;  // e.g. "Opposite Bank of Kigali"
+  locationDescription?: string; // e.g. "Opposite the yellow MTN kiosk, 2nd shop after the pharmacy"
   coordinates: {
     lat: number;
     lng: number;
   };
+  accuracy?: number;     // in meters
+  source?: LocationSource;
+  verificationStatus?: LocationVerificationStatus;
 }
 
 export interface ProductItem {
@@ -165,6 +186,25 @@ export interface Business {
   localAreaId?: string;
   localArea?: LocalArea;
   location: RwandaLocation;
+  // Top-level coordinates & administrative names (synced with Prisma model & formatBusinessRecord)
+  latitude?: number;
+  longitude?: number;
+  province?: string;
+  district?: string;
+  sector?: string;
+  cell?: string;
+  // Micro-Business Smart Location & Ground Discovery
+  nearestLandmark?: string;
+  streetName?: string;
+  nearbyPlace?: string;
+  locationDescription?: string;
+  locationSource?: LocationSource;
+  locationAccuracy?: number;
+  locationVerificationStatus?: LocationVerificationStatus;
+  locationCapturedById?: string;
+  locationCapturedAt?: string;
+  locationVerifiedById?: string;
+  locationVerifiedAt?: string;
   verificationStatus: VerificationStatus;
   verificationDetails: {
     agentVerified: boolean;

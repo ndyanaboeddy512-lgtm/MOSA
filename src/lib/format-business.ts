@@ -11,6 +11,15 @@ export function formatBusinessRecord(raw: any): Business {
   const lat = typeof raw.latitude === "number" ? raw.latitude : (raw.location?.coordinates?.lat ?? -1.981);
   const lng = typeof raw.longitude === "number" ? raw.longitude : (raw.location?.coordinates?.lng ?? 30.046);
 
+  // Extract smart location fields
+  const nearestLandmark = raw.nearestLandmark || raw.location?.nearestLandmark || raw.localArea?.landmark || (raw.localArea?.type === "LANDMARK" ? raw.localArea?.name : undefined) || (raw.addressNote?.toLowerCase().includes("near") || raw.addressNote?.toLowerCase().includes("ahegereye") ? raw.addressNote : undefined);
+  const streetName = raw.streetName || raw.location?.streetName || (raw.addressNote?.match(/K[G|N|K]\s*\d+\s*(?:St|Street|Rd|Road)/i)?.[0]) || undefined;
+  const nearbyPlace = raw.nearbyPlace || raw.location?.nearbyPlace || undefined;
+  const locationDescription = raw.locationDescription || raw.location?.locationDescription || undefined;
+  const locationAccuracy = typeof raw.locationAccuracy === "number" ? raw.locationAccuracy : (typeof raw.location?.accuracy === "number" ? raw.location.accuracy : undefined);
+  const locationSource = raw.locationSource || raw.location?.source || (locationAccuracy ? "GPS_DEVICE" : "ADMIN_MANUAL");
+  const locationVerificationStatus = raw.locationVerificationStatus || raw.location?.verificationStatus || (locationAccuracy ? "AGENT_CAPTURED" : (raw.verificationStatus === "AGENT_VERIFIED" ? "AGENT_VERIFIED" : "UNVERIFIED"));
+
   // Build safe RwandaLocation
   const location: RwandaLocation = {
     country: "Rwanda",
@@ -20,6 +29,13 @@ export function formatBusinessRecord(raw: any): Business {
     cell: raw.cell || raw.cellRel?.name || raw.location?.cell || (raw.sector === "Kacyiru" ? "Kamutwa" : "Biryogo"),
     community: raw.location?.community || raw.localArea?.name || raw.addressNote || raw.cell || "Nyamirambo",
     addressNote: raw.addressNote || raw.location?.addressNote || "",
+    nearestLandmark,
+    streetName,
+    nearbyPlace,
+    locationDescription,
+    accuracy: locationAccuracy,
+    source: locationSource,
+    verificationStatus: locationVerificationStatus,
     coordinates: {
       lat,
       lng,
@@ -101,6 +117,18 @@ export function formatBusinessRecord(raw: any): Business {
       longitude: raw.localArea.longitude || undefined,
     } : undefined,
     location,
+    // Micro-Business Smart Location & Ground Discovery
+    nearestLandmark,
+    streetName,
+    nearbyPlace,
+    locationDescription,
+    locationSource,
+    locationAccuracy,
+    locationVerificationStatus,
+    locationCapturedById: raw.locationCapturedById || undefined,
+    locationCapturedAt: raw.locationCapturedAt ? new Date(raw.locationCapturedAt).toISOString() : undefined,
+    locationVerifiedById: raw.locationVerifiedById || undefined,
+    locationVerifiedAt: raw.locationVerifiedAt ? new Date(raw.locationVerifiedAt).toISOString() : undefined,
     verificationStatus: raw.verificationStatus || (dataStatus === "DEMO" ? "UNVERIFIED" : "AGENT_VERIFIED"),
     verificationDetails: raw.verificationDetails || {
       agentVerified: raw.verificationStatus === "AGENT_VERIFIED" || raw.verificationStatus === "HIGH_CONFIDENCE",

@@ -27,6 +27,22 @@ enum VerificationStatus {
   HIGH_CONFIDENCE
 }
 
+enum LocationSource {
+  GPS_DEVICE
+  AGENT_PIN
+  MAP_SELECTION
+  ADMIN_MANUAL
+  OWNER_REPORTED
+}
+
+enum LocationVerificationStatus {
+  UNVERIFIED
+  AGENT_CAPTURED
+  AGENT_VERIFIED
+  COMMUNITY_VERIFIED
+  BUSINESS_CONFIRMED
+}
+
 enum DataStatus {
   DEMO
   RESEARCHED
@@ -96,6 +112,8 @@ model User {
   claims           BusinessClaim[]
   agentAssignments AgentAssignment[]
   changeHistories  BusinessChangeHistory[]
+  locationsCaptured Business[]        @relation("LocationCapturedBy")
+  locationsVerified Business[]        @relation("LocationVerifiedBy")
 
   @@index([phone])
   @@index([role])
@@ -300,6 +318,22 @@ model Business {
   latitude           Float
   longitude          Float
   verificationStatus VerificationStatus @default(UNVERIFIED)
+
+  // Micro-Business Smart Location & Ground Discovery
+  nearestLandmark             String?
+  streetName                  String?
+  nearbyPlace                 String?
+  locationDescription         String?
+  locationSource              LocationSource             @default(ADMIN_MANUAL)
+  locationAccuracy            Float?
+  locationVerificationStatus  LocationVerificationStatus @default(UNVERIFIED)
+  locationCapturedById        String?
+  locationCapturedBy          User?                      @relation("LocationCapturedBy", fields: [locationCapturedById], references: [id])
+  locationCapturedAt          DateTime?
+  locationVerifiedById        String?
+  locationVerifiedBy          User?                      @relation("LocationVerifiedBy", fields: [locationVerifiedById], references: [id])
+  locationVerifiedAt          DateTime?
+
   isOpenNow          Boolean            @default(true)
   coverImage         String?
   priceRange         String             @default("MODERATE")
@@ -346,6 +380,7 @@ model Business {
   @@index([cellId])
   @@index([dataStatus])
   @@index([verificationStatus])
+  @@index([locationVerificationStatus])
   @@index([status])
   @@index([updatedAt])
   @@index([isOpenNow])

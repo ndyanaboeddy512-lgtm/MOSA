@@ -37,6 +37,8 @@ import {
   Activity,
   X
 } from "lucide-react";
+import { SmartLocationForm, SmartLocationFormData } from "@/components/location/SmartLocationForm";
+import { calculateLocationCompleteness } from "@/lib/location-quality";
 
 interface AdminAuditLog {
   id: string;
@@ -138,6 +140,8 @@ export default function AdminPanelPage() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingBiz, setEditingBiz] = useState<any | null>(null);
+  const [adminSmartLocation, setAdminSmartLocation] = useState<SmartLocationFormData | null>(null);
+  const [locationVerificationFilter, setLocationVerificationFilter] = useState<string>("all");
 
   // New business form state
   const [newBizForm, setNewBizForm] = useState({
@@ -175,6 +179,15 @@ export default function AdminPanelPage() {
             categoryDisplay: b.categoryDisplay,
             description: b.description || "",
             descriptionRw: b.descriptionRw || "",
+            latitude: b.latitude,
+            longitude: b.longitude,
+            nearestLandmark: b.nearestLandmark,
+            streetName: b.streetName,
+            nearbyPlace: b.nearbyPlace,
+            locationDescription: b.locationDescription,
+            locationSource: b.locationSource,
+            locationAccuracy: b.locationAccuracy,
+            locationVerificationStatus: b.locationVerificationStatus,
             location: {
               district: b.district || "Nyarugenge",
               sector: b.sector || "Nyamirambo",
@@ -348,10 +361,34 @@ export default function AdminPanelPage() {
   const handleCreateBusiness = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      const payload = {
+        ...newBizForm,
+        ...(adminSmartLocation ? {
+          province: adminSmartLocation.province,
+          district: adminSmartLocation.district,
+          sector: adminSmartLocation.sector,
+          cell: adminSmartLocation.cell,
+          provinceId: adminSmartLocation.provinceId,
+          districtId: adminSmartLocation.districtId,
+          sectorId: adminSmartLocation.sectorId,
+          cellId: adminSmartLocation.cellId,
+          localAreaId: adminSmartLocation.localAreaId,
+          nearestLandmark: adminSmartLocation.nearestLandmark,
+          streetName: adminSmartLocation.streetName,
+          nearbyPlace: adminSmartLocation.nearbyPlace,
+          locationDescription: adminSmartLocation.locationDescription,
+          latitude: adminSmartLocation.latitude,
+          longitude: adminSmartLocation.longitude,
+          locationSource: adminSmartLocation.locationSource,
+          locationAccuracy: adminSmartLocation.locationAccuracy,
+          locationVerificationStatus: adminSmartLocation.locationVerificationStatus,
+        } : {}),
+      };
+
       const res = await fetch("/api/businesses", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(newBizForm),
+        body: JSON.stringify(payload),
       });
       if (res.ok) {
         setIsAddModalOpen(false);
@@ -370,6 +407,7 @@ export default function AdminPanelPage() {
           dataStatus: "DEMO",
           products: [{ name: "", priceMin: 1000, priceMax: 5000, unit: "item" }],
         });
+        setAdminSmartLocation(null);
         fetchAdminData();
       }
     } catch (err) {
@@ -414,6 +452,11 @@ export default function AdminPanelPage() {
     if (lifecycleFilter === "RESEARCHED" && (b as any).dataStatus !== "RESEARCHED") return false;
     if (lifecycleFilter === "VERIFIED" && (b as any).dataStatus !== "VERIFIED") return false;
     if (lifecycleFilter === "DUPLICATES" && !(b as any).isPotentialDuplicate) return false;
+
+    // Location verification status filter
+    if (locationVerificationFilter === "GPS_CAPTURED" && (b as any).locationVerificationStatus !== "AGENT_CAPTURED") return false;
+    if (locationVerificationFilter === "AGENT_VERIFIED" && (b as any).locationVerificationStatus !== "AGENT_VERIFIED") return false;
+    if (locationVerificationFilter === "UNVERIFIED" && (b as any).locationVerificationStatus !== "UNVERIFIED" && (b as any).verificationStatus !== "UNVERIFIED") return false;
 
     // Geographic filters
     if (selectedDistrict !== "all" && b.location?.district.toLowerCase() !== selectedDistrict.toLowerCase()) return false;
@@ -705,27 +748,52 @@ export default function AdminPanelPage() {
             </div>
           </div>
 
-          {/* Lifecycle Status Filter Sub-Tabs */}
-          <div className="flex items-center gap-1.5 flex-wrap">
-            {[
-              { id: "ALL", label: `All Businesses (${businesses.length})` },
-              { id: "DEMO", label: `Demo / Samples (${metrics.demoCount})` },
-              { id: "RESEARCHED", label: `Researched (${metrics.researchedCount})` },
-              { id: "VERIFIED", label: `Ground Verified (${metrics.verifiedDataCount})` },
-              ...(metrics.potentialDuplicatesCount > 0 ? [{ id: "DUPLICATES", label: `⚠️ Duplicates (${metrics.potentialDuplicatesCount})` }] : []),
-            ].map((f) => (
-              <button
-                key={f.id}
-                onClick={() => setLifecycleFilter(f.id as any)}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-colors ${
-                  lifecycleFilter === f.id
-                    ? "bg-slate-900 text-white shadow-xs"
-                    : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
-                }`}
-              >
-                {f.label}
-              </button>
-            ))}
+          {/* Lifecycle & Location Status Filter Sub-Tabs */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 flex-wrap">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {[
+                { id: "ALL", label: `All Businesses (${businesses.length})` },
+                { id: "DEMO", label: `Demo / Samples (${metrics.demoCount})` },
+                { id: "RESEARCHED", label: `Researched (${metrics.researchedCount})` },
+                { id: "VERIFIED", label: `Ground Verified (${metrics.verifiedDataCount})` },
+                ...(metrics.potentialDuplicatesCount > 0 ? [{ id: "DUPLICATES", label: `⚠️ Duplicates (${metrics.potentialDuplicatesCount})` }] : []),
+              ].map((f) => (
+                <button
+                  key={f.id}
+                  onClick={() => setLifecycleFilter(f.id as any)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-colors ${
+                    lifecycleFilter === f.id
+                      ? "bg-slate-900 text-white shadow-xs"
+                      : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
+                  }`}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Location Quality Filter */}
+            <div className="flex items-center gap-1 flex-wrap">
+              <span className="text-[10px] font-bold text-slate-400 uppercase mr-1">Location:</span>
+              {[
+                { id: "all", label: "All" },
+                { id: "GPS_CAPTURED", label: "📍 GPS" },
+                { id: "AGENT_VERIFIED", label: "✓ Verified" },
+                { id: "UNVERIFIED", label: "⚠️ Unverified" },
+              ].map((lf) => (
+                <button
+                  key={lf.id}
+                  onClick={() => setLocationVerificationFilter(lf.id)}
+                  className={`px-2 py-1 rounded-lg text-[11px] font-bold transition-all ${
+                    locationVerificationFilter === lf.id
+                      ? "bg-emerald-700 text-white"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  }`}
+                >
+                  {lf.label}
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* Business Records List */}
@@ -741,7 +809,9 @@ export default function AdminPanelPage() {
                   No businesses matching the selected geographic or lifecycle filters.
                 </div>
               ) : (
-                filteredBusinesses.map((biz) => (
+                filteredBusinesses.map((biz) => {
+                  const comp = calculateLocationCompleteness(biz);
+                  return (
                   <div key={biz.id} className="p-4 sm:p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4 hover:bg-slate-50/50 transition-colors">
                     <div className="flex items-start gap-3 flex-1 min-w-0">
                       <div className="w-12 h-12 rounded-xl bg-slate-100 overflow-hidden shrink-0 border border-slate-200">
@@ -754,6 +824,23 @@ export default function AdminPanelPage() {
                           </Link>
                           <VerificationBadge status={biz.verificationStatus} />
                           <DataStatusBadge status={(biz as any).dataStatus} />
+                          
+                          {/* Location Completeness Pill */}
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                            comp.level === "EXCELLENT" ? "bg-emerald-50 text-emerald-800 border-emerald-300" :
+                            comp.level === "GOOD" ? "bg-blue-50 text-blue-800 border-blue-300" :
+                            comp.level === "FAIR" ? "bg-amber-50 text-amber-800 border-amber-300" :
+                            "bg-slate-50 text-slate-600 border-slate-200"
+                          }`} title={comp.missingRecommendations.join(", ") || "Location complete"}>
+                            📍 {comp.score}% {comp.level}
+                          </span>
+
+                          {(biz as any).locationAccuracy ? (
+                            <span className="text-[10px] bg-emerald-50 text-emerald-700 font-mono font-bold px-1.5 py-0.2 rounded border border-emerald-200">
+                              GPS ±{(biz as any).locationAccuracy}m
+                            </span>
+                          ) : null}
+
                           {(biz as any).isPotentialDuplicate && (
                             <span className="text-[10px] bg-amber-100 text-amber-800 font-bold px-1.5 py-0.5 rounded flex items-center gap-1">
                               <AlertTriangle className="w-3 h-3 text-amber-600" />
@@ -762,7 +849,12 @@ export default function AdminPanelPage() {
                           )}
                         </div>
                         <div className="text-xs text-slate-500 mt-0.5">
-                          <span className="font-medium text-slate-700">{biz.categoryDisplay || biz.category}</span> • {(biz as any).localArea?.name || `${biz.location?.cell}, ${biz.location?.sector}`} • {biz.location?.district} District • Phone: <span className="font-mono text-slate-700">{biz.phone}</span>
+                          <span className="font-medium text-slate-700">{biz.categoryDisplay || biz.category}</span>
+                          {(biz as any).nearestLandmark ? (
+                            <span> • <strong className="text-emerald-800 bg-emerald-50/80 px-1.5 py-0.2 rounded">📍 {(biz as any).nearestLandmark}</strong></span>
+                          ) : null}
+                          <span> • {(biz as any).localArea?.name || `${biz.location?.cell}, ${biz.location?.sector}`} • {biz.location?.district} District</span>
+                          <span> • Phone: <span className="font-mono text-slate-700">{biz.phone}</span></span>
                           {(biz as any).priceRangeMin && (biz as any).priceRangeMax && (
                             <span className="ml-2 text-amber-700 font-semibold">
                               (Est. {(biz as any).priceRangeMin.toLocaleString()} - {(biz as any).priceRangeMax.toLocaleString()} RWF)
@@ -860,8 +952,9 @@ export default function AdminPanelPage() {
                       </Link>
                     </div>
                   </div>
-                ))
-              )}
+                );
+              })
+            )}
             </div>
           </div>
         </div>
@@ -1199,7 +1292,7 @@ export default function AdminPanelPage() {
       {/* Modal: Add New Business / Sample */}
       {isAddModalOpen && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-xl w-full p-6 shadow-2xl border border-slate-200 max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-2xl w-full p-6 shadow-2xl border border-slate-200 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-4 border-b border-slate-100">
               <h3 className="font-black text-lg text-slate-900">Add Business / Demo Sample Record</h3>
               <button onClick={() => setIsAddModalOpen(false)} className="text-slate-400 hover:text-slate-600">
@@ -1217,7 +1310,7 @@ export default function AdminPanelPage() {
                     value={newBizForm.name}
                     onChange={(e) => setNewBizForm({ ...newBizForm, name: e.target.value })}
                     placeholder="e.g. Kacyiru Modern Bakery"
-                    className="w-full p-2.5 rounded-xl border border-slate-200 bg-white"
+                    className="w-full p-2.5 rounded-xl border border-slate-200 bg-white font-medium"
                   />
                 </div>
                 <div>
@@ -1225,7 +1318,7 @@ export default function AdminPanelPage() {
                   <select
                     value={newBizForm.category}
                     onChange={(e) => setNewBizForm({ ...newBizForm, category: e.target.value })}
-                    className="w-full p-2.5 rounded-xl border border-slate-200 bg-white"
+                    className="w-full p-2.5 rounded-xl border border-slate-200 bg-white font-medium"
                   >
                     {CATEGORY_OPTIONS.map((c) => (
                       <option key={c.id} value={c.id}>{c.label}</option>
@@ -1260,53 +1353,19 @@ export default function AdminPanelPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                <div>
-                  <label className="font-bold text-slate-700 block mb-1">Province</label>
-                  <input
-                    type="text"
-                    value={newBizForm.province}
-                    onChange={(e) => setNewBizForm({ ...newBizForm, province: e.target.value })}
-                    className="w-full p-2 rounded-xl border border-slate-200 bg-white"
-                  />
-                </div>
-                <div>
-                  <label className="font-bold text-slate-700 block mb-1">District</label>
-                  <input
-                    type="text"
-                    value={newBizForm.district}
-                    onChange={(e) => setNewBizForm({ ...newBizForm, district: e.target.value })}
-                    className="w-full p-2 rounded-xl border border-slate-200 bg-white"
-                  />
-                </div>
-                <div>
-                  <label className="font-bold text-slate-700 block mb-1">Sector</label>
-                  <input
-                    type="text"
-                    value={newBizForm.sector}
-                    onChange={(e) => setNewBizForm({ ...newBizForm, sector: e.target.value })}
-                    className="w-full p-2 rounded-xl border border-slate-200 bg-white"
-                  />
-                </div>
-                <div>
-                  <label className="font-bold text-slate-700 block mb-1">Cell</label>
-                  <input
-                    type="text"
-                    value={newBizForm.cell}
-                    onChange={(e) => setNewBizForm({ ...newBizForm, cell: e.target.value })}
-                    className="w-full p-2 rounded-xl border border-slate-200 bg-white"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="font-bold text-slate-700 block mb-1">Address / Landmark Note</label>
-                <input
-                  type="text"
-                  value={newBizForm.addressNote}
-                  onChange={(e) => setNewBizForm({ ...newBizForm, addressNote: e.target.value })}
-                  placeholder="e.g. Near MINAGRI Gate, KG 569 St"
-                  className="w-full p-2.5 rounded-xl border border-slate-200 bg-white"
+              {/* Smart Location & Ground Discovery Form */}
+              <div className="pt-2 border-t border-slate-100">
+                <SmartLocationForm
+                  businessName={newBizForm.name}
+                  businessCategory={newBizForm.category}
+                  onChange={(data) => setAdminSmartLocation(data)}
+                  existingBusinesses={businesses.map((b) => ({
+                    id: b.id,
+                    name: b.name,
+                    latitude: b.location?.coordinates?.lat ?? b.latitude ?? 0,
+                    longitude: b.location?.coordinates?.lng ?? b.longitude ?? 0,
+                    category: b.category,
+                  }))}
                 />
               </div>
 

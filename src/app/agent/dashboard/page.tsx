@@ -24,6 +24,7 @@ import {
   TrendingUp,
   X
 } from "lucide-react";
+import { SmartLocationForm, SmartLocationFormData } from "@/components/location/SmartLocationForm";
 
 export default function AgentDashboardPage() {
   const { lang, t } = useLanguage();
@@ -45,6 +46,7 @@ export default function AgentDashboardPage() {
   const [bizDescription, setBizDescription] = useState("");
   const [bizPriceMin, setBizPriceMin] = useState("2000");
   const [bizPriceMax, setBizPriceMax] = useState("5000");
+  const [smartLocationData, setSmartLocationData] = useState<SmartLocationFormData | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -96,13 +98,28 @@ export default function AgentDashboardPage() {
         category: bizCategory,
         categoryDisplay: categoryMap[bizCategory]?.display || "Local Business",
         categoryDisplayRw: categoryMap[bizCategory]?.displayRw || "Ubucuruzi bw'Agace",
-        description: bizDescription || "Neighborhood local business registered on the ground by certified agent.",
+        description: bizDescription || smartLocationData?.locationDescription || "Neighborhood local business registered on the ground by certified agent.",
         descriptionRw: bizDescription,
         phone: bizPhone,
-        sector: bizSector,
-        district: bizSector === "Kacyiru" ? "Gasabo" : "Nyarugenge",
-        cell: bizCell,
-        addressNote: bizCommunity,
+        province: smartLocationData?.province || "City of Kigali",
+        district: smartLocationData?.district || (bizSector === "Kacyiru" ? "Gasabo" : "Nyarugenge"),
+        sector: smartLocationData?.sector || bizSector,
+        cell: smartLocationData?.cell || bizCell,
+        provinceId: smartLocationData?.provinceId,
+        districtId: smartLocationData?.districtId,
+        sectorId: smartLocationData?.sectorId,
+        cellId: smartLocationData?.cellId,
+        localAreaId: smartLocationData?.localAreaId,
+        nearestLandmark: smartLocationData?.nearestLandmark || bizCommunity,
+        streetName: smartLocationData?.streetName,
+        nearbyPlace: smartLocationData?.nearbyPlace,
+        locationDescription: smartLocationData?.locationDescription || bizDescription,
+        addressNote: smartLocationData?.nearestLandmark || bizCommunity,
+        latitude: smartLocationData?.latitude ?? -1.942,
+        longitude: smartLocationData?.longitude ?? 30.088,
+        locationSource: smartLocationData?.locationSource || "AGENT_PIN",
+        locationAccuracy: smartLocationData?.locationAccuracy,
+        locationVerificationStatus: smartLocationData?.locationVerificationStatus || "AGENT_CAPTURED",
         priceRangeMin: parseInt(bizPriceMin) || null,
         priceRangeMax: parseInt(bizPriceMax) || null,
         dataStatus: "VERIFIED",
@@ -327,7 +344,7 @@ export default function AgentDashboardPage() {
       {/* Register Business Modal */}
       {newBizModalOpen && (
         <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-8 shadow-2xl border border-slate-200 max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-150">
+          <div className="bg-white rounded-3xl max-w-2xl w-full p-6 sm:p-8 shadow-2xl border border-slate-200 max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <h3 className="font-bold text-slate-900 text-lg flex items-center gap-2">
                 <Plus className="w-5 h-5 text-emerald-600" />
@@ -386,86 +403,51 @@ export default function AgentDashboardPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Sector (Umurenge)</label>
-                  <select
-                    value={bizSector}
-                    onChange={(e) => handleSectorSelectChange(e.target.value)}
-                    className="w-full p-2.5 bg-slate-50 rounded-xl border border-slate-300 text-xs outline-none"
-                  >
-                    <option value="Kacyiru">Kacyiru (Gasabo)</option>
-                    <option value="Nyamirambo">Nyamirambo (Nyarugenge)</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Cell (Akagari)</label>
-                  <select
-                    value={bizCell}
-                    onChange={(e) => setBizCell(e.target.value)}
-                    className="w-full p-2.5 bg-slate-50 rounded-xl border border-slate-300 text-xs outline-none"
-                  >
-                    {bizSector === "Kacyiru" ? (
-                      <>
-                        <option value="Kamutwa">Kamutwa</option>
-                        <option value="Kibaza">Kibaza</option>
-                        <option value="Kamatamu">Kamatamu</option>
-                      </>
-                    ) : (
-                      <>
-                        <option value="Biryogo">Biryogo</option>
-                        <option value="Rwezamenyo">Rwezamenyo</option>
-                        <option value="Mumena">Mumena</option>
-                        <option value="Cyivugiza">Cyivugiza</option>
-                      </>
-                    )}
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Landmark / Local Area</label>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Est. Price Range (RWF)</label>
+                <div className="flex items-center gap-1">
                   <input
-                    type="text"
-                    value={bizCommunity}
-                    onChange={(e) => setBizCommunity(e.target.value)}
-                    placeholder="e.g. MINAGRI Area (KG 569 St)"
-                    className="w-full p-2.5 bg-slate-50 rounded-xl border border-slate-300 text-xs outline-none"
+                    type="number"
+                    value={bizPriceMin}
+                    onChange={(e) => setBizPriceMin(e.target.value)}
+                    placeholder="Min (e.g. 1000)"
+                    className="w-1/2 p-2.5 bg-slate-50 rounded-xl border border-slate-300 text-xs outline-none"
                   />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Est. Price Range (RWF)</label>
-                  <div className="flex items-center gap-1">
-                    <input
-                      type="number"
-                      value={bizPriceMin}
-                      onChange={(e) => setBizPriceMin(e.target.value)}
-                      placeholder="Min"
-                      className="w-1/2 p-2.5 bg-slate-50 rounded-xl border border-slate-300 text-xs outline-none"
-                    />
-                    <span className="text-slate-400 text-xs">-</span>
-                    <input
-                      type="number"
-                      value={bizPriceMax}
-                      onChange={(e) => setBizPriceMax(e.target.value)}
-                      placeholder="Max"
-                      className="w-1/2 p-2.5 bg-slate-50 rounded-xl border border-slate-300 text-xs outline-none"
-                    />
-                  </div>
+                  <span className="text-slate-400 text-xs">-</span>
+                  <input
+                    type="number"
+                    value={bizPriceMax}
+                    onChange={(e) => setBizPriceMax(e.target.value)}
+                    placeholder="Max (e.g. 5000)"
+                    className="w-1/2 p-2.5 bg-slate-50 rounded-xl border border-slate-300 text-xs outline-none"
+                  />
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Description / Services</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Description / Services Offered</label>
                 <textarea
                   value={bizDescription}
                   onChange={(e) => setBizDescription(e.target.value)}
-                  placeholder="Key services provided, landmarks, specialties..."
-                  rows={3}
+                  placeholder="Key services provided, specialties..."
+                  rows={2}
                   className="w-full p-2.5 bg-slate-50 rounded-xl border border-slate-300 text-xs outline-none"
+                />
+              </div>
+
+              {/* Smart Business Location Form with GPS Capture & Draggable Pin */}
+              <div className="pt-2 border-t border-slate-100">
+                <SmartLocationForm
+                  businessName={bizName}
+                  businessCategory={bizCategory}
+                  onChange={(locData) => setSmartLocationData(locData)}
+                  existingBusinesses={businesses.map((b) => ({
+                    id: b.id,
+                    name: b.name,
+                    latitude: b.location?.coordinates?.lat ?? b.latitude,
+                    longitude: b.location?.coordinates?.lng ?? b.longitude,
+                    category: b.category,
+                  }))}
                 />
               </div>
 
