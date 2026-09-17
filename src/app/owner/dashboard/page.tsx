@@ -79,6 +79,10 @@ export default function OwnerDashboardPage() {
   const [reminders, setReminders] = useState<any[]>([]);
   const [historyList, setHistoryList] = useState<any[]>([]);
   const [demands, setDemands] = useState<CommunityDemandSignal[]>([]);
+  const [verifications, setVerifications] = useState<any[]>([]);
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [isResubmitting, setIsResubmitting] = useState(false);
+  const [resubmitSuccessMsg, setResubmitSuccessMsg] = useState("");
   const [loading, setLoading] = useState(true);
   const [saveSuccessMsg, setSaveSuccessMsg] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
@@ -223,6 +227,8 @@ export default function OwnerDashboardPage() {
             );
           }
         }
+        setVerifications(data.verifications || []);
+        setNotifications(data.notifications || []);
       } else {
         const err = await res.json().catch(() => ({ error: "Failed to load owner data" }));
         setErrorMsg(err.error || "Failed to load owner business.");
@@ -231,6 +237,57 @@ export default function OwnerDashboardPage() {
       setErrorMsg(err.message || "Network error reaching server.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Resubmit business application after revisions
+  const handleResubmitApplication = async (notes?: string) => {
+    if (!business) return;
+    setIsResubmitting(true);
+    try {
+      const res = await fetch("/api/owner/business", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          businessId: business.id,
+          action: "RESUBMIT_APPLICATION",
+          resubmissionNotes: notes || "Application updated and resubmitted for verification.",
+        }),
+      });
+      if (res.ok) {
+        setResubmitSuccessMsg(
+          lang === "rw"
+            ? "Icyifuzo cyanyu cyakiriwe kandi cyongeye koherezwa k'ubuyobozi bwa MOSA."
+            : "Your application has been resubmitted to MOSA Admin for verification!"
+        );
+        await loadOwnerData();
+        setTimeout(() => setResubmitSuccessMsg(""), 6000);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        setErrorMsg(err.error || "Failed to resubmit application.");
+      }
+    } catch (err: any) {
+      setErrorMsg(err.message || "Network error resubmitting application.");
+    } finally {
+      setIsResubmitting(false);
+    }
+  };
+
+  // Mark notification as read
+  const handleMarkNotificationRead = async (notificationId: string) => {
+    try {
+      const res = await fetch("/api/owner/notifications", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: notificationId }),
+      });
+      if (res.ok) {
+        setNotifications((prev) =>
+          prev.map((n) => (n.id === notificationId ? { ...n, isRead: true } : n))
+        );
+      }
+    } catch (err) {
+      console.warn("Mark notification read error:", err);
     }
   };
 
@@ -851,6 +908,62 @@ export default function OwnerDashboardPage() {
         </div>
       )}
 
+      {/* Corrections Requested Banner */}
+      {(business as any).status === "NEEDS_CORRECTION" && (
+        <div className="p-5 rounded-3xl bg-gradient-to-r from-amber-500/15 via-orange-500/10 to-amber-500/5 border-2 border-amber-500/40 text-slate-900 text-xs sm:text-sm space-y-3 shadow-md">
+          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <div className="p-2.5 rounded-2xl bg-amber-500 text-slate-950 shrink-0 mt-0.5 shadow-xs">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="font-black text-amber-950 text-base">
+                    {lang === "rw" ? "Gusubiramo Amakuru Birakenewe" : "Corrections Requested by MOSA Admin"}
+                  </span>
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-amber-500 text-slate-950">
+                    Action Required
+                  </span>
+                </div>
+                <p className="text-slate-700 text-xs leading-relaxed">
+                  {lang === "rw"
+                    ? "Ubuyobozi bwa MOSA bwasuzumye icyifuzo cyanyu basanga hari amakuru agomba gukosorwa mbere y'uko cyemezwa ku mugaragaro. Nyamuneka vugurura amakuru ahari ikibazo (nko ku rubuga, ibiciro, cyangwa ikimenyetso cy'aho mukorera) maze ukande 'Ongera Wohereze'."
+                    : "The MOSA verification team reviewed your business application and requested corrections. Please update the necessary details below (e.g. Landmark, Prices, or Profile) and click Resubmit."}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => handleResubmitApplication()}
+              disabled={isResubmitting}
+              className="px-5 py-3 rounded-2xl bg-amber-600 hover:bg-amber-700 text-white font-black text-xs shadow-md transition-all flex items-center justify-center gap-2 shrink-0 cursor-pointer disabled:opacity-50"
+            >
+              {isResubmitting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+              <span>{lang === "rw" ? "Ongera Wohereze Ubucuruzi" : "Resubmit for Verification"}</span>
+            </button>
+          </div>
+
+          {/* Admin Feedback Box */}
+          {verifications && verifications.length > 0 && (
+            <div className="p-4 rounded-2xl bg-white border border-amber-300 text-xs shadow-xs">
+              <div className="font-bold text-amber-950 mb-1 flex items-center gap-1.5">
+                <span className="text-sm">💬</span>
+                <span>{lang === "rw" ? "Ubutumwa bw'Umusuzumi wa MOSA (Admin Feedback):" : "Admin Verification Feedback:"}</span>
+              </div>
+              <p className="text-slate-800 font-medium whitespace-pre-wrap leading-relaxed">
+                {verifications.find((v: any) => v.type === "CORRECTIONS_REQUESTED")?.notes || verifications[0]?.notes || "Please review and complete your business information."}
+              </p>
+            </div>
+          )}
+
+          {resubmitSuccessMsg && (
+            <div className="p-3 rounded-xl bg-emerald-100 text-emerald-900 font-bold text-xs flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+              <span>{resubmitSuccessMsg}</span>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* 6 Structured Operational Domains */}
       <div className="bg-white rounded-3xl border border-slate-200 p-2 sm:p-3 shadow-card">
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
@@ -859,7 +972,7 @@ export default function OwnerDashboardPage() {
             { id: "operations", label: t.owner.domains.operations, sub: t.owner.domainSubs.operations, icon: Layers },
             { id: "finance", label: t.owner.domains.finance, sub: t.owner.domainSubs.finance, icon: DollarSign, badge: "NEW" },
             { id: "intelligence", label: t.owner.domains.intelligence, sub: t.owner.domainSubs.intelligence, icon: Sparkles },
-            { id: "communication", label: t.owner.domains.communication, sub: t.owner.domainSubs.communication, icon: Bell, count: reminders.length },
+            { id: "communication", label: t.owner.domains.communication, sub: t.owner.domainSubs.communication, icon: Bell, count: reminders.length + notifications.filter((n) => !n.isRead).length },
             { id: "account", label: t.owner.domains.account, sub: t.owner.domainSubs.account, icon: Settings },
           ].map((dom) => {
             const Icon = dom.icon;
@@ -2102,6 +2215,67 @@ export default function OwnerDashboardPage() {
       {/* TAB CONTENT: 8. SMART REMINDERS & COMMUNICATION */}
       {(activeDomain === "communication" || activeTab === "reminders") && (
         <div className="space-y-6">
+          {/* Real-Time System & Verification Notifications from Neon DB */}
+          <div className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200 shadow-card space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+              <div>
+                <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                  <Bell className="w-5 h-5 text-emerald-600" />
+                  <span>{lang === "rw" ? "Ubutumwa n'Ibyemezo bya MOSA" : "Official MOSA Notifications & Decisions"}</span>
+                </h3>
+                <p className="text-xs text-slate-500">
+                  {lang === "rw"
+                    ? "Ubutumwa bw'ingenzi buturuka ku buyobozi bwa MOSA n'isesengura ry'ubucuruzi bwawe."
+                    : "Official notifications, verification decisions, and operational updates stored in PostgreSQL."}
+                </p>
+              </div>
+              {notifications.filter((n) => !n.isRead).length > 0 && (
+                <span className="px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-black">
+                  {notifications.filter((n) => !n.isRead).length} New
+                </span>
+              )}
+            </div>
+
+            {notifications.length === 0 ? (
+              <div className="py-6 text-center text-slate-400 text-xs">
+                <CheckCircle2 className="w-6 h-6 text-slate-300 mx-auto mb-1.5" />
+                <span>{lang === "rw" ? "Nta butumwa bushya buhari muri aka kanya." : "No notifications in your inbox yet."}</span>
+              </div>
+            ) : (
+              <div className="space-y-2.5">
+                {notifications.map((n: any) => (
+                  <div
+                    key={n.id}
+                    className={`p-4 rounded-2xl border flex items-start justify-between gap-3 text-xs transition ${
+                      !n.isRead ? "bg-emerald-50/50 border-emerald-200 shadow-xs" : "bg-white border-slate-200"
+                    }`}
+                  >
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        {!n.isRead && (
+                          <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block shrink-0" />
+                        )}
+                        <span className="font-black text-slate-900 text-sm">{n.title}</span>
+                        <span className="text-[10px] text-slate-400 font-mono">
+                          {new Date(n.createdAt).toLocaleDateString()} {new Date(n.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
+                      <p className="text-slate-700 leading-relaxed whitespace-pre-wrap">{n.message}</p>
+                    </div>
+                    {!n.isRead && (
+                      <button
+                        onClick={() => handleMarkNotificationRead(n.id)}
+                        className="px-3 py-1.5 rounded-xl text-[11px] font-bold text-slate-600 hover:text-slate-900 hover:bg-slate-100 border border-slate-200 shrink-0 cursor-pointer"
+                      >
+                        {lang === "rw" ? "Bimenye" : "Mark as read"}
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           <div className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200 shadow-card space-y-6">
             <div className="border-b border-slate-100 pb-4">
               <h3 className="text-lg font-bold text-slate-900">Database-Derived Smart Reminders</h3>

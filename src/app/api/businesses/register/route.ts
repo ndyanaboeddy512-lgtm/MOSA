@@ -41,12 +41,20 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Business name is required" }, { status: 400 });
     }
 
+    if (!ownerName || typeof ownerName !== "string" || !ownerName.trim()) {
+      return NextResponse.json({ error: "Owner name is required" }, { status: 400 });
+    }
+
     if (!category || typeof category !== "string") {
       return NextResponse.json({ error: "Business category is required" }, { status: 400 });
     }
 
     if (!phone || typeof phone !== "string") {
       return NextResponse.json({ error: "Owner phone number is required" }, { status: 400 });
+    }
+
+    if (!nearestLandmark || typeof nearestLandmark !== "string" || !nearestLandmark.trim()) {
+      return NextResponse.json({ error: "Nearest walking landmark is required for ground discovery" }, { status: 400 });
     }
 
     // 2. Normalize Rwanda Phone Number
@@ -63,7 +71,13 @@ export async function POST(request: Request) {
     let cleanWhatsapp: string | null = null;
     if (whatsapp && typeof whatsapp === "string" && whatsapp.trim()) {
       const waNorm = normalizeRwandaPhone(whatsapp);
-      cleanWhatsapp = waNorm.isValid && waNorm.e164 ? waNorm.e164 : cleanPhone;
+      if (!waNorm.isValid || !waNorm.e164) {
+        return NextResponse.json(
+          { error: waNorm.error || "Invalid WhatsApp phone number. Enter a valid Rwandan phone number." },
+          { status: 400 }
+        );
+      }
+      cleanWhatsapp = waNorm.e164;
     } else {
       cleanWhatsapp = cleanPhone;
     }
@@ -208,6 +222,14 @@ export async function POST(request: Request) {
             hasGps,
             initialStatus: "PENDING",
           }),
+        },
+      });
+
+      await tx.notification.create({
+        data: {
+          userId: u.id,
+          title: "Application Submitted for Verification / Icyifuzo Cyakiriwe",
+          message: `Your business registration for "${b.name}" has been received by MOSA Admin. It is currently pending verification. You can review your application details in this dashboard.`,
         },
       });
 

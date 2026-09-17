@@ -74,6 +74,7 @@ export async function GET() {
           provinceRel: true,
           sectorRel: true,
           cellRel: true,
+          owner: { select: { id: true, name: true, phone: true } },
         },
       }),
       prisma.receiptCapture.findMany({
@@ -162,6 +163,8 @@ export async function GET() {
       businesses: businesses.map((b: any) => ({
         ...formatBusinessRecord(b),
         isPotentialDuplicate: duplicateIds.has(b.id),
+        owner: b.owner,
+        verifications: b.verifications,
       })),
       captures,
       reports,
@@ -248,7 +251,7 @@ export async function PATCH(request: Request) {
             businessId,
             userId: adminUser.id,
             type: "ADMIN_APPROVAL",
-            notes: notes || `Business approved and activated by ${adminUser.name}`,
+            notes: notes || `Business approved and verified by ${adminUser.name}`,
           },
         });
 
@@ -266,8 +269,32 @@ export async function PATCH(request: Request) {
           },
         });
 
+        // Automatically create persistent database notification for the owner
+        if (b.ownerId) {
+          await tx.notification.create({
+            data: {
+              userId: b.ownerId,
+              title: "Business Verified by MOSA / Ubucuruzi Bwawe Bwemejwe",
+              message: `Congratulations! Your business "${b.name}" has been verified by MOSA. Your business profile is now approved and active on the platform. You can access your Business Dashboard to manage your operations and catalogue.`,
+            },
+          });
+        }
+
         return b;
       });
+
+      // Send SMS alert to business owner
+      if (updated.phone) {
+        sendBusinessSMS({
+          businessId,
+          recipientPhone: updated.phone,
+          templateId: "PROFILE_CONFIRMATION",
+          language: "rw",
+          variables: {
+            businessName: updated.name,
+          },
+        }).catch(() => {});
+      }
 
       revalidatePath(`/business/${businessId}`);
       revalidatePath("/explore");
@@ -277,6 +304,78 @@ export async function PATCH(request: Request) {
         success: true,
         status: updated.status,
         verificationStatus: updated.verificationStatus,
+      });
+    }
+
+    if (action === "REQUEST_CORRECTIONS" && businessId) {
+      const feedbackNotes = notes || "Please review and update your business information according to MOSA verification guidelines.";
+
+      const updated = await prisma.$transaction(async (tx) => {
+        const b = await tx.business.update({
+          where: { id: businessId },
+          data: {
+            status: "NEEDS_CORRECTION",
+          },
+        });
+
+        await tx.verificationRecord.create({
+          data: {
+            businessId,
+            userId: adminUser.id,
+            type: "CORRECTIONS_REQUESTED",
+            notes: feedbackNotes,
+          },
+        });
+
+        await tx.auditLog.create({
+          data: {
+            actorId: adminUser.id,
+            action: "CORRECTIONS_REQUESTED",
+            entityType: "BUSINESS",
+            entityId: businessId,
+            metadata: JSON.stringify({
+              requestedBy: adminUser.name,
+              status: "NEEDS_CORRECTION",
+              notes: feedbackNotes,
+            }),
+          },
+        });
+
+        // Create notification for owner with feedback notes
+        if (b.ownerId) {
+          await tx.notification.create({
+            data: {
+              userId: b.ownerId,
+              title: "Corrections Requested / Amavugurura Arasabwa",
+              message: `MOSA Admin reviewed your application for "${b.name}" and requested the following corrections: "${feedbackNotes}". Please visit your Business Dashboard to update your details and resubmit.`,
+            },
+          });
+        }
+
+        return b;
+      });
+
+      // Send SMS alert regarding requested corrections
+      if (updated.phone) {
+        sendBusinessSMS({
+          businessId,
+          recipientPhone: updated.phone,
+          templateId: "SECURITY_ALERT",
+          language: "rw",
+          variables: {
+            businessName: updated.name,
+            reason: feedbackNotes,
+          },
+        }).catch(() => {});
+      }
+
+      revalidatePath(`/business/${businessId}`);
+      revalidatePath("/admin");
+
+      return NextResponse.json({
+        success: true,
+        status: updated.status,
+        notes: feedbackNotes,
       });
     }
 
@@ -311,6 +410,16 @@ export async function PATCH(request: Request) {
             }),
           },
         });
+
+        if (b.ownerId) {
+          await tx.notification.create({
+            data: {
+              userId: b.ownerId,
+              title: "Application Status Update / Imiterere y'Ubucuruzi",
+              message: `Your business application for "${b.name}" was not approved: ${notes || "Did not meet verification criteria."}`,
+            },
+          });
+        }
 
         return b;
       });

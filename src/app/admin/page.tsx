@@ -34,7 +34,12 @@ import {
   HeartHandshake,
   Smartphone,
   Activity,
-  X
+  X,
+  ShieldCheck,
+  FileCheck,
+  Edit3,
+  MessageCircle,
+  ExternalLink
 } from "lucide-react";
 import { SmartLocationForm, SmartLocationFormData } from "@/components/location/SmartLocationForm";
 import { calculateLocationCompleteness } from "@/lib/location-quality";
@@ -90,7 +95,7 @@ export default function AdminPanelPage() {
   const { user, switchDemoRole } = useAuth();
 
   const [activeTab, setActiveTab] = useState<
-    "businesses" | "claims" | "sms" | "history" | "captures" | "reports" | "demands" | "audit"
+    "businesses" | "pending_applications" | "claims" | "sms" | "history" | "captures" | "reports" | "demands" | "audit"
   >("businesses");
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [claims, setClaims] = useState<any[]>([]);
@@ -100,6 +105,12 @@ export default function AdminPanelPage() {
   const [reports, setReports] = useState<ModerationReport[]>([]);
   const [demands, setDemands] = useState<CommunityDemandSignal[]>([]);
   const [auditLogs, setAuditLogs] = useState<AdminAuditLog[]>([]);
+  
+  // Application review & decision state
+  const [reviewingBiz, setReviewingBiz] = useState<any | null>(null);
+  const [reviewAction, setReviewAction] = useState<"APPROVE" | "CORRECTIONS" | "REJECT" | null>(null);
+  const [adminNotes, setAdminNotes] = useState<string>("");
+  const [isActionSubmitting, setIsActionSubmitting] = useState<boolean>(false);
   
   const [metrics, setMetrics] = useState<AdminMetrics>({
     totalBusinesses: 0,
@@ -211,6 +222,9 @@ export default function AdminPanelPage() {
             status: b.status,
             products: b.products || [],
             isPotentialDuplicate: b.isPotentialDuplicate || false,
+            owner: b.owner || null,
+            createdAt: b.createdAt,
+            verifications: b.verifications || [],
           })));
         }
         if (data.captures && data.captures.length > 0) setCaptures(data.captures);
@@ -303,6 +317,85 @@ export default function AdminPanelPage() {
       }
     } catch (err) {
       console.warn("[Admin Approve Error]:", err);
+    }
+  };
+
+  const handleVerifyAndApprove = async (bizId: string, notes?: string) => {
+    setIsActionSubmitting(true);
+    try {
+      const res = await fetch("/api/admin", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "APPROVE_BUSINESS",
+          businessId: bizId,
+          notes: notes || "Business verified and approved by MOSA Admin.",
+        }),
+      });
+      if (res.ok) {
+        setReviewingBiz(null);
+        setReviewAction(null);
+        setAdminNotes("");
+        fetchAdminData();
+      }
+    } catch (err) {
+      console.warn("[Admin Approve Error]:", err);
+    } finally {
+      setIsActionSubmitting(false);
+    }
+  };
+
+  const handleRequestCorrections = async (bizId: string, notes: string) => {
+    if (!notes.trim()) {
+      alert("Please specify the corrections or revisions required for the business owner.");
+      return;
+    }
+    setIsActionSubmitting(true);
+    try {
+      const res = await fetch("/api/admin", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "REQUEST_CORRECTIONS",
+          businessId: bizId,
+          notes: notes.trim(),
+        }),
+      });
+      if (res.ok) {
+        setReviewingBiz(null);
+        setReviewAction(null);
+        setAdminNotes("");
+        fetchAdminData();
+      }
+    } catch (err) {
+      console.warn("[Admin Request Corrections Error]:", err);
+    } finally {
+      setIsActionSubmitting(false);
+    }
+  };
+
+  const handleRejectBusiness = async (bizId: string, reason?: string) => {
+    setIsActionSubmitting(true);
+    try {
+      const res = await fetch("/api/admin", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "REJECT_BUSINESS",
+          businessId: bizId,
+          notes: reason || "Did not meet verification criteria.",
+        }),
+      });
+      if (res.ok) {
+        setReviewingBiz(null);
+        setReviewAction(null);
+        setAdminNotes("");
+        fetchAdminData();
+      }
+    } catch (err) {
+      console.warn("[Admin Reject Error]:", err);
+    } finally {
+      setIsActionSubmitting(false);
     }
   };
 
@@ -592,6 +685,12 @@ export default function AdminPanelPage() {
       <div className="flex items-center gap-2 border-b border-slate-200 pb-3 mb-6 overflow-x-auto no-scrollbar">
         {[
           { id: "businesses", label: t.admin.tabs.businesses, count: businesses.length, icon: StoreIcon },
+          { 
+            id: "pending_applications", 
+            label: "Pending Verification", 
+            count: businesses.filter((b: any) => b.status === "PENDING" || b.status === "NEEDS_CORRECTION").length, 
+            icon: ShieldCheck 
+          },
           { id: "claims", label: "Ownership Claims", count: claims.filter((c) => c.status === "PENDING").length, icon: HeartHandshake },
           { id: "sms", label: "SMS Queue & Status", count: smsMessages.length, icon: Smartphone },
           { id: "history", label: "Price & Change Audits", count: changeHistories.length, icon: Activity },
@@ -903,16 +1002,30 @@ export default function AdminPanelPage() {
                     </div>
 
                     <div className="flex items-center gap-2 self-end lg:self-center flex-wrap shrink-0">
-                      {/* Quick Approval for Self-Registered Businesses */}
-                      {(biz as any).status === "PENDING" && (
-                        <button
-                          onClick={() => handleApproveBusiness(biz.id)}
-                          className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
-                          title="Approve business and publish to public MOSA"
-                        >
-                          <CheckCircle2 className="w-3.5 h-3.5" />
-                          <span>Approve & Publish</span>
-                        </button>
+                      {/* Actions for Self-Registered Businesses Awaiting Verification / Revisions */}
+                      {((biz as any).status === "PENDING" || (biz as any).status === "NEEDS_CORRECTION") && (
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            onClick={() => {
+                              setReviewingBiz(biz);
+                              setReviewAction(null);
+                              setAdminNotes("");
+                            }}
+                            className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+                            title="Review complete application details"
+                          >
+                            <FileCheck className="w-3.5 h-3.5" />
+                            <span>Review</span>
+                          </button>
+                          <button
+                            onClick={() => handleVerifyAndApprove(biz.id)}
+                            className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+                            title="Verify business and publish to public MOSA"
+                          >
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            <span>Verify</span>
+                          </button>
+                        </div>
                       )}
 
                       {/* Lifecycle Progression Buttons */}
@@ -993,6 +1106,108 @@ export default function AdminPanelPage() {
               })
             )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Pending Applications Tab */}
+      {activeTab === "pending_applications" && (
+        <div className="bg-white rounded-3xl border border-slate-200 shadow-card p-6 space-y-4">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+            <div>
+              <h3 className="font-extrabold text-slate-900 text-lg flex items-center gap-2">
+                <ShieldCheck className="w-5 h-5 text-amber-500" />
+                <span>Pending Verification Applications</span>
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Self-registered businesses awaiting admin ground verification, review, or revisions.
+              </p>
+            </div>
+            <span className="px-3 py-1 rounded-full bg-amber-100 text-amber-900 text-xs font-bold">
+              {businesses.filter((b: any) => b.status === "PENDING" || b.status === "NEEDS_CORRECTION").length} in queue
+            </span>
+          </div>
+
+          <div className="space-y-3">
+            {businesses.filter((b: any) => b.status === "PENDING" || b.status === "NEEDS_CORRECTION").length === 0 ? (
+              <div className="p-12 text-center text-slate-400 text-xs font-medium bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                🎉 No pending applications! All registered businesses have been processed.
+              </div>
+            ) : (
+              businesses
+                .filter((b: any) => b.status === "PENDING" || b.status === "NEEDS_CORRECTION")
+                .map((biz: any) => (
+                  <div
+                    key={biz.id}
+                    className="p-4 rounded-2xl border border-slate-200 bg-slate-50/50 hover:bg-slate-50 transition-colors flex flex-col lg:flex-row lg:items-center justify-between gap-4"
+                  >
+                    <div className="space-y-1.5 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-black text-sm text-slate-900">{biz.name}</span>
+                        {biz.status === "PENDING" ? (
+                          <span className="px-2 py-0.5 rounded-md bg-amber-100 text-amber-800 text-[10px] font-black uppercase">
+                            Pending Verification
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded-md bg-blue-100 text-blue-800 text-[10px] font-black uppercase">
+                            Corrections Requested
+                          </span>
+                        )}
+                        <span className="px-2 py-0.5 rounded-md bg-slate-200 text-slate-700 text-[10px] font-semibold">
+                          {biz.categoryDisplay || biz.category}
+                        </span>
+                      </div>
+
+                      <div className="text-xs text-slate-600 space-y-0.5">
+                        <div>
+                          <strong>Owner:</strong> {biz.owner?.name || "Self-Registered Owner"} • <span className="font-mono text-slate-800">{biz.phone}</span>
+                        </div>
+                        <div>
+                          <strong>Location:</strong> {biz.nearestLandmark ? `Near ${biz.nearestLandmark}` : "No landmark specified"} • {biz.location?.cell}, {biz.location?.sector}, {biz.location?.district}
+                        </div>
+                        {biz.products && biz.products.length > 0 && (
+                          <div className="text-[11px] text-slate-500 pt-0.5">
+                            Products ({biz.products.length}): {biz.products.slice(0, 3).map((p: any) => `${p.name} (${p.price?.toLocaleString()} RWF)`).join(", ")}
+                            {biz.products.length > 3 && ` +${biz.products.length - 3} more`}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 self-end lg:self-center flex-wrap">
+                      <button
+                        onClick={() => {
+                          setReviewingBiz(biz);
+                          setReviewAction(null);
+                          setAdminNotes("");
+                        }}
+                        className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <FileCheck className="w-3.5 h-3.5" />
+                        <span>Review Application</span>
+                      </button>
+                      <button
+                        onClick={() => handleVerifyAndApprove(biz.id)}
+                        className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        <span>Verify & Approve</span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          setReviewingBiz(biz);
+                          setReviewAction("CORRECTIONS");
+                          setAdminNotes("");
+                        }}
+                        className="px-3 py-1.5 rounded-xl bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 text-xs font-bold transition-colors flex items-center gap-1 cursor-pointer"
+                      >
+                        <Edit3 className="w-3.5 h-3.5" />
+                        <span>Request Corrections</span>
+                      </button>
+                    </div>
+                  </div>
+                ))
+            )}
           </div>
         </div>
       )}
@@ -1531,6 +1746,317 @@ export default function AdminPanelPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Review Business Application & Verification Decision */}
+      {reviewingBiz && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-4xl w-full p-6 shadow-2xl border border-slate-200 max-h-[92vh] overflow-y-auto">
+            {/* Header */}
+            <div className="flex items-start justify-between pb-4 border-b border-slate-100">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className={`px-2.5 py-0.5 rounded-full text-xs font-black uppercase tracking-wider ${
+                    reviewingBiz.status === "ACTIVE"
+                      ? "bg-emerald-100 text-emerald-800"
+                      : reviewingBiz.status === "NEEDS_CORRECTION"
+                      ? "bg-amber-100 text-amber-800"
+                      : reviewingBiz.status === "PENDING"
+                      ? "bg-blue-100 text-blue-800"
+                      : "bg-slate-100 text-slate-800"
+                  }`}>
+                    {reviewingBiz.status === "NEEDS_CORRECTION" ? "Needs Correction" : reviewingBiz.status || "Pending Verification"}
+                  </span>
+                  <span className="text-xs font-medium text-slate-400">ID: {reviewingBiz.id.slice(0, 8)}...</span>
+                </div>
+                <h3 className="text-xl font-black text-slate-900 mt-1">{reviewingBiz.name}</h3>
+                <p className="text-xs text-slate-500 capitalize">{reviewingBiz.category?.replace(/_/g, " ")} • Registered {new Date(reviewingBiz.createdAt).toLocaleDateString()}</p>
+              </div>
+              <button
+                onClick={() => {
+                  setReviewingBiz(null);
+                  setReviewAction(null);
+                  setAdminNotes("");
+                }}
+                className="p-1.5 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-6 pt-5">
+              {/* Left Column: Application Details (7 cols) */}
+              <div className="md:col-span-7 space-y-4 text-xs">
+                {/* Owner Information */}
+                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-2">
+                  <h4 className="font-bold text-slate-900 text-sm flex items-center gap-1.5">
+                    <Users className="w-4 h-4 text-emerald-600" />
+                    Business Owner & Contact
+                  </h4>
+                  <div className="grid grid-cols-2 gap-2 text-slate-700">
+                    <div>
+                      <span className="text-slate-400 block text-[10px] uppercase font-semibold">Owner Name</span>
+                      <span className="font-bold">{reviewingBiz.owner?.name || reviewingBiz.ownerName || "Micro-Business Owner"}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block text-[10px] uppercase font-semibold">Phone</span>
+                      <span className="font-mono font-bold text-slate-900">{reviewingBiz.phone || "None"}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block text-[10px] uppercase font-semibold">WhatsApp</span>
+                      <span className="font-mono text-slate-800">{reviewingBiz.whatsapp || reviewingBiz.phone || "Same as Phone"}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block text-[10px] uppercase font-semibold">Claim / Registration Status</span>
+                      <span className="font-semibold text-emerald-700">{reviewingBiz.isClaimed ? "Owner Claimed" : "Owner Registered"}</span>
+                    </div>
+                  </div>
+                  {reviewingBiz.description && (
+                    <div className="pt-2 border-t border-slate-200/60">
+                      <span className="text-slate-400 block text-[10px] uppercase font-semibold">Description</span>
+                      <p className="text-slate-600 mt-0.5">{reviewingBiz.description}</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Smart Location */}
+                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-2">
+                  <h4 className="font-bold text-slate-900 text-sm flex items-center gap-1.5">
+                    <MapPin className="w-4 h-4 text-emerald-600" />
+                    Smart Location & Ground Discovery
+                  </h4>
+                  <div className="grid grid-cols-2 gap-2 text-slate-700">
+                    <div>
+                      <span className="text-slate-400 block text-[10px] uppercase font-semibold">Province / District</span>
+                      <span className="font-medium">{reviewingBiz.location?.province || reviewingBiz.province || "Kigali City"} / {reviewingBiz.location?.district || reviewingBiz.district || "Nyarugenge"}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block text-[10px] uppercase font-semibold">Sector / Cell</span>
+                      <span className="font-medium">{reviewingBiz.location?.sector || reviewingBiz.sector} / {reviewingBiz.location?.cell || reviewingBiz.cell}</span>
+                    </div>
+                    <div className="col-span-2">
+                      <span className="text-slate-400 block text-[10px] uppercase font-semibold">Nearest Landmark</span>
+                      <span className="font-bold text-slate-900 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 inline-block mt-0.5">
+                        📍 {reviewingBiz.nearestLandmark || reviewingBiz.location?.nearestLandmark || "Not Specified"}
+                      </span>
+                    </div>
+                    {(reviewingBiz.location?.addressNote || reviewingBiz.locationDescription) && (
+                      <div className="col-span-2">
+                        <span className="text-slate-400 block text-[10px] uppercase font-semibold">Walking Directions</span>
+                        <p className="text-slate-700 italic mt-0.5">{reviewingBiz.location?.addressNote || reviewingBiz.locationDescription}</p>
+                      </div>
+                    )}
+                    <div className="col-span-2 flex items-center gap-2 pt-1 border-t border-slate-200/60">
+                      <span className="text-slate-400 text-[10px] uppercase font-semibold">GPS Coordinates:</span>
+                      <span className="font-mono text-slate-800 font-bold">
+                        {reviewingBiz.location?.coordinates?.lat?.toFixed(5) || reviewingBiz.latitude?.toFixed(5) || "-1.98100"}, {reviewingBiz.location?.coordinates?.lng?.toFixed(5) || reviewingBiz.longitude?.toFixed(5) || "30.04600"}
+                      </span>
+                      {reviewingBiz.location?.accuracy && (
+                        <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 text-[10px] font-bold">
+                          ±{Math.round(reviewingBiz.location.accuracy)}m
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Offerings Catalogue */}
+                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-bold text-slate-900 text-sm flex items-center gap-1.5">
+                      <Tag className="w-4 h-4 text-emerald-600" />
+                      Offerings & Products ({reviewingBiz.products?.length || 0})
+                    </h4>
+                  </div>
+                  {reviewingBiz.products && reviewingBiz.products.length > 0 ? (
+                    <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                      {reviewingBiz.products.map((p: any, idx: number) => (
+                        <div key={idx} className="flex items-center justify-between p-2 bg-white rounded-xl border border-slate-200">
+                          <span className="font-medium text-slate-800">{p.name}</span>
+                          <span className="font-bold text-emerald-700 font-mono">
+                            {p.price > 0 ? `${p.price.toLocaleString()} RWF` : "Price on Request"}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-slate-400 italic">No specific products submitted.</p>
+                  )}
+                </div>
+
+                {/* Photo Preview if available */}
+                {reviewingBiz.coverImage && (
+                  <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80">
+                    <span className="text-slate-400 block text-[10px] uppercase font-semibold mb-2">Storefront / Visual Reference</span>
+                    <img
+                      src={reviewingBiz.coverImage}
+                      alt={reviewingBiz.name}
+                      className="w-full h-36 object-cover rounded-xl border border-slate-200"
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Right Column: Past Notes & Decision Action Panel (5 cols) */}
+              <div className="md:col-span-5 space-y-4">
+                {/* Past Verification / Correction History */}
+                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80">
+                  <h4 className="font-bold text-slate-900 text-sm flex items-center gap-1.5 mb-2">
+                    <History className="w-4 h-4 text-slate-600" />
+                    Verification History
+                  </h4>
+                  {reviewingBiz.verifications && reviewingBiz.verifications.length > 0 ? (
+                    <div className="space-y-2 max-h-36 overflow-y-auto pr-1">
+                      {reviewingBiz.verifications.map((v: any, idx: number) => (
+                        <div key={idx} className="p-2.5 bg-white rounded-xl border border-slate-200 text-xs">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="font-bold text-slate-800 capitalize text-[11px]">{v.type?.replace(/_/g, " ")}</span>
+                            <span className="text-[10px] text-slate-400">{new Date(v.createdAt).toLocaleDateString()}</span>
+                          </div>
+                          {v.notes && <p className="text-slate-600 text-[11px]">{v.notes}</p>}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-slate-400 italic">No prior verification records for this business.</p>
+                  )}
+                </div>
+
+                {/* Verification Decision Panel */}
+                <div className="p-4 rounded-2xl bg-white border-2 border-emerald-500/30 shadow-sm space-y-3">
+                  <h4 className="font-black text-slate-900 text-sm flex items-center gap-1.5">
+                    <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                    Admin Verification Decision
+                  </h4>
+                  <p className="text-xs text-slate-500">
+                    Review the ground accuracy of this micro-business before publishing to the live discovery engine.
+                  </p>
+
+                  {/* Decision Selector Buttons */}
+                  <div className="grid grid-cols-3 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setReviewAction("APPROVE")}
+                      className={`p-2 rounded-xl text-xs font-bold flex flex-col items-center gap-1 border transition ${
+                        reviewAction === "APPROVE"
+                          ? "bg-emerald-600 text-white border-emerald-600 shadow-sm"
+                          : "bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100"
+                      }`}
+                    >
+                      <CheckCircle2 className="w-4 h-4" />
+                      Approve
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setReviewAction("CORRECTIONS")}
+                      className={`p-2 rounded-xl text-xs font-bold flex flex-col items-center gap-1 border transition ${
+                        reviewAction === "CORRECTIONS"
+                          ? "bg-amber-600 text-white border-amber-600 shadow-sm"
+                          : "bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100"
+                      }`}
+                    >
+                      <Edit3 className="w-4 h-4" />
+                      Corrections
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setReviewAction("REJECT")}
+                      className={`p-2 rounded-xl text-xs font-bold flex flex-col items-center gap-1 border transition ${
+                        reviewAction === "REJECT"
+                          ? "bg-rose-600 text-white border-rose-600 shadow-sm"
+                          : "bg-rose-50 text-rose-800 border-rose-200 hover:bg-rose-100"
+                      }`}
+                    >
+                      <XCircle className="w-4 h-4" />
+                      Reject
+                    </button>
+                  </div>
+
+                  {/* Contextual Form according to selected action */}
+                  {reviewAction === "APPROVE" && (
+                    <div className="space-y-2 pt-2 border-t border-slate-100">
+                      <label className="text-xs font-bold text-slate-800 block">
+                        Approval Notes & Audit Log (Optional)
+                      </label>
+                      <textarea
+                        value={adminNotes}
+                        onChange={(e) => setAdminNotes(e.target.value)}
+                        placeholder="e.g. Ground location verified via landmark. Approved for public discovery."
+                        rows={2}
+                        className="w-full p-2.5 rounded-xl border border-slate-200 text-xs bg-slate-50 focus:bg-white"
+                      />
+                      <button
+                        type="button"
+                        disabled={isActionSubmitting}
+                        onClick={() => handleVerifyAndApprove(reviewingBiz.id, adminNotes)}
+                        className="w-full py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md transition disabled:opacity-50 flex items-center justify-center gap-2"
+                      >
+                        {isActionSubmitting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
+                        Confirm & Publish Business
+                      </button>
+                    </div>
+                  )}
+
+                  {reviewAction === "CORRECTIONS" && (
+                    <div className="space-y-2 pt-2 border-t border-slate-100">
+                      <label className="text-xs font-bold text-amber-900 block">
+                        Correction Instructions for Owner (Required) *
+                      </label>
+                      <textarea
+                        value={adminNotes}
+                        onChange={(e) => setAdminNotes(e.target.value)}
+                        placeholder="e.g. Please provide a more specific landmark and clarify your opening hours or prices."
+                        rows={3}
+                        required
+                        className="w-full p-2.5 rounded-xl border border-amber-300 text-xs bg-amber-50/50 focus:bg-white focus:border-amber-500"
+                      />
+                      <button
+                        type="button"
+                        disabled={isActionSubmitting || !adminNotes.trim()}
+                        onClick={() => handleRequestCorrections(reviewingBiz.id, adminNotes)}
+                        className="w-full py-2.5 px-4 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs shadow-md transition disabled:opacity-50 flex items-center justify-center gap-2"
+                      >
+                        {isActionSubmitting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <MessageCircle className="w-4 h-4" />}
+                        Send Correction Request to Owner
+                      </button>
+                    </div>
+                  )}
+
+                  {reviewAction === "REJECT" && (
+                    <div className="space-y-2 pt-2 border-t border-slate-100">
+                      <label className="text-xs font-bold text-rose-900 block">
+                        Reason for Rejection (Required) *
+                      </label>
+                      <textarea
+                        value={adminNotes}
+                        onChange={(e) => setAdminNotes(e.target.value)}
+                        placeholder="e.g. Fraudulent submission or duplicate business entity."
+                        rows={3}
+                        required
+                        className="w-full p-2.5 rounded-xl border border-rose-300 text-xs bg-rose-50/50 focus:bg-white focus:border-rose-500"
+                      />
+                      <button
+                        type="button"
+                        disabled={isActionSubmitting || !adminNotes.trim()}
+                        onClick={() => handleRejectBusiness(reviewingBiz.id, adminNotes)}
+                        className="w-full py-2.5 px-4 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-md transition disabled:opacity-50 flex items-center justify-center gap-2"
+                      >
+                        {isActionSubmitting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <XCircle className="w-4 h-4" />}
+                        Confirm Rejection
+                      </button>
+                    </div>
+                  )}
+
+                  {!reviewAction && (
+                    <p className="text-xs text-slate-400 italic text-center py-2">
+                      Select an action above to proceed with verification.
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       )}

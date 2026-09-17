@@ -65,10 +65,20 @@ export async function GET(request: Request) {
       });
     }
 
-    // Calculate operational intelligence
-    const [healthReport, reminders] = await Promise.all([
+    // Calculate operational intelligence and fetch verification history + notifications
+    const [healthReport, reminders, verifications, notifications] = await Promise.all([
       calculateAndPersistBusinessHealth(business.id),
       syncAndGetBusinessReminders(business.id),
+      prisma.verificationRecord.findMany({
+        where: { businessId: business.id },
+        orderBy: { createdAt: "desc" },
+        take: 5,
+      }),
+      prisma.notification.findMany({
+        where: { userId: auth.user.id },
+        orderBy: { createdAt: "desc" },
+        take: 10,
+      }),
     ]);
 
     const confirmationStatus = checkConfirmationStatus(business);
@@ -79,6 +89,8 @@ export async function GET(request: Request) {
       health: healthReport,
       confirmationStatus,
       reminders,
+      verifications,
+      notifications,
     });
   } catch (error) {
     console.error("[Owner Business GET Error]:", error);
@@ -130,6 +142,61 @@ export async function PATCH(request: Request) {
       revalidatePath("/explore");
       const updatedHealth = await calculateAndPersistBusinessHealth(businessId);
       return NextResponse.json({ action: "CONFIRMED", ...result, health: updatedHealth });
+    }
+
+    // Resubmit Application after corrections
+    if (action === "RESUBMIT_APPLICATION") {
+      const updated = await prisma.$transaction(async (tx) => {
+        const b = await tx.business.update({
+          where: { id: businessId },
+          data: {
+            status: "PENDING",
+            verificationStatus: "UNVERIFIED",
+          },
+        });
+
+        await tx.verificationRecord.create({
+          data: {
+            businessId,
+            userId: actorId,
+            type: "OWNER_RESUBMITTED",
+            notes: fields.resubmissionNotes || "Business application resubmitted by owner after revisions.",
+          },
+        });
+
+        await tx.auditLog.create({
+          data: {
+            actorId,
+            action: "APPLICATION_RESUBMITTED",
+            entityType: "BUSINESS",
+            entityId: businessId,
+            metadata: JSON.stringify({
+              businessId,
+              status: "PENDING",
+              notes: fields.resubmissionNotes || "Resubmitted for verification",
+            }),
+          },
+        });
+
+        await tx.notification.create({
+          data: {
+            userId: actorId,
+            title: "Application Resubmitted / Ibisabwa Byongeye Koherezwa",
+            message: `Your updated business details for "${b.name}" have been resubmitted to MOSA Admin for review.`,
+          },
+        });
+
+        return b;
+      });
+
+      revalidatePath(`/business/${businessId}`);
+      revalidatePath("/admin");
+
+      return NextResponse.json({
+        success: true,
+        action: "RESUBMITTED",
+        status: updated.status,
+      });
     }
 
     // Update Opening Hours if provided
