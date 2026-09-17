@@ -11,6 +11,9 @@ import { checkNearDuplicates } from "@/lib/location-quality";
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const category = searchParams.get("category") || undefined;
+  const mainCategory = searchParams.get("mainCategory") || undefined;
+  const subCategory = searchParams.get("subCategory") || undefined;
+  const businessType = searchParams.get("businessType") || undefined;
   const community = searchParams.get("community") || undefined;
   const sector = searchParams.get("sector") || undefined;
   const cell = searchParams.get("cell") || undefined;
@@ -76,8 +79,30 @@ export async function GET(request: Request) {
       status: "ACTIVE",
     };
 
-    if (category && category !== "all") {
-      where.category = category;
+    if (mainCategory && mainCategory !== "all") {
+      where.AND = where.AND || [];
+      where.AND.push({
+        OR: [
+          { mainCategory },
+          { category: mainCategory },
+        ],
+      });
+    } else if (category && category !== "all") {
+      where.AND = where.AND || [];
+      where.AND.push({
+        OR: [
+          { mainCategory: category },
+          { category },
+        ],
+      });
+    }
+
+    if (subCategory && subCategory !== "all") {
+      where.subCategory = subCategory;
+    }
+
+    if (businessType && businessType !== "all") {
+      where.businessType = businessType;
     }
 
     if (provinceId) {

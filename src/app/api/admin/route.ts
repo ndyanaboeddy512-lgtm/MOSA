@@ -135,6 +135,71 @@ export async function GET() {
       }
     }
 
+    // Structured Location & Category Cross-tabulation Breakdown
+    const locationCategoryBreakdown: Record<string, {
+      sector: string;
+      district: string;
+      province: string;
+      total: number;
+      categories: Record<string, number>;
+      subCategories: Record<string, number>;
+      businessTypes: Record<string, number>;
+      cells: Record<string, number>;
+    }> = {};
+
+    for (const b of businesses) {
+      const sectorKey = b.sector?.trim() || "Unspecified";
+      if (!locationCategoryBreakdown[sectorKey]) {
+        locationCategoryBreakdown[sectorKey] = {
+          sector: sectorKey,
+          district: b.district?.trim() || "Unspecified",
+          province: b.provinceRel?.name || (b as any).province || "Kigali City",
+          total: 0,
+          categories: {},
+          subCategories: {},
+          businessTypes: {},
+          cells: {},
+        };
+      }
+      const item = locationCategoryBreakdown[sectorKey];
+      item.total += 1;
+
+      const mainCat = b.mainCategory || b.category || "retail";
+      item.categories[mainCat] = (item.categories[mainCat] || 0) + 1;
+
+      if (b.subCategory) {
+        item.subCategories[b.subCategory] = (item.subCategories[b.subCategory] || 0) + 1;
+      }
+
+      const bType = b.businessType || b.businessTypeDisplay || b.category || "general";
+      item.businessTypes[bType] = (item.businessTypes[bType] || 0) + 1;
+
+      if (b.cell) {
+        item.cells[b.cell.trim()] = (item.cells[b.cell.trim()] || 0) + 1;
+      }
+    }
+
+    // Global Category & Subcategory Aggregates
+    const categorySummary: Record<string, {
+      count: number;
+      subCategories: Record<string, number>;
+      businessTypes: Record<string, number>;
+    }> = {};
+
+    for (const b of businesses) {
+      const mainCat = b.mainCategory || b.category || "retail";
+      if (!categorySummary[mainCat]) {
+        categorySummary[mainCat] = { count: 0, subCategories: {}, businessTypes: {} };
+      }
+      categorySummary[mainCat].count += 1;
+      if (b.subCategory) {
+        categorySummary[mainCat].subCategories[b.subCategory] = (categorySummary[mainCat].subCategories[b.subCategory] || 0) + 1;
+      }
+      if (b.businessType) {
+        categorySummary[mainCat].businessTypes[b.businessType] = (categorySummary[mainCat].businessTypes[b.businessType] || 0) + 1;
+      }
+    }
+
     return NextResponse.json({
       success: true,
       metrics: {
@@ -159,6 +224,8 @@ export async function GET() {
         pendingClaimsCount,
         totalSMSCount: smsMessages.length,
       },
+      locationCategoryBreakdown,
+      categorySummary,
       auditLogs: recentAuditLogs,
       businesses: businesses.map((b: any) => ({
         ...formatBusinessRecord(b),
@@ -546,6 +613,9 @@ export async function PATCH(request: Request) {
       const {
         name,
         category,
+        mainCategory,
+        subCategory,
+        businessType,
         description,
         phone,
         cell,
@@ -563,6 +633,9 @@ export async function PATCH(request: Request) {
           data: {
             ...(name ? { name } : {}),
             ...(category ? { category, categoryDisplay: category } : {}),
+            ...(mainCategory ? { mainCategory } : {}),
+            ...(subCategory ? { subCategory } : {}),
+            ...(businessType ? { businessType, businessTypeDisplay: businessType } : {}),
             ...(description !== undefined ? { description } : {}),
             ...(phone ? { phone } : {}),
             ...(cell ? { cell } : {}),

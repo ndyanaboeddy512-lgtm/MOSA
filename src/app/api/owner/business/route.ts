@@ -9,6 +9,7 @@ import { checkConfirmationStatus, confirmBusinessInformation } from "@/lib/confi
 import { syncAndGetBusinessReminders } from "@/lib/reminders-engine";
 import { sendBusinessSMS } from "@/lib/sms";
 import { logAuditEvent } from "@/lib/audit";
+import { validateCategoryHierarchy } from "@/lib/taxonomy";
 
 /**
  * GET /api/owner/business
@@ -253,10 +254,14 @@ export async function PATCH(request: Request) {
       "descriptionFr",
       "descriptionSw",
       "category",
+      "mainCategory",
       "subCategory",
+      "businessType",
       "phone",
       "whatsapp",
       "isOpenNow",
+      "province",
+      "district",
       "sector",
       "cell",
       "localAreaId",
@@ -280,6 +285,45 @@ export async function PATCH(request: Request) {
       }
     }
 
+    // Validate 3-Tier Category if category fields are updated
+    if (fields.mainCategory || fields.subCategory || fields.businessType) {
+      const targetMain = fields.mainCategory || existing.mainCategory || existing.category;
+      const targetSub = fields.subCategory || existing.subCategory;
+      const targetType = fields.businessType || existing.businessType;
+
+      const catVal = validateCategoryHierarchy(targetMain, targetSub, targetType);
+      if (!catVal.isValid) {
+        return NextResponse.json({ error: catVal.error || "Invalid category hierarchy." }, { status: 400 });
+      }
+
+      if (catVal.resolvedType) {
+        updateData.businessTypeDisplay = catVal.resolvedType.name;
+        updateData.businessTypeDisplayRw = catVal.resolvedType.nameRw;
+      }
+    }
+
+    // Check if business is currently Active/Verified and owner is changing major classification or location
+    const isCurrentlyActiveOrVerified = existing.status === "ACTIVE" || 
+      existing.verificationStatus === "AGENT_VERIFIED" || 
+      existing.verificationStatus === "HIGH_CONFIDENCE";
+
+    const isMajorCategoryChange = 
+      (fields.mainCategory && fields.mainCategory !== existing.mainCategory) ||
+      (fields.category && fields.category !== existing.category);
+
+    const isMajorLocationChange = 
+      (fields.sector && fields.sector !== existing.sector) ||
+      (fields.district && fields.district !== existing.district);
+
+    const requiresReverification = auth.user.role !== Role.SUPER_ADMIN && 
+      isCurrentlyActiveOrVerified && 
+      (Boolean(isMajorCategoryChange) || Boolean(isMajorLocationChange));
+
+    if (requiresReverification) {
+      updateData.status = "PENDING";
+      updateData.verificationStatus = "UNVERIFIED";
+    }
+
     if (Object.keys(updateData).length > 0) {
       updateData.updatedAt = new Date();
 
@@ -298,8 +342,48 @@ export async function PATCH(request: Request) {
               fieldChanged: f,
               previousValue: String((existing as any)[f] ?? ""),
               newValue: String(updateData[f] ?? ""),
-              approvalStatus: "APPROVED",
+              approvalStatus: requiresReverification ? "PENDING" : "APPROVED",
               source: "OWNER_DASHBOARD",
+            },
+          });
+        }
+
+        if (requiresReverification) {
+          const changeReasons = [
+            isMajorCategoryChange ? `Category: "${existing.mainCategory || existing.category}" → "${fields.mainCategory || fields.category}"` : null,
+            isMajorLocationChange ? `Location: "${existing.district}, ${existing.sector}" → "${fields.district || existing.district}, ${fields.sector || existing.sector}"` : null,
+          ].filter(Boolean).join("; ");
+
+          await tx.verificationRecord.create({
+            data: {
+              businessId,
+              userId: actorId,
+              type: "CLASSIFICATION_CHANGE_REQUESTED",
+              notes: `Owner initiated major classification change (${changeReasons}). Business moved to Pending Verification for administrative audit.`,
+            },
+          });
+
+          await tx.auditLog.create({
+            data: {
+              actorId,
+              action: "CLASSIFICATION_CHANGE_REQUESTED",
+              entityType: "BUSINESS",
+              entityId: businessId,
+              metadata: JSON.stringify({
+                changeReasons,
+                previousCategory: existing.mainCategory || existing.category,
+                newCategory: fields.mainCategory || fields.category,
+                previousLocation: `${existing.district}, ${existing.sector}`,
+                newLocation: `${fields.district || existing.district}, ${fields.sector || existing.sector}`,
+              }),
+            },
+          });
+
+          await tx.notification.create({
+            data: {
+              userId: actorId,
+              title: "Classification Review Initiated / Gusubiramo Ibyiciro Byatangiye",
+              message: `You updated your major business category or administrative location (${changeReasons}). To maintain data integrity across MOSA, your business is undergoing administrative re-verification.`,
             },
           });
         }
@@ -310,7 +394,7 @@ export async function PATCH(request: Request) {
             action: "OWNER_PROFILE_UPDATED",
             entityType: "BUSINESS",
             entityId: businessId,
-            metadata: JSON.stringify({ changedFields }),
+            metadata: JSON.stringify({ changedFields, requiresReverification }),
           },
         });
       });
@@ -350,7 +434,10 @@ export async function PATCH(request: Request) {
 
     return NextResponse.json({
       success: true,
-      message: "Business information successfully updated and published",
+      reviewRequired: requiresReverification,
+      message: requiresReverification
+        ? "Your classification updates have been saved and submitted to MOSA Admin for re-verification."
+        : "Business information successfully updated and published",
       business: formatBusinessRecord(updatedBusiness),
       health: updatedHealth,
     });

@@ -1,4 +1,5 @@
 import { Business, RwandaLocation, ProductItem, BusinessHours, DataStatus, PriceType } from "@/types";
+import { formatCategoryClassification } from "./taxonomy";
 
 /**
  * Format any raw business record (e.g. from Prisma or fallback)
@@ -157,8 +158,13 @@ export function formatBusinessRecord(raw: any): Business {
     contactClicksCount: Number(raw.contactClicksCount) || 0,
     searchAppearancesCount: Number(raw.searchCount) || Number(raw.searchAppearancesCount) || 0,
     claimedByUserId: raw.ownerId || raw.claimedByUserId || undefined,
-    createdByAgentId: raw.agentId || raw.createdByAgentId || undefined,
+    mainCategory: raw.mainCategory || raw.category || undefined,
     subCategory: raw.subCategory || undefined,
+    businessType: raw.businessType || undefined,
+    businessTypeDisplay: raw.businessTypeDisplay || raw.businessType || undefined,
+    businessTypeDisplayRw: raw.businessTypeDisplayRw || raw.businessTypeDisplay || raw.businessType || undefined,
+    classificationPath: formatCategoryClassification(raw.mainCategory || raw.category, raw.subCategory, raw.businessType, "en").fullPath,
+    classificationPathRw: formatCategoryClassification(raw.mainCategory || raw.category, raw.subCategory, raw.businessType, "rw").fullPath,
     lastConfirmedAt: raw.lastConfirmedAt ? new Date(raw.lastConfirmedAt).toISOString() : undefined,
     confirmationIntervalDays: raw.confirmationIntervalDays || 60,
     healthScore: typeof raw.healthScore === "number" ? raw.healthScore : undefined,

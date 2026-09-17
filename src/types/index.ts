@@ -226,7 +226,13 @@ export interface Business {
   searchAppearancesCount: number;
   claimedByUserId?: string;
   createdByAgentId?: string;
+  mainCategory?: string;
   subCategory?: string;
+  businessType?: string;
+  businessTypeDisplay?: string;
+  businessTypeDisplayRw?: string;
+  classificationPath?: string;
+  classificationPathRw?: string;
   lastConfirmedAt?: string;
   confirmationIntervalDays?: number;
   healthScore?: number;

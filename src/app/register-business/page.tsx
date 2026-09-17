@@ -28,89 +28,25 @@ import {
   Compass,
   Layers
 } from "lucide-react";
-
-const CATEGORIES = [
-  { 
-    id: "food_restaurant", 
-    labelEn: "Restaurants, Cafes & Milk Bars", 
-    labelRw: "Resitora, Amasoko n'Amata",
-    labelFr: "Restaurants, Cafés & Bars Laitiers",
-    labelSw: "Migahawa, Kahawa & Maziwa Safi"
-  },
-  { 
-    id: "agriculture_produce", 
-    labelEn: "Agro-Produce & Agro-Veterinary", 
-    labelRw: "Umusaruro w'Ubuhinzi n'Amatungo",
-    labelFr: "Produits Agricoles & Agro-Vétérinaire",
-    labelSw: "Mazao ya Kilimo & Mifugo"
-  },
-  { 
-    id: "tailor_crafts", 
-    labelEn: "Tailors, Crafts & Fashion", 
-    labelRw: "Abadozi, Imitako n'Imyenda",
-    labelFr: "Tailleurs, Artisanat & Mode",
-    labelSw: "Mafundi Nguo, Sanaa & Mitindo"
-  },
-  { 
-    id: "phone_electronics", 
-    labelEn: "Phone Repair & Electronics", 
-    labelRw: "Gusana Telefone n'Ibyuma",
-    labelFr: "Réparation Téléphones & Électronique",
-    labelSw: "Ukarabati wa Simu & Vifaa"
-  },
-  { 
-    id: "salon_barber", 
-    labelEn: "Salons & Barbershops", 
-    labelRw: "Kogosha no Gutunganya Imisatsi",
-    labelFr: "Salons de Coiffure & Barbiers",
-    labelSw: "Saluni & Vinyozi"
-  },
-  { 
-    id: "mechanic_repair", 
-    labelEn: "Mechanics & Motorcycle Spares", 
-    labelRw: "Abakanishi n'Ibyuma bya Moto",
-    labelFr: "Mécaniciens & Pièces Détachées Moto",
-    labelSw: "Mafundi Gereji & Vipuri vya Pikipiki"
-  },
-  { 
-    id: "hardware_construction", 
-    labelEn: "Hardware & Construction", 
-    labelRw: "Ibyuma by'Ubwubatsi (Quincaillerie)",
-    labelFr: "Quincaillerie & Matériaux de Construction",
-    labelSw: "Vifaa vya Ujenzi & Hardware"
-  },
-  { 
-    id: "pharmacy_health", 
-    labelEn: "Pharmacies & Health Care", 
-    labelRw: "Farumasi n'Ubuvuzi bw'Ibanze",
-    labelFr: "Pharmacies & Soins de Santé",
-    labelSw: "Duka la Dawa & Afya"
-  },
-  { 
-    id: "shop_retail", 
-    labelEn: "Grocery & Retail Alimentations", 
-    labelRw: "Amaduka y'Ibiribwa n'Ubucuruzi",
-    labelFr: "Épicerie & Commerces de Détail",
-    labelSw: "Maduka ya Rejareja & Vyakula"
-  },
-  { 
-    id: "services", 
-    labelEn: "Public, Irembo & Secretarial Services", 
-    labelRw: "Irembo, Serivisi na Biro",
-    labelFr: "Services Publics, Irembo & Secrétariat",
-    labelSw: "Huduma za Umma, Irembo & Sekretarieti"
-  },
-];
+import {
+  CANONICAL_TAXONOMY,
+  ALL_MAIN_CATEGORIES,
+  ALL_SUBCATEGORIES,
+  ALL_BUSINESS_TYPES,
+  validateCategoryHierarchy,
+  formatCategoryClassification,
+} from "@/lib/taxonomy";
 
 export default function RegisterBusinessPage() {
   const router = useRouter();
   const { lang, t } = useLanguage();
 
-  const getCategoryLabel = (c: typeof CATEGORIES[0]) => {
-    if (lang === "rw") return c.labelRw;
-    if (lang === "fr") return c.labelFr;
-    if (lang === "sw") return c.labelSw;
-    return c.labelEn;
+  const getTaxonomyLabel = (item: { name: string; nameRw?: string; nameFr?: string; nameSw?: string } | null | undefined) => {
+    if (!item) return "";
+    if (lang === "rw" && item.nameRw) return item.nameRw;
+    if (lang === "fr" && item.nameFr) return item.nameFr;
+    if (lang === "sw" && item.nameSw) return item.nameSw;
+    return item.name;
   };
 
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
@@ -123,7 +59,10 @@ export default function RegisterBusinessPage() {
   const [formData, setFormData] = useState({
     name: "",
     nameRw: "",
-    category: "shop_retail",
+    mainCategory: "retail",
+    subCategory: "food_groceries",
+    businessType: "grocery_shop",
+    category: "retail",
     description: "",
     ownerName: "",
     phone: "",
@@ -133,6 +72,66 @@ export default function RegisterBusinessPage() {
     coverImage: "",
     certifyAccurate: false,
   });
+
+  // Cascading Category Helpers
+  const currentMain = useMemo(() => {
+    return CANONICAL_TAXONOMY.find((m) => m.id === formData.mainCategory) || CANONICAL_TAXONOMY[0];
+  }, [formData.mainCategory]);
+
+  const availableSubcategories = useMemo(() => {
+    return currentMain?.subcategories || [];
+  }, [currentMain]);
+
+  const currentSub = useMemo(() => {
+    return availableSubcategories.find((s) => s.id === formData.subCategory) || availableSubcategories[0];
+  }, [availableSubcategories, formData.subCategory]);
+
+  const availableBusinessTypes = useMemo(() => {
+    return currentSub?.types || [];
+  }, [currentSub]);
+
+  const currentType = useMemo(() => {
+    return availableBusinessTypes.find((t) => t.id === formData.businessType) || availableBusinessTypes[0];
+  }, [availableBusinessTypes, formData.businessType]);
+
+  const handleMainCategoryChange = (mainId: string) => {
+    const mainObj = CANONICAL_TAXONOMY.find((m) => m.id === mainId);
+    const firstSub = mainObj?.subcategories[0];
+    const firstType = firstSub?.types[0];
+    setFormData((prev) => ({
+      ...prev,
+      mainCategory: mainId,
+      category: mainId,
+      subCategory: firstSub ? firstSub.id : "",
+      businessType: firstType ? firstType.id : "",
+    }));
+    if (fieldErrors.category) {
+      setFieldErrors((prev) => ({ ...prev, category: "" }));
+    }
+  };
+
+  const handleSubCategoryChange = (subId: string) => {
+    const subObj = availableSubcategories.find((s) => s.id === subId);
+    const firstType = subObj?.types[0];
+    setFormData((prev) => ({
+      ...prev,
+      subCategory: subId,
+      businessType: firstType ? firstType.id : "",
+    }));
+    if (fieldErrors.category) {
+      setFieldErrors((prev) => ({ ...prev, category: "" }));
+    }
+  };
+
+  const handleBusinessTypeChange = (typeId: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      businessType: typeId,
+    }));
+    if (fieldErrors.category) {
+      setFieldErrors((prev) => ({ ...prev, category: "" }));
+    }
+  };
 
   // Step 2: Location Data
   const [locationData, setLocationData] = useState<SmartLocationFormData>({
@@ -188,8 +187,9 @@ export default function RegisterBusinessPage() {
     if (!formData.name.trim()) {
       errors.name = t.registration.errors.nameRequired;
     }
-    if (!formData.category) {
-      errors.category = "Category is required";
+    const catVal = validateCategoryHierarchy(formData.mainCategory, formData.subCategory, formData.businessType);
+    if (!catVal.isValid) {
+      errors.category = catVal.error || "Please select a valid 3-tier category hierarchy";
     }
     if (!formData.ownerName.trim()) {
       errors.ownerName = t.registration.errors.ownerRequired;
@@ -265,8 +265,14 @@ export default function RegisterBusinessPage() {
     return [
       {
         id: "name",
-        label: "Business Name & Category",
-        valid: Boolean(formData.name.trim() && formData.category),
+        label: "Business Name",
+        valid: Boolean(formData.name.trim()),
+        step: 1,
+      },
+      {
+        id: "category",
+        label: "Classification (Sector → Subcategory → Business Type)",
+        valid: Boolean(formData.mainCategory && formData.subCategory && formData.businessType),
         step: 1,
       },
       {
@@ -316,10 +322,6 @@ export default function RegisterBusinessPage() {
     return validationChecklist.every((c) => c.valid);
   }, [validationChecklist]);
 
-  const selectedCategoryObj = useMemo(() => {
-    return CATEGORIES.find((c) => c.id === formData.category) || CATEGORIES[0];
-  }, [formData.category]);
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!isAllValid) {
@@ -349,7 +351,10 @@ export default function RegisterBusinessPage() {
       const payload = {
         name: formData.name.trim(),
         nameRw: formData.nameRw.trim() || formData.name.trim(),
-        category: formData.category,
+        category: formData.mainCategory,
+        mainCategory: formData.mainCategory,
+        subCategory: formData.subCategory,
+        businessType: formData.businessType,
         description: formData.description.trim(),
         ownerName: formData.ownerName.trim(),
         phone: formData.phone.trim(),
@@ -596,22 +601,100 @@ export default function RegisterBusinessPage() {
                     />
                   </div>
 
-                  {/* Category (Required) */}
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">
-                      {t.registration.categoryLabel} <span className="text-rose-600">*</span>
-                    </label>
-                    <select
-                      value={formData.category}
-                      onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                      className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm font-medium focus:border-emerald-500 outline-none bg-white"
-                    >
-                      {CATEGORIES.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {getCategoryLabel(c)}
-                        </option>
-                      ))}
-                    </select>
+                  {/* 3-Tier Structured Business Classification */}
+                  <div className="sm:col-span-2 p-4 rounded-2xl bg-emerald-50/40 border border-emerald-200/80 space-y-3.5">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 border-b border-emerald-200/60 pb-2.5">
+                      <div>
+                        <span className="text-xs font-black uppercase tracking-wider text-emerald-900 flex items-center gap-1.5">
+                          <Tag className="w-3.5 h-3.5 text-emerald-600" />
+                          Structured Business Classification <span className="text-rose-600">*</span>
+                        </span>
+                        <p className="text-[11px] text-emerald-800/80 mt-0.5">
+                          Categorize your business accurately into Main Sector, Domain, and Specific Business Type.
+                        </p>
+                      </div>
+                      <div className="text-[11px] font-mono font-bold text-emerald-700 bg-white px-2.5 py-1 rounded-lg border border-emerald-200 shrink-0">
+                        {formData.mainCategory} / {formData.subCategory} / {formData.businessType}
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      {/* Tier 1: Main Sector */}
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                          1. Economic Sector <span className="text-rose-600">*</span>
+                        </label>
+                        <select
+                          value={formData.mainCategory}
+                          onChange={(e) => handleMainCategoryChange(e.target.value)}
+                          className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-semibold focus:border-emerald-500 outline-none bg-white shadow-xs"
+                        >
+                          {CANONICAL_TAXONOMY.map((m) => (
+                            <option key={m.id} value={m.id}>
+                              {getTaxonomyLabel(m)}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Tier 2: Subcategory */}
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                          2. Subcategory / Domain <span className="text-rose-600">*</span>
+                        </label>
+                        <select
+                          value={formData.subCategory}
+                          onChange={(e) => handleSubCategoryChange(e.target.value)}
+                          className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-semibold focus:border-emerald-500 outline-none bg-white shadow-xs"
+                        >
+                          {availableSubcategories.map((s) => (
+                            <option key={s.id} value={s.id}>
+                              {getTaxonomyLabel(s)}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Tier 3: Specific Business Type */}
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                          3. Specific Business Type <span className="text-rose-600">*</span>
+                        </label>
+                        <select
+                          value={formData.businessType}
+                          onChange={(e) => handleBusinessTypeChange(e.target.value)}
+                          className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-semibold focus:border-emerald-500 outline-none bg-white shadow-xs"
+                        >
+                          {availableBusinessTypes.map((t) => (
+                            <option key={t.id} value={t.id}>
+                              {getTaxonomyLabel(t)}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Live Breadcrumb Badge */}
+                    <div className="flex items-center gap-1.5 text-xs text-slate-700 pt-1 flex-wrap">
+                      <span className="font-bold text-slate-500 text-[11px]">Selected:</span>
+                      <span className="px-2 py-0.5 rounded-md bg-white border border-slate-200 font-bold text-slate-800 text-[11px]">
+                        {getTaxonomyLabel(currentMain)}
+                      </span>
+                      <span className="text-slate-400">&rarr;</span>
+                      <span className="px-2 py-0.5 rounded-md bg-white border border-slate-200 font-bold text-slate-800 text-[11px]">
+                        {getTaxonomyLabel(currentSub)}
+                      </span>
+                      <span className="text-slate-400">&rarr;</span>
+                      <span className="px-2 py-0.5 rounded-md bg-emerald-100 border border-emerald-300 font-bold text-emerald-900 text-[11px]">
+                        {getTaxonomyLabel(currentType)}
+                      </span>
+                    </div>
+
+                    {fieldErrors.category && (
+                      <span className="text-xs text-rose-600 font-semibold mt-1 block">
+                        {fieldErrors.category}
+                      </span>
+                    )}
                   </div>
 
                   {/* Owner Full Name (Required) */}
@@ -984,7 +1067,12 @@ export default function RegisterBusinessPage() {
                       <div className="space-y-1.5 text-xs text-slate-700">
                         <div><strong className="text-slate-900">Business:</strong> {formData.name}</div>
                         {formData.nameRw && <div><strong className="text-slate-900">Kinyarwanda:</strong> {formData.nameRw}</div>}
-                        <div><strong className="text-slate-900">Category:</strong> {getCategoryLabel(selectedCategoryObj)}</div>
+                        <div className="pt-1 pb-1 border-y border-slate-200/80 my-1 space-y-1 bg-white p-2 rounded-lg">
+                          <div className="text-[10px] font-bold uppercase text-emerald-800 tracking-wider">Classification Hierarchy:</div>
+                          <div><span className="text-slate-500 font-medium">Sector:</span> <strong className="text-slate-900">{getTaxonomyLabel(currentMain)}</strong></div>
+                          <div><span className="text-slate-500 font-medium">Domain:</span> <strong className="text-slate-900">{getTaxonomyLabel(currentSub)}</strong></div>
+                          <div><span className="text-slate-500 font-medium">Type:</span> <strong className="text-emerald-700 font-bold">{getTaxonomyLabel(currentType)}</strong></div>
+                        </div>
                         <div><strong className="text-slate-900">Owner:</strong> {formData.ownerName}</div>
                         <div><strong className="text-slate-900">Phone:</strong> <span className="font-mono">{formData.phone}</span></div>
                         <div><strong className="text-slate-900">WhatsApp:</strong> <span className="font-mono">{formData.hasDifferentWhatsapp ? formData.whatsapp : formData.phone}</span></div>
@@ -1013,7 +1101,8 @@ export default function RegisterBusinessPage() {
                         </button>
                       </div>
                       <div className="space-y-1.5 text-xs text-slate-700">
-                        <div><strong className="text-slate-900">District/Sector:</strong> {locationData.district}, {locationData.sector}</div>
+                        <div><strong className="text-slate-900">Province:</strong> {locationData.province}</div>
+                        <div><strong className="text-slate-900">District & Sector:</strong> {locationData.district} &rarr; {locationData.sector}</div>
                         <div><strong className="text-slate-900">Cell:</strong> {locationData.cell}</div>
                         <div><strong className="text-slate-900">Landmark:</strong> {locationData.nearestLandmark || <span className="text-rose-600">Missing *</span>}</div>
                         {locationData.streetName && <div><strong className="text-slate-900">Street:</strong> {locationData.streetName}</div>}

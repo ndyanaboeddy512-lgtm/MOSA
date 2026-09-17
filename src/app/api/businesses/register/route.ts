@@ -5,6 +5,12 @@ import { createSessionToken, setSessionCookie, hashPassword } from "@/lib/auth";
 import { logAuditEvent } from "@/lib/audit";
 import { sendBusinessSMS } from "@/lib/sms";
 import { Role, LocationSource, LocationVerificationStatus } from "@prisma/client";
+import { 
+  validateCategoryHierarchy, 
+  ALL_MAIN_CATEGORIES, 
+  ALL_SUBCATEGORIES, 
+  ALL_BUSINESS_TYPES 
+} from "@/lib/taxonomy";
 
 export async function POST(request: Request) {
   try {
@@ -21,8 +27,8 @@ export async function POST(request: Request) {
       phone,
       whatsapp,
       password,
-      province = "Kigali City",
-      district = "Nyarugenge",
+      province,
+      district,
       sector,
       cell,
       localArea,
@@ -47,6 +53,28 @@ export async function POST(request: Request) {
 
     if (!category || typeof category !== "string") {
       return NextResponse.json({ error: "Business category is required" }, { status: 400 });
+    }
+
+    // 1.1 Controlled 3-Tier Category Validation
+    const mainCategory = body.mainCategory || category;
+    const subCategory = body.subCategory || null;
+    const businessType = body.businessType || null;
+
+    const taxonomyValidation = validateCategoryHierarchy(mainCategory, subCategory, businessType);
+    if (!taxonomyValidation.isValid) {
+      return NextResponse.json(
+        { error: taxonomyValidation.error || "Invalid business category classification." },
+        { status: 400 }
+      );
+    }
+
+    // 1.2 Structured Location Validation
+    if (!sector || typeof sector !== "string" || !sector.trim()) {
+      return NextResponse.json({ error: "Structured Sector is required" }, { status: 400 });
+    }
+
+    if (!cell || typeof cell !== "string" || !cell.trim()) {
+      return NextResponse.json({ error: "Structured Cell is required" }, { status: 400 });
     }
 
     if (!phone || typeof phone !== "string") {
@@ -126,14 +154,25 @@ export async function POST(request: Request) {
         });
       }
 
+      const resolvedMain = ALL_MAIN_CATEGORIES[mainCategory];
+      const resolvedType = businessType ? ALL_BUSINESS_TYPES[businessType] : null;
+      const resolvedSub = subCategory ? ALL_SUBCATEGORIES[subCategory] : null;
+
+      const finalCatDisplay = resolvedType?.name || resolvedSub?.name || resolvedMain?.name || categoryDisplay || "Local Business";
+      const finalCatDisplayRw = resolvedType?.nameRw || resolvedSub?.nameRw || resolvedMain?.nameRw || categoryDisplayRw || "Ubucuruzi bw'Agace";
+
       const b = await tx.business.create({
         data: {
           name: name.trim(),
           nameRw: nameRw?.trim() || name.trim(),
-          category: category.trim(),
-          categoryDisplay: categoryDisplay || "Local Business",
-          categoryDisplayRw: categoryDisplayRw || "Ubucuruzi bw'Agace",
-          subCategory: body.subCategory?.trim() || null,
+          mainCategory: mainCategory,
+          category: mainCategory,
+          subCategory: subCategory,
+          businessType: businessType,
+          businessTypeDisplay: resolvedType?.name || null,
+          businessTypeDisplayRw: resolvedType?.nameRw || null,
+          categoryDisplay: finalCatDisplay,
+          categoryDisplayRw: finalCatDisplayRw,
           description: description?.trim() || "Neighborhood micro-business registered directly on MOSA.",
           descriptionRw: descriptionRw?.trim() || description?.trim() || "Ubucuruzi bw'agace bwanditswe kuri MOSA.",
           phone: cleanPhone,

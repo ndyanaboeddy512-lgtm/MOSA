@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useLanguage } from "@/lib/i18n";
 import { useAuth } from "@/lib/auth-context";
@@ -39,10 +39,18 @@ import {
   FileCheck,
   Edit3,
   MessageCircle,
-  ExternalLink
+  ExternalLink,
+  Layers
 } from "lucide-react";
 import { SmartLocationForm, SmartLocationFormData } from "@/components/location/SmartLocationForm";
 import { calculateLocationCompleteness } from "@/lib/location-quality";
+import {
+  CANONICAL_TAXONOMY,
+  ALL_MAIN_CATEGORIES,
+  ALL_SUBCATEGORIES,
+  ALL_BUSINESS_TYPES,
+  formatCategoryClassification,
+} from "@/lib/taxonomy";
 
 interface AdminAuditLog {
   id: string;
@@ -95,7 +103,7 @@ export default function AdminPanelPage() {
   const { user, switchDemoRole } = useAuth();
 
   const [activeTab, setActiveTab] = useState<
-    "businesses" | "pending_applications" | "claims" | "sms" | "history" | "captures" | "reports" | "demands" | "audit"
+    "businesses" | "intelligence" | "pending_applications" | "claims" | "sms" | "history" | "captures" | "reports" | "demands" | "audit"
   >("businesses");
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [claims, setClaims] = useState<any[]>([]);
@@ -105,6 +113,13 @@ export default function AdminPanelPage() {
   const [reports, setReports] = useState<ModerationReport[]>([]);
   const [demands, setDemands] = useState<CommunityDemandSignal[]>([]);
   const [auditLogs, setAuditLogs] = useState<AdminAuditLog[]>([]);
+
+  // 3-Tier Category & Intelligence Filter State
+  const [selectedMainCategory, setSelectedMainCategory] = useState<string>("all");
+  const [selectedSubCategory, setSelectedSubCategory] = useState<string>("all");
+  const [selectedBusinessType, setSelectedBusinessType] = useState<string>("all");
+  const [locationCategoryBreakdown, setLocationCategoryBreakdown] = useState<Record<string, any>>({});
+  const [categorySummary, setCategorySummary] = useState<Record<string, any>>({});
   
   // Application review & decision state
   const [reviewingBiz, setReviewingBiz] = useState<any | null>(null);
@@ -180,6 +195,8 @@ export default function AdminPanelPage() {
         const data = await res.json();
         if (data.metrics) setMetrics(data.metrics);
         if (data.auditLogs) setAuditLogs(data.auditLogs);
+        if (data.locationCategoryBreakdown) setLocationCategoryBreakdown(data.locationCategoryBreakdown);
+        if (data.categorySummary) setCategorySummary(data.categorySummary);
         if (data.businesses && data.businesses.length > 0) {
           setBusinesses(data.businesses.map((b: any) => ({
             id: b.id,
@@ -187,6 +204,11 @@ export default function AdminPanelPage() {
             nameRw: b.nameRw || b.name,
             category: b.category,
             categoryDisplay: b.categoryDisplay,
+            mainCategory: b.mainCategory || b.category,
+            subCategory: b.subCategory,
+            businessType: b.businessType,
+            businessTypeDisplay: b.businessTypeDisplay,
+            businessTypeDisplayRw: b.businessTypeDisplayRw,
             description: b.description || "",
             descriptionRw: b.descriptionRw || "",
             latitude: b.latitude,
@@ -546,6 +568,49 @@ export default function AdminPanelPage() {
   const activeSectorObj = availableSectors.find((s: any) => s.name.toLowerCase() === selectedSector.toLowerCase());
   const availableCells = activeSectorObj ? activeSectorObj.cells : [];
 
+  // Cascading Category Options for Admin Filtering
+  const activeAdminMainObj = CANONICAL_TAXONOMY.find((m) => m.id === selectedMainCategory);
+  const availableAdminSubcategories = activeAdminMainObj ? activeAdminMainObj.subcategories : [];
+  const activeAdminSubObj = availableAdminSubcategories.find((s) => s.id === selectedSubCategory);
+  const availableAdminBusinessTypes = activeAdminSubObj ? activeAdminSubObj.types : [];
+
+  // Dynamic Location Category Breakdown (falls back to runtime computation from businesses state)
+  const computedLocationBreakdown = useMemo(() => {
+    if (locationCategoryBreakdown && Object.keys(locationCategoryBreakdown).length > 0) {
+      return locationCategoryBreakdown;
+    }
+    const breakdown: Record<string, any> = {};
+    for (const b of businesses) {
+      const sector = b.location?.sector || (b as any).sector || "Unspecified";
+      if (!breakdown[sector]) {
+        breakdown[sector] = {
+          sector,
+          district: b.location?.district || (b as any).district || "Gasabo",
+          province: b.location?.province || (b as any).province || "Kigali City",
+          total: 0,
+          categories: {},
+          subCategories: {},
+          businessTypes: {},
+          cells: {},
+        };
+      }
+      const item = breakdown[sector];
+      item.total += 1;
+      const cat = (b as any).mainCategory || b.category || "retail";
+      item.categories[cat] = (item.categories[cat] || 0) + 1;
+      if ((b as any).subCategory) {
+        item.subCategories[(b as any).subCategory] = (item.subCategories[(b as any).subCategory] || 0) + 1;
+      }
+      const bt = (b as any).businessType || (b as any).businessTypeDisplay || b.category || "general";
+      item.businessTypes[bt] = (item.businessTypes[bt] || 0) + 1;
+      const cell = b.location?.cell || (b as any).cell;
+      if (cell) {
+        item.cells[cell] = (item.cells[cell] || 0) + 1;
+      }
+    }
+    return breakdown;
+  }, [businesses, locationCategoryBreakdown]);
+
   // Filter businesses
   const filteredBusinesses = businesses.filter((b) => {
     // Search match
@@ -573,6 +638,20 @@ export default function AdminPanelPage() {
     if (selectedDistrict !== "all" && b.location?.district.toLowerCase() !== selectedDistrict.toLowerCase()) return false;
     if (selectedSector !== "all" && b.location?.sector.toLowerCase() !== selectedSector.toLowerCase()) return false;
     if (selectedCell !== "all" && b.location?.cell.toLowerCase() !== selectedCell.toLowerCase()) return false;
+
+    // 3-Tier Category filters
+    if (selectedMainCategory !== "all") {
+      const bMain = (b as any).mainCategory || b.category;
+      if (bMain !== selectedMainCategory) return false;
+    }
+    if (selectedSubCategory !== "all") {
+      const bSub = (b as any).subCategory;
+      if (bSub !== selectedSubCategory) return false;
+    }
+    if (selectedBusinessType !== "all") {
+      const bType = (b as any).businessType;
+      if (bType !== selectedBusinessType) return false;
+    }
 
     return true;
   });
@@ -685,6 +764,12 @@ export default function AdminPanelPage() {
       <div className="flex items-center gap-2 border-b border-slate-200 pb-3 mb-6 overflow-x-auto no-scrollbar">
         {[
           { id: "businesses", label: t.admin.tabs.businesses, count: businesses.length, icon: StoreIcon },
+          { 
+            id: "intelligence", 
+            label: "Location & Category Intelligence", 
+            count: Object.keys(computedLocationBreakdown).length, 
+            icon: Layers 
+          },
           { 
             id: "pending_applications", 
             label: "Pending Verification", 
@@ -861,6 +946,96 @@ export default function AdminPanelPage() {
                     </option>
                   ))}
                 </select>
+              </div>
+            </div>
+
+            {/* 3-Tier Canonical Category Filters */}
+            <div className="pt-2 border-t border-slate-200/60">
+              <div className="flex items-center justify-between mb-1.5">
+                <div className="flex items-center gap-2 text-xs font-bold text-slate-700">
+                  <Tag className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>3-Tier Category & Commercial Domain Drill-Down</span>
+                </div>
+                {(selectedMainCategory !== "all" || selectedSubCategory !== "all" || selectedBusinessType !== "all") && (
+                  <button
+                    onClick={() => {
+                      setSelectedMainCategory("all");
+                      setSelectedSubCategory("all");
+                      setSelectedBusinessType("all");
+                    }}
+                    className="text-[11px] text-emerald-700 hover:underline font-semibold"
+                  >
+                    Reset Category Filters
+                  </button>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
+                {/* Main Sector Select */}
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">
+                    1. Main Sector
+                  </label>
+                  <select
+                    value={selectedMainCategory}
+                    onChange={(e) => {
+                      setSelectedMainCategory(e.target.value);
+                      setSelectedSubCategory("all");
+                      setSelectedBusinessType("all");
+                    }}
+                    className="w-full p-2 text-xs rounded-xl border border-slate-200 bg-white text-slate-800 focus:outline-hidden focus:border-emerald-500 font-medium"
+                  >
+                    <option value="all">All Sectors ({CANONICAL_TAXONOMY.length})</option>
+                    {CANONICAL_TAXONOMY.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Subcategory Select */}
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">
+                    2. Commercial Domain / Subcategory
+                  </label>
+                  <select
+                    value={selectedSubCategory}
+                    onChange={(e) => {
+                      setSelectedSubCategory(e.target.value);
+                      setSelectedBusinessType("all");
+                    }}
+                    className="w-full p-2 text-xs rounded-xl border border-slate-200 bg-white text-slate-800 focus:outline-hidden focus:border-emerald-500 font-medium"
+                    disabled={availableAdminSubcategories.length === 0}
+                  >
+                    <option value="all">All Subcategories ({availableAdminSubcategories.length})</option>
+                    {availableAdminSubcategories.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Business Type Select */}
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">
+                    3. Specific Business Type
+                  </label>
+                  <select
+                    value={selectedBusinessType}
+                    onChange={(e) => setSelectedBusinessType(e.target.value)}
+                    className="w-full p-2 text-xs rounded-xl border border-slate-200 bg-white text-slate-800 focus:outline-hidden focus:border-emerald-500 font-medium"
+                    disabled={availableAdminBusinessTypes.length === 0}
+                  >
+                    <option value="all">All Business Types ({availableAdminBusinessTypes.length})</option>
+                    {availableAdminBusinessTypes.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
             </div>
           </div>
@@ -1106,6 +1281,189 @@ export default function AdminPanelPage() {
               })
             )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Location & Category Intelligence Tab */}
+      {activeTab === "intelligence" && (
+        <div className="space-y-6">
+          {/* Header Card */}
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-card p-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+              <div>
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold mb-2">
+                  <Layers className="w-3.5 h-3.5" />
+                  <span>MOSA Intelligence Engine</span>
+                </div>
+                <h3 className="text-xl font-black text-slate-900 flex items-center gap-2">
+                  <span>Nationwide Location & Category Intelligence</span>
+                </h3>
+                <p className="text-xs text-slate-500 mt-1 max-w-2xl">
+                  Automated cross-tabulation and density mapping of micro-businesses by administrative location (Sector & Cell) and structured 3-tier canonical taxonomy (Sector → Subcategory → Business Type).
+                </p>
+              </div>
+              <button
+                onClick={fetchAdminData}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl flex items-center gap-2 transition-colors self-start sm:self-center"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? "animate-spin text-emerald-600" : ""}`} />
+                <span>Refresh Metrics</span>
+              </button>
+            </div>
+
+            {/* Quick Metrics */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-4">
+              <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200">
+                <span className="text-[10px] font-bold uppercase text-slate-400 block">Sectors Monitored</span>
+                <span className="text-2xl font-black text-slate-900">{Object.keys(computedLocationBreakdown).length}</span>
+                <span className="text-[10px] text-emerald-600 block mt-0.5">Official Administrative Sectors</span>
+              </div>
+              <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200">
+                <span className="text-[10px] font-bold uppercase text-slate-400 block">Classified Establishments</span>
+                <span className="text-2xl font-black text-emerald-700">{businesses.length}</span>
+                <span className="text-[10px] text-slate-500 block mt-0.5">100% Normalized in PostgreSQL</span>
+              </div>
+              <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200">
+                <span className="text-[10px] font-bold uppercase text-slate-400 block">Economic Sectors</span>
+                <span className="text-2xl font-black text-slate-900">{CANONICAL_TAXONOMY.length}</span>
+                <span className="text-[10px] text-slate-500 block mt-0.5">Tier 1 Macro Categories</span>
+              </div>
+              <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200">
+                <span className="text-[10px] font-bold uppercase text-slate-400 block">Business Types</span>
+                <span className="text-2xl font-black text-slate-900">{Object.keys(ALL_BUSINESS_TYPES).length}</span>
+                <span className="text-[10px] text-slate-500 block mt-0.5">Tier 3 Specific Types</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Sector-by-Sector Breakdown Cards */}
+          <div className="space-y-4">
+            <h4 className="text-sm font-black text-slate-900 uppercase tracking-wider flex items-center gap-2">
+              <Building className="w-4 h-4 text-emerald-600" />
+              <span>Location Cluster Analysis (Sector → Categories → Types)</span>
+            </h4>
+
+            {Object.keys(computedLocationBreakdown).length === 0 ? (
+              <div className="bg-white rounded-3xl border border-slate-200 p-8 text-center text-slate-500">
+                No location aggregation records found.
+              </div>
+            ) : (
+              Object.entries(computedLocationBreakdown).map(([sectorName, data]: [string, any]) => (
+                <div key={sectorName} className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm space-y-4">
+                  
+                  {/* Sector Header */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-2xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold">
+                        <MapPin className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h4 className="text-lg font-black text-slate-900 flex items-center gap-2">
+                          <span>{sectorName} Sector</span>
+                          <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-900 text-xs font-bold font-mono">
+                            {data.total} Businesses
+                          </span>
+                        </h4>
+                        <p className="text-xs text-slate-500">
+                          {data.province || "Kigali City"} Province • {data.district || "Nyarugenge"} District
+                        </p>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => {
+                        setSelectedDistrict(data.district || "all");
+                        setSelectedSector(sectorName);
+                        setActiveTab("businesses");
+                      }}
+                      className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition-colors flex items-center gap-1.5 self-start sm:self-center"
+                    >
+                      <span>Explore {sectorName} Directory</span>
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+
+                  {/* Category Breakdown (e.g. Kacyiru: Salons: 32, Food & Groceries: 47, Restaurants: 21...) */}
+                  <div className="space-y-2">
+                    <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                      Dominant Sectors & Domains ({Object.keys(data.categories || {}).length} categories)
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {Object.entries(data.categories || {}).map(([catKey, count]: [string, any]) => {
+                        const catDef = ALL_MAIN_CATEGORIES[catKey];
+                        return (
+                          <div 
+                            key={catKey} 
+                            onClick={() => {
+                              setSelectedSector(sectorName);
+                              setSelectedMainCategory(catKey);
+                              setActiveTab("businesses");
+                            }}
+                            className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-50 hover:bg-emerald-50 border border-slate-200 hover:border-emerald-300 text-xs transition-colors cursor-pointer"
+                            title={`Filter ${sectorName} businesses in ${catDef?.name || catKey}`}
+                          >
+                            <span className="font-semibold text-slate-700">{catDef?.name || catKey.replace(/_/g, " ")}:</span>
+                            <span className="font-bold text-emerald-800 px-1.5 py-0.5 rounded-md bg-emerald-100 font-mono text-xs">
+                              {count}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Business Types Breakdown */}
+                  {data.businessTypes && Object.keys(data.businessTypes).length > 0 && (
+                    <div className="space-y-2 pt-1 border-t border-slate-100">
+                      <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                        Specific Business Types Breakdown
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {Object.entries(data.businessTypes).map(([typeKey, count]: [string, any]) => {
+                          const typeDef = ALL_BUSINESS_TYPES[typeKey];
+                          return (
+                            <div key={typeKey} className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50/60 border border-emerald-200 text-xs">
+                              <span className="text-slate-700 font-medium">
+                                {typeDef?.name || typeKey.replace(/_/g, " ")}:
+                              </span>
+                              <strong className="text-emerald-900 font-bold font-mono">{count}</strong>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Cell Breakdown */}
+                  {data.cells && Object.keys(data.cells).length > 0 && (
+                    <div className="space-y-2 pt-1 border-t border-slate-100">
+                      <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                        Administrative Cells Distribution
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {Object.entries(data.cells).map(([cellName, count]: [string, any]) => (
+                          <div 
+                            key={cellName} 
+                            onClick={() => {
+                              setSelectedSector(sectorName);
+                              setSelectedCell(cellName);
+                              setActiveTab("businesses");
+                            }}
+                            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-xs text-slate-700 transition-colors cursor-pointer"
+                            title={`Filter businesses in ${cellName} cell`}
+                          >
+                            <span>{cellName}:</span>
+                            <strong className="font-mono font-bold text-slate-900">{count}</strong>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                </div>
+              ))
+            )}
           </div>
         </div>
       )}
@@ -1819,6 +2177,40 @@ export default function AdminPanelPage() {
                       <p className="text-slate-600 mt-0.5">{reviewingBiz.description}</p>
                     </div>
                   )}
+                </div>
+
+                {/* 3-Tier Classification */}
+                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-2">
+                  <h4 className="font-bold text-slate-900 text-sm flex items-center gap-1.5">
+                    <Tag className="w-4 h-4 text-emerald-600" />
+                    Structured Category Classification
+                  </h4>
+                  <div className="grid grid-cols-3 gap-2 text-slate-700">
+                    <div>
+                      <span className="text-slate-400 block text-[10px] uppercase font-semibold">1. Main Sector</span>
+                      <span className="font-bold text-slate-900">
+                        {ALL_MAIN_CATEGORIES[reviewingBiz.mainCategory || reviewingBiz.category]?.name || reviewingBiz.category}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block text-[10px] uppercase font-semibold">2. Subcategory</span>
+                      <span className="font-medium text-slate-800">
+                        {ALL_SUBCATEGORIES[reviewingBiz.subCategory]?.name || reviewingBiz.subCategory || "General"}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block text-[10px] uppercase font-semibold">3. Business Type</span>
+                      <span className="font-bold text-emerald-700">
+                        {ALL_BUSINESS_TYPES[reviewingBiz.businessType]?.name || reviewingBiz.businessTypeDisplay || reviewingBiz.businessType || "Standard"}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="pt-1.5 border-t border-slate-200/60 flex items-center gap-2 text-[11px] font-mono text-slate-500">
+                    <span>Taxonomy ID:</span>
+                    <span className="bg-white px-2 py-0.5 rounded border border-slate-200 font-bold text-slate-700">
+                      {reviewingBiz.mainCategory || reviewingBiz.category} &rarr; {reviewingBiz.subCategory || "n/a"} &rarr; {reviewingBiz.businessType || "n/a"}
+                    </span>
+                  </div>
                 </div>
 
                 {/* Smart Location */}

@@ -348,7 +348,11 @@ model Business {
   agent              User?              @relation("AgentBusinesses", fields: [agentId], references: [id])
   
   // Business Operational & Keep-Alive Metadata
+  mainCategory       String?
   subCategory        String?
+  businessType       String?
+  businessTypeDisplay String?
+  businessTypeDisplayRw String?
   lastConfirmedAt    DateTime?
   confirmationIntervalDays Int          @default(60)
   healthScore        Int                @default(0)
@@ -378,10 +382,15 @@ model Business {
   inventoryItems     BusinessInventoryItem[]
 
   @@index([category])
+  @@index([mainCategory])
+  @@index([subCategory])
+  @@index([businessType])
   @@index([cell])
   @@index([sector])
   @@index([sectorId])
   @@index([cellId])
+  @@index([district, sector, cell])
+  @@index([sector, category])
   @@index([dataStatus])
   @@index([verificationStatus])
   @@index([locationVerificationStatus])

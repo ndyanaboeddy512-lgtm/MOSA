@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useLanguage } from "@/lib/i18n";
 import { useAuth } from "@/lib/auth-context";
@@ -48,6 +48,12 @@ import { MosaMap } from "@/components/discovery/MosaMap";
 import { calculateLocationCompleteness, getGoogleMapsDirectionsUrl } from "@/lib/location-quality";
 import { FinanceTab } from "@/components/owner/FinanceTab";
 import { OperationsTab } from "@/components/owner/OperationsTab";
+import {
+  CANONICAL_TAXONOMY,
+  ALL_MAIN_CATEGORIES,
+  ALL_SUBCATEGORIES,
+  ALL_BUSINESS_TYPES,
+} from "@/lib/taxonomy";
 
 const DAYS_OF_WEEK = [
   { day: "Monday", dayRw: "Kuwa Mbere" },
@@ -123,8 +129,10 @@ export default function OwnerDashboardPage() {
     nameRw: "",
     description: "",
     descriptionRw: "",
-    category: "",
-    subCategory: "",
+    category: "retail",
+    mainCategory: "retail",
+    subCategory: "food_groceries",
+    businessType: "grocery_shop",
     phone: "",
     whatsapp: "",
     sector: "",
@@ -132,6 +140,27 @@ export default function OwnerDashboardPage() {
     addressNote: "",
     isOpenNow: true,
   });
+
+  // Cascading Category Helpers for Owner Form
+  const ownerMainCat = useMemo(() => {
+    return CANONICAL_TAXONOMY.find((m) => m.id === profileForm.mainCategory) || CANONICAL_TAXONOMY[0];
+  }, [profileForm.mainCategory]);
+
+  const ownerAvailableSubcategories = useMemo(() => {
+    return ownerMainCat?.subcategories || [];
+  }, [ownerMainCat]);
+
+  const ownerSubCat = useMemo(() => {
+    return ownerAvailableSubcategories.find((s: any) => s.id === profileForm.subCategory) || ownerAvailableSubcategories[0];
+  }, [ownerAvailableSubcategories, profileForm.subCategory]);
+
+  const ownerAvailableBusinessTypes = useMemo(() => {
+    return ownerSubCat?.types || [];
+  }, [ownerSubCat]);
+
+  const ownerBusinessType = useMemo(() => {
+    return ownerAvailableBusinessTypes.find((t: any) => t.id === profileForm.businessType) || ownerAvailableBusinessTypes[0];
+  }, [ownerAvailableBusinessTypes, profileForm.businessType]);
 
   // Location & Navigation Form state
   const [locationForm, setLocationForm] = useState({
@@ -187,8 +216,10 @@ export default function OwnerDashboardPage() {
             nameRw: data.business.nameRw || "",
             description: data.business.description || "",
             descriptionRw: data.business.descriptionRw || "",
-            category: data.business.category || "",
-            subCategory: data.business.subCategory || "",
+            category: data.business.mainCategory || data.business.category || "retail",
+            mainCategory: data.business.mainCategory || data.business.category || "retail",
+            subCategory: data.business.subCategory || "food_groceries",
+            businessType: data.business.businessType || "grocery_shop",
             phone: data.business.phone || "",
             whatsapp: data.business.whatsapp || "",
             sector: data.business.location?.sector || data.business.sector || "Nyamirambo",
@@ -378,12 +409,20 @@ export default function OwnerDashboardPage() {
         const data = await res.json();
         setBusiness(data.business);
         setHealthReport(data.health);
-        setSaveSuccessMsg(
-          lang === "rw"
-            ? "Umwirondoro wavuguruwe neza kandi wahise ugaragara ku rubuga rwa MOSA!"
-            : "Profile successfully updated and instantly synchronized to the public website!"
-        );
-        setTimeout(() => setSaveSuccessMsg(""), 4000);
+        if (data.reviewRequired) {
+          setSaveSuccessMsg(
+            lang === "rw"
+              ? "Impinduka mu byiciro by'ubucuruzi zoherejwe ku buyobozi bwa MOSA kugira ngo zemeze."
+              : "Classification changes saved and submitted to MOSA Admin for re-verification."
+          );
+        } else {
+          setSaveSuccessMsg(
+            lang === "rw"
+              ? "Umwirondoro wavuguruwe neza kandi wahise ugaragara ku rubuga rwa MOSA!"
+              : "Profile successfully updated and instantly synchronized to the public website!"
+          );
+        }
+        setTimeout(() => setSaveSuccessMsg(""), 5000);
       } else {
         const err = await res.json();
         setErrorMsg(err.error || "Update failed");
@@ -1343,32 +1382,125 @@ export default function OwnerDashboardPage() {
               />
             </div>
 
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="text-xs font-bold text-slate-700">Primary Category</label>
-                <span className="text-[10px] font-bold text-emerald-600 uppercase bg-emerald-50 px-2 py-0.5 rounded">Public</span>
+            {/* 3-Tier Canonical Category Classification */}
+            <div className="sm:col-span-2 p-4 rounded-2xl bg-emerald-50/50 border border-emerald-200/80 space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 border-b border-emerald-200/60 pb-2">
+                <div>
+                  <span className="text-xs font-black uppercase tracking-wider text-emerald-900 flex items-center gap-1.5">
+                    <Tag className="w-3.5 h-3.5 text-emerald-600" />
+                    Structured 3-Tier Classification
+                  </span>
+                  <p className="text-[11px] text-emerald-800/80">
+                    Classified in Rwanda Canonical Taxonomy (Sector → Domain → Establishment Type).
+                  </p>
+                </div>
+                {business && (business.status === "ACTIVE" || business.verificationStatus === "HIGH_CONFIDENCE" || business.verificationStatus === "AGENT_VERIFIED") && (
+                  <span className="px-2.5 py-1 rounded-lg bg-amber-100 text-amber-900 text-[11px] font-bold border border-amber-300 flex items-center gap-1">
+                    <AlertTriangle className="w-3 h-3 text-amber-600 shrink-0" />
+                    Major sector change requires MOSA admin re-verification
+                  </span>
+                )}
               </div>
-              <input
-                type="text"
-                value={profileForm.category}
-                onChange={(e) => setProfileForm({ ...profileForm, category: e.target.value })}
-                required
-                className="w-full p-3 bg-slate-50 rounded-xl border border-slate-300 text-xs font-semibold outline-none focus:ring-2 focus:ring-emerald-500"
-              />
-            </div>
 
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="text-xs font-bold text-slate-700">Subcategory / Speciality</label>
-                <span className="text-[10px] font-bold text-emerald-600 uppercase bg-emerald-50 px-2 py-0.5 rounded">Public</span>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {/* 1. Main Sector */}
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                    1. Economic Sector <span className="text-rose-600">*</span>
+                  </label>
+                  <select
+                    value={profileForm.mainCategory}
+                    onChange={(e) => {
+                      const newMain = e.target.value;
+                      const mainObj = CANONICAL_TAXONOMY.find((m) => m.id === newMain);
+                      const firstSub = mainObj?.subcategories[0];
+                      const firstType = firstSub?.types[0];
+                      setProfileForm({
+                        ...profileForm,
+                        mainCategory: newMain,
+                        category: newMain,
+                        subCategory: firstSub ? firstSub.id : "",
+                        businessType: firstType ? firstType.id : "",
+                      });
+                    }}
+                    className="w-full p-2.5 bg-white rounded-xl border border-slate-300 text-xs font-semibold outline-none focus:ring-2 focus:ring-emerald-500"
+                  >
+                    {CANONICAL_TAXONOMY.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* 2. Subcategory */}
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                    2. Commercial Domain <span className="text-rose-600">*</span>
+                  </label>
+                  <select
+                    value={profileForm.subCategory}
+                    onChange={(e) => {
+                      const newSub = e.target.value;
+                      const subObj = ownerAvailableSubcategories.find((s: any) => s.id === newSub);
+                      const firstType = subObj?.types[0];
+                      setProfileForm({
+                        ...profileForm,
+                        subCategory: newSub,
+                        businessType: firstType ? firstType.id : "",
+                      });
+                    }}
+                    className="w-full p-2.5 bg-white rounded-xl border border-slate-300 text-xs font-semibold outline-none focus:ring-2 focus:ring-emerald-500"
+                    disabled={ownerAvailableSubcategories.length === 0}
+                  >
+                    {ownerAvailableSubcategories.map((s: any) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* 3. Business Type */}
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                    3. Establishment Type <span className="text-rose-600">*</span>
+                  </label>
+                  <select
+                    value={profileForm.businessType}
+                    onChange={(e) => {
+                      setProfileForm({
+                        ...profileForm,
+                        businessType: e.target.value,
+                      });
+                    }}
+                    className="w-full p-2.5 bg-white rounded-xl border border-slate-300 text-xs font-semibold outline-none focus:ring-2 focus:ring-emerald-500"
+                    disabled={ownerAvailableBusinessTypes.length === 0}
+                  >
+                    {ownerAvailableBusinessTypes.map((t: any) => (
+                      <option key={t.id} value={t.id}>
+                        {t.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
-              <input
-                type="text"
-                value={profileForm.subCategory}
-                onChange={(e) => setProfileForm({ ...profileForm, subCategory: e.target.value })}
-                placeholder="e.g. iPhone Screen Replacement, Dreadlocks"
-                className="w-full p-3 bg-slate-50 rounded-xl border border-slate-300 text-xs outline-none focus:ring-2 focus:ring-emerald-500"
-              />
+
+              {/* Breadcrumb Preview */}
+              <div className="flex items-center gap-1.5 text-[11px] text-slate-600 pt-1 flex-wrap">
+                <span className="font-bold text-slate-500">Classification:</span>
+                <span className="px-2 py-0.5 rounded bg-white border border-slate-200 font-bold text-slate-800">
+                  {ownerMainCat?.name}
+                </span>
+                <span className="text-slate-400">&rarr;</span>
+                <span className="px-2 py-0.5 rounded bg-white border border-slate-200 font-bold text-slate-800">
+                  {ownerSubCat?.name}
+                </span>
+                <span className="text-slate-400">&rarr;</span>
+                <span className="px-2 py-0.5 rounded bg-emerald-100 border border-emerald-300 font-bold text-emerald-900">
+                  {ownerBusinessType?.name}
+                </span>
+              </div>
             </div>
 
             <div>
