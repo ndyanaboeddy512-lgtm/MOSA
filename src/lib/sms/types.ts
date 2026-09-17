@@ -3,7 +3,9 @@ export type SMSTemplateId =
   | "REMINDER" 
   | "SECURITY_ALERT" 
   | "PROFILE_CONFIRMATION" 
-  | "DEMAND_ALERT";
+  | "DEMAND_ALERT"
+  | "MONTHLY_SUMMARY"
+  | "WELCOME_OWNER";
 
 export type SMSLanguage = "rw" | "en" | "fr" | "sw";
 

@@ -4,7 +4,6 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useLanguage } from "@/lib/i18n";
 import { useAuth } from "@/lib/auth-context";
-import { store } from "@/lib/store";
 import { Business, PhysicalCaptureRecord, ModerationReport, CommunityDemandSignal } from "@/types";
 import { VerificationBadge, DataStatusBadge } from "@/components/common/Badge";
 import { 
@@ -131,7 +130,7 @@ export default function AdminPanelPage() {
   const [selectedDistrict, setSelectedDistrict] = useState<string>("all");
   const [selectedSector, setSelectedSector] = useState<string>("all");
   const [selectedCell, setSelectedCell] = useState<string>("all");
-  const [lifecycleFilter, setLifecycleFilter] = useState<"ALL" | "DEMO" | "RESEARCHED" | "VERIFIED" | "DUPLICATES">("ALL");
+  const [lifecycleFilter, setLifecycleFilter] = useState<"ALL" | "DEMO" | "RESEARCHED" | "VERIFIED" | "SELF_REGISTERED" | "DUPLICATES">("ALL");
 
   // Dynamic Geographic options from DB
   const [geoTree, setGeoTree] = useState<any[]>([]);
@@ -286,6 +285,24 @@ export default function AdminPanelPage() {
       fetchAdminData();
     } catch (err) {
       console.warn("[Admin PATCH verification error]:", err);
+    }
+  };
+
+  const handleApproveBusiness = async (bizId: string) => {
+    try {
+      const res = await fetch("/api/admin", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "APPROVE_BUSINESS",
+          businessId: bizId,
+        }),
+      });
+      if (res.ok) {
+        fetchAdminData();
+      }
+    } catch (err) {
+      console.warn("[Admin Approve Error]:", err);
     }
   };
 
@@ -451,6 +468,7 @@ export default function AdminPanelPage() {
     if (lifecycleFilter === "DEMO" && (b as any).dataStatus !== "DEMO") return false;
     if (lifecycleFilter === "RESEARCHED" && (b as any).dataStatus !== "RESEARCHED") return false;
     if (lifecycleFilter === "VERIFIED" && (b as any).dataStatus !== "VERIFIED") return false;
+    if (lifecycleFilter === "SELF_REGISTERED" && (b as any).source !== "SELF_REGISTERED") return false;
     if (lifecycleFilter === "DUPLICATES" && !(b as any).isPotentialDuplicate) return false;
 
     // Location verification status filter
@@ -753,6 +771,7 @@ export default function AdminPanelPage() {
             <div className="flex items-center gap-1.5 flex-wrap">
               {[
                 { id: "ALL", label: `All Businesses (${businesses.length})` },
+                { id: "SELF_REGISTERED", label: `Self-Registered (${businesses.filter((b) => (b as any).source === "SELF_REGISTERED").length})` },
                 { id: "DEMO", label: `Demo / Samples (${metrics.demoCount})` },
                 { id: "RESEARCHED", label: `Researched (${metrics.researchedCount})` },
                 { id: "VERIFIED", label: `Ground Verified (${metrics.verifiedDataCount})` },
@@ -825,6 +844,12 @@ export default function AdminPanelPage() {
                           <VerificationBadge status={biz.verificationStatus} />
                           <DataStatusBadge status={(biz as any).dataStatus} />
                           
+                          {(biz as any).status === "PENDING" && (
+                            <span className="text-[10px] bg-amber-100 text-amber-800 font-bold px-2 py-0.5 rounded-full border border-amber-300 animate-pulse">
+                              PENDING APPROVAL
+                            </span>
+                          )}
+
                           {/* Location Completeness Pill */}
                           <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
                             comp.level === "EXCELLENT" ? "bg-emerald-50 text-emerald-800 border-emerald-300" :
@@ -878,6 +903,18 @@ export default function AdminPanelPage() {
                     </div>
 
                     <div className="flex items-center gap-2 self-end lg:self-center flex-wrap shrink-0">
+                      {/* Quick Approval for Self-Registered Businesses */}
+                      {(biz as any).status === "PENDING" && (
+                        <button
+                          onClick={() => handleApproveBusiness(biz.id)}
+                          className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+                          title="Approve business and publish to public MOSA"
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          <span>Approve & Publish</span>
+                        </button>
+                      )}
+
                       {/* Lifecycle Progression Buttons */}
                       {(biz as any).dataStatus === "DEMO" && (
                         <>

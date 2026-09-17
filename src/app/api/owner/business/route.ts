@@ -97,6 +97,8 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: auth.error || "Unauthorized" }, { status: auth.status || 401 });
   }
 
+  const actorId = auth.user.id;
+
   try {
     const body = await request.json();
     const businessId = body.businessId;
@@ -131,30 +133,42 @@ export async function PATCH(request: Request) {
     }
 
     // Update Opening Hours if provided
-    if (Array.isArray(fields.openingHours)) {
-      await prisma.businessHour.deleteMany({ where: { businessId } });
-      await prisma.businessHour.createMany({
-        data: fields.openingHours.map((h: any) => ({
-          businessId,
-          day: h.day,
-          dayRw: h.dayRw || h.day,
-          open: h.open || "08:00",
-          close: h.close || "20:00",
-          isClosed: Boolean(h.isClosed),
-        })),
-      });
+    if (fields.openingHours && Array.isArray(fields.openingHours)) {
+      await prisma.$transaction(async (tx) => {
+        await tx.businessHour.deleteMany({ where: { businessId } });
+        await tx.businessHour.createMany({
+          data: fields.openingHours.map((h: any) => ({
+            businessId,
+            day: h.day,
+            dayRw: h.dayRw || h.day,
+            open: h.open || "08:00",
+            close: h.close || "20:00",
+            isClosed: Boolean(h.isClosed),
+          })),
+        });
 
-      await prisma.businessChangeHistory.create({
-        data: {
-          businessId,
-          actorId: auth.user.id,
-          action: "HOURS_UPDATED",
-          fieldChanged: "openingHours",
-          previousValue: JSON.stringify(existing.businessHours.map((h) => `${h.day}: ${h.open}-${h.close}`)),
-          newValue: JSON.stringify(fields.openingHours.map((h: any) => `${h.day}: ${h.open}-${h.close}`)),
-          approvalStatus: "APPROVED",
-          source: "OWNER_DASHBOARD",
-        },
+        await tx.businessChangeHistory.create({
+          data: {
+            businessId,
+            actorId,
+            action: "HOURS_UPDATED",
+            fieldChanged: "openingHours",
+            previousValue: JSON.stringify(existing.businessHours.map((h) => `${h.day}: ${h.open}-${h.close}`)),
+            newValue: JSON.stringify(fields.openingHours.map((h: any) => `${h.day}: ${h.open}-${h.close}`)),
+            approvalStatus: "APPROVED",
+            source: "OWNER_DASHBOARD",
+          },
+        });
+
+        await tx.auditLog.create({
+          data: {
+            actorId,
+            action: "HOURS_UPDATED",
+            entityType: "BUSINESS",
+            entityId: businessId,
+            metadata: JSON.stringify({ count: fields.openingHours.length }),
+          },
+        });
       });
     }
 
@@ -201,40 +215,44 @@ export async function PATCH(request: Request) {
 
     if (Object.keys(updateData).length > 0) {
       updateData.updatedAt = new Date();
-      await prisma.business.update({
-        where: { id: businessId },
-        data: updateData,
-      });
 
-      // Record in BusinessChangeHistory
-      for (const f of changedFields) {
-        await prisma.businessChangeHistory.create({
+      await prisma.$transaction(async (tx) => {
+        await tx.business.update({
+          where: { id: businessId },
+          data: updateData,
+        });
+
+        for (const f of changedFields) {
+          await tx.businessChangeHistory.create({
+            data: {
+              businessId,
+              actorId,
+              action: "PROFILE_UPDATED",
+              fieldChanged: f,
+              previousValue: String((existing as any)[f] ?? ""),
+              newValue: String(updateData[f] ?? ""),
+              approvalStatus: "APPROVED",
+              source: "OWNER_DASHBOARD",
+            },
+          });
+        }
+
+        await tx.auditLog.create({
           data: {
-            businessId,
-            actorId: auth.user.id,
-            action: "PROFILE_UPDATED",
-            fieldChanged: f,
-            previousValue: String((existing as any)[f] ?? ""),
-            newValue: String(updateData[f] ?? ""),
-            approvalStatus: "APPROVED",
-            source: "OWNER_DASHBOARD",
+            actorId,
+            action: "OWNER_PROFILE_UPDATED",
+            entityType: "BUSINESS",
+            entityId: businessId,
+            metadata: JSON.stringify({ changedFields }),
           },
         });
-      }
-
-      await logAuditEvent({
-        actorId: auth.user.id,
-        action: "OWNER_PROFILE_UPDATED",
-        entityType: "BUSINESS",
-        entityId: businessId,
-        metadata: { changedFields },
       });
 
       // Trigger SMS Notification if phone or identity changed
       if (fields.name || fields.phone) {
         await sendBusinessSMS({
           businessId,
-          recipientPhone: existing.phone || auth.user.phone,
+          recipientPhone: existing.phone || auth.user?.phone || "",
           templateId: "UPDATE_SUCCESS",
           language: (auth.user.language as any) || "rw",
           variables: {

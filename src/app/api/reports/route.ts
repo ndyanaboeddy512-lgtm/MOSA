@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { store } from "@/lib/store";
 import { getCurrentUser } from "@/lib/auth";
 import { logAuditEvent } from "@/lib/audit";
 import { ReportReason, ReportStatus } from "@prisma/client";
@@ -47,35 +46,26 @@ export async function GET(request: Request) {
       orderBy: { createdAt: "desc" },
     });
 
-    if (reports.length > 0) {
-      return NextResponse.json({
-        success: true,
-        count: reports.length,
-        source: "database",
-        reports: reports.map((r) => ({
-          id: r.id,
-          businessId: r.businessId,
-          businessName: r.business.name,
-          reporterName: r.user.name,
-          reporterPhone: r.user.phone,
-          reason: r.reason,
-          details: r.details,
-          status: r.status,
-          createdAt: r.createdAt.toISOString(),
-        })),
-      });
-    }
+    return NextResponse.json({
+      success: true,
+      count: reports.length,
+      source: "database",
+      reports: reports.map((r) => ({
+        id: r.id,
+        businessId: r.businessId,
+        businessName: r.business.name,
+        reporterName: r.user.name,
+        reporterPhone: r.user.phone,
+        reason: r.reason,
+        details: r.details,
+        status: r.status,
+        createdAt: r.createdAt.toISOString(),
+      })),
+    });
   } catch (error) {
-    console.warn("[Reports DB Fallback]:", error);
+    console.error("[Reports DB Error]:", error);
+    return NextResponse.json({ error: "Failed to fetch reports from database" }, { status: 500 });
   }
-
-  const fallback = store.getReports();
-  return NextResponse.json({
-    success: true,
-    count: fallback.length,
-    source: "seed_cache",
-    reports: fallback,
-  });
 }
 
 // POST /api/reports - Submit a community moderation report
@@ -95,31 +85,26 @@ export async function POST(request: Request) {
     let userId = currentUser?.id;
 
     if (!userId) {
-      try {
-        const defaultUser = await prisma.user.upsert({
-          where: { phone: "+250788999888" },
-          update: {},
-          create: {
-            phone: "+250788999888",
-            name: "Community Member",
-            role: "CUSTOMER",
-            community: "Nyamirambo",
-            points: 50,
-            badges: ["Community Watch"],
-            referralCode: "MOSA-NYA-CW",
-          },
-        });
-        userId = defaultUser.id;
-      } catch {
-        userId = "user-customer-1";
-      }
+      const defaultUser = await prisma.user.upsert({
+        where: { phone: "+250788999888" },
+        update: {},
+        create: {
+          phone: "+250788999888",
+          name: "Community Member",
+          role: "CUSTOMER",
+          community: "Nyamirambo",
+          points: 50,
+          badges: ["Community Watch"],
+          referralCode: "MOSA-NYA-CW",
+        },
+      });
+      userId = defaultUser.id;
     }
 
     const reportReason = mapReason(reason);
 
-    let savedReport = null;
-    try {
-      savedReport = await prisma.report.create({
+    const savedReport = await prisma.$transaction(async (tx) => {
+      const rep = await tx.report.create({
         data: {
           businessId,
           userId,
@@ -129,32 +114,25 @@ export async function POST(request: Request) {
         },
       });
 
-      await logAuditEvent({
-        actorId: userId,
-        action: "REPORT_SUBMITTED",
-        entityType: "REPORT",
-        entityId: savedReport.id,
-        metadata: { businessId, reason: reportReason, details },
+      await tx.auditLog.create({
+        data: {
+          actorId: userId,
+          action: "REPORT_SUBMITTED",
+          entityType: "REPORT",
+          entityId: rep.id,
+          metadata: JSON.stringify({ businessId, reason: reportReason, details }),
+        },
       });
-    } catch (dbError) {
-      console.warn("[Report DB Warning]:", dbError);
-    }
 
-    // Keep store synchronized
-    const storeRep = store.submitReport({
-      businessId,
-      businessName: "Business",
-      reportedBy: currentUser?.name || "Community Member",
-      reason: reportReason as any,
-      details,
+      return rep;
     });
 
     return NextResponse.json({
       success: true,
-      report: savedReport || storeRep,
+      report: savedReport,
     }, { status: 201 });
   } catch (error) {
     console.error("[Report POST Error]:", error);
-    return NextResponse.json({ error: "Failed to submit report" }, { status: 500 });
+    return NextResponse.json({ error: "Failed to submit report in database" }, { status: 500 });
   }
 }

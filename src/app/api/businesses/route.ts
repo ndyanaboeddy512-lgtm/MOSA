@@ -3,8 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
 import { logAuditEvent } from "@/lib/audit";
 import { VerificationStatus, LocationSource, LocationVerificationStatus } from "@prisma/client";
-import { INITIAL_BUSINESSES } from "@/lib/seed-data";
 import { formatBusinessRecord } from "@/lib/format-business";
+import { serializePublicBusiness } from "@/lib/public-serializer";
 import { parseSearchQuery } from "@/lib/search-nlp";
 import { checkNearDuplicates } from "@/lib/location-quality";
 
@@ -255,17 +255,7 @@ export async function GET(request: Request) {
       orderBy: { updatedAt: "desc" },
     });
 
-    // If database is empty, return initial seed data to prevent empty states
-    if (businesses.length === 0 && !search && (!category || category === "all") && (!sector || sector === "all")) {
-      return NextResponse.json({
-        success: true,
-        source: "seed-fallback",
-        count: INITIAL_BUSINESSES.length,
-        businesses: INITIAL_BUSINESSES.map(formatBusinessRecord),
-      });
-    }
-
-    const formatted = businesses.map(formatBusinessRecord);
+    const formatted = businesses.map(serializePublicBusiness);
 
     return NextResponse.json({
       success: true,
@@ -275,19 +265,22 @@ export async function GET(request: Request) {
       businesses: formatted,
     });
   } catch (error) {
-    console.warn("[Businesses API] PostgreSQL query error, falling back to initial records:", error);
+    console.error("[Businesses API] PostgreSQL query error:", error);
     return NextResponse.json({
-      success: true,
-      source: "fallback",
-      count: INITIAL_BUSINESSES.length,
-      businesses: INITIAL_BUSINESSES.map(formatBusinessRecord),
-    });
+      error: "Failed to fetch businesses from database",
+    }, { status: 500 });
   }
 }
 
 export async function POST(request: Request) {
   try {
     const user = await getCurrentUser();
+    if (!user) {
+      return NextResponse.json(
+        { error: "Authentication required to register a business" },
+        { status: 401 }
+      );
+    }
     const body = await request.json();
     const {
       name,

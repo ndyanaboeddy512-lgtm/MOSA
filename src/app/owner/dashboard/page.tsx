@@ -46,6 +46,8 @@ import {
 } from "lucide-react";
 import { MosaMap } from "@/components/discovery/MosaMap";
 import { calculateLocationCompleteness, getGoogleMapsDirectionsUrl } from "@/lib/location-quality";
+import { FinanceTab } from "@/components/owner/FinanceTab";
+import { OperationsTab } from "@/components/owner/OperationsTab";
 
 const DAYS_OF_WEEK = [
   { day: "Monday", dayRw: "Kuwa Mbere" },
@@ -60,6 +62,12 @@ const DAYS_OF_WEEK = [
 export default function OwnerDashboardPage() {
   const { lang, setLang, t } = useLanguage();
   const { user } = useAuth();
+
+  type Domain = "business" | "operations" | "finance" | "intelligence" | "communication" | "account";
+  const [activeDomain, setActiveDomain] = useState<Domain>("business");
+  const [businessSubTab, setBusinessSubTab] = useState<
+    "overview" | "catalog" | "profile" | "location" | "hours" | "offers"
+  >("overview");
 
   const [activeTab, setActiveTab] = useState<
     "overview" | "profile" | "location" | "hours" | "catalog" | "offers" | "assistant" | "history" | "reminders" | "account"
@@ -822,56 +830,151 @@ export default function OwnerDashboardPage() {
             target="_blank"
             className="px-3.5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors flex items-center gap-1.5"
           >
-            <span>{lang === "rw" ? "Reba ku Rubuga" : "View Live Public Page"}</span>
+            <span>{t.owner.viewLiveBtn}</span>
             <ChevronRight className="w-3.5 h-3.5" />
           </Link>
         </div>
       </div>
 
-      {/* Navigation Tabs Bar (Scrollable on small mobile) */}
-      <div className="flex items-center gap-1.5 overflow-x-auto pb-2 scrollbar-none border-b border-slate-200 text-xs font-bold">
-        {[
-          { key: "overview", label: lang === "rw" ? "Incamake" : "Overview", icon: Layers },
-          { key: "profile", label: lang === "rw" ? "Umwirondoro" : "Profile", icon: Store },
-          { key: "location", label: lang === "rw" ? "Aho Mubarizwa" : "Location & Directions", icon: MapPin },
-          { key: "hours", label: lang === "rw" ? "Amasaha" : "Opening Hours", icon: Clock },
-          { key: "catalog", label: lang === "rw" ? "Ibicuruzwa" : "Catalogue & Prices", icon: Tag, count: business.products.length },
-          { key: "offers", label: lang === "rw" ? "Poromosiyo" : "Special Offers", icon: Calendar },
-          { key: "assistant", label: "MOSA AI Assistant", icon: Sparkles },
-          { key: "history", label: lang === "rw" ? "Amateka y'Impinduka" : "Change History", icon: History },
-          { key: "reminders", label: lang === "rw" ? "Ubutumwa" : "Smart Reminders", icon: Bell, count: reminders.length },
-          { key: "account", label: lang === "rw" ? "Umutekano" : "Account & Security", icon: Settings },
-        ].map((tab) => {
-          const Icon = tab.icon;
-          const isActive = activeTab === tab.key;
-          return (
-            <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key as any)}
-              className={`px-3.5 py-2.5 rounded-xl whitespace-nowrap transition-all flex items-center gap-1.5 cursor-pointer shrink-0 ${
-                isActive
-                  ? "bg-slate-900 text-white shadow-xs"
-                  : "bg-white text-slate-600 hover:bg-slate-100 hover:text-slate-900 border border-slate-200/60"
-              }`}
-            >
-              <Icon className={`w-3.5 h-3.5 ${isActive ? "text-emerald-400" : "text-slate-400"}`} />
-              <span>{tab.label}</span>
-              {typeof tab.count === "number" && tab.count > 0 && (
-                <span
-                  className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-                    isActive ? "bg-emerald-500 text-white" : "bg-slate-200 text-slate-700"
-                  }`}
-                >
-                  {tab.count}
-                </span>
-              )}
-            </button>
-          );
-        })}
+      {/* Pending Administrative Review Notice */}
+      {(business as any).status === "PENDING" && (
+        <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-xs sm:text-sm flex items-start gap-3 shadow-xs">
+          <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+          <div className="space-y-1">
+            <div className="font-bold">
+              {t.owner.pendingBannerTitle}
+            </div>
+            <p className="text-slate-600 text-xs">
+              {t.owner.pendingBannerDesc}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* 6 Structured Operational Domains */}
+      <div className="bg-white rounded-3xl border border-slate-200 p-2 sm:p-3 shadow-card">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+          {[
+            { id: "business", label: t.owner.domains.business, sub: t.owner.domainSubs.business, icon: Store },
+            { id: "operations", label: t.owner.domains.operations, sub: t.owner.domainSubs.operations, icon: Layers },
+            { id: "finance", label: t.owner.domains.finance, sub: t.owner.domainSubs.finance, icon: DollarSign, badge: "NEW" },
+            { id: "intelligence", label: t.owner.domains.intelligence, sub: t.owner.domainSubs.intelligence, icon: Sparkles },
+            { id: "communication", label: t.owner.domains.communication, sub: t.owner.domainSubs.communication, icon: Bell, count: reminders.length },
+            { id: "account", label: t.owner.domains.account, sub: t.owner.domainSubs.account, icon: Settings },
+          ].map((dom) => {
+            const Icon = dom.icon;
+            const isSelected = activeDomain === dom.id;
+            return (
+              <button
+                key={dom.id}
+                onClick={() => {
+                  setActiveDomain(dom.id as any);
+                  if (dom.id === "business") {
+                    setActiveTab(businessSubTab as any);
+                  } else if (dom.id === "intelligence") {
+                    setActiveTab("assistant");
+                  } else if (dom.id === "communication") {
+                    setActiveTab("reminders");
+                  } else if (dom.id === "account") {
+                    setActiveTab("account");
+                  }
+                }}
+                className={`p-3 rounded-2xl text-left transition-all flex flex-col justify-between cursor-pointer ${
+                  isSelected
+                    ? "bg-slate-900 text-white shadow-md ring-2 ring-emerald-500/30"
+                    : "bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200/60"
+                }`}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <Icon className={`w-4 h-4 ${isSelected ? "text-emerald-400" : "text-slate-500"}`} />
+                  {dom.badge && (
+                    <span className="text-[9px] font-black uppercase px-1.5 py-0.2 rounded bg-emerald-500 text-slate-950">
+                      {dom.badge}
+                    </span>
+                  )}
+                  {typeof dom.count === "number" && dom.count > 0 && (
+                    <span
+                      className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                        isSelected ? "bg-emerald-500 text-white" : "bg-slate-200 text-slate-700"
+                      }`}
+                    >
+                      {dom.count}
+                    </span>
+                  )}
+                </div>
+                <div>
+                  <div className="font-black text-xs">{dom.label}</div>
+                  <div className={`text-[10px] truncate ${isSelected ? "text-slate-300" : "text-slate-500"}`}>
+                    {dom.sub}
+                  </div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
+      {/* Sub-tab Navigation for Domain: BUSINESS */}
+      {activeDomain === "business" && (
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-2 scrollbar-none border-b border-slate-200 text-xs font-bold">
+          {[
+            { key: "overview", label: t.owner.tabs.overview, icon: Layers },
+            { key: "catalog", label: t.owner.tabs.catalog, icon: Tag, count: business.products.length },
+            { key: "profile", label: t.owner.tabs.profile, icon: Store },
+            { key: "location", label: t.owner.tabs.location, icon: MapPin },
+            { key: "hours", label: t.owner.tabs.hours, icon: Clock },
+            { key: "offers", label: t.owner.tabs.offers, icon: Calendar },
+          ].map((sub) => {
+            const Icon = sub.icon;
+            const isActive = activeTab === sub.key;
+            return (
+              <button
+                key={sub.key}
+                onClick={() => {
+                  setBusinessSubTab(sub.key as any);
+                  setActiveTab(sub.key as any);
+                }}
+                className={`px-3.5 py-2 rounded-xl whitespace-nowrap transition-all flex items-center gap-1.5 cursor-pointer shrink-0 ${
+                  isActive
+                    ? "bg-slate-900 text-white shadow-xs"
+                    : "bg-white text-slate-600 hover:bg-slate-100 hover:text-slate-900 border border-slate-200/60"
+                }`}
+              >
+                <Icon className={`w-3.5 h-3.5 ${isActive ? "text-emerald-400" : "text-slate-400"}`} />
+                <span>{sub.label}</span>
+                {typeof sub.count === "number" && sub.count > 0 && (
+                  <span
+                    className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                      isActive ? "bg-emerald-500 text-white" : "bg-slate-200 text-slate-700"
+                    }`}
+                  >
+                    {sub.count}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {/* DOMAIN CONTENT: OPERATIONS */}
+      {activeDomain === "operations" && (
+        <OperationsTab
+          businessId={business.id}
+          products={business.products}
+          historyList={historyList}
+          lang={lang}
+          onRefresh={() => loadOwnerData()}
+        />
+      )}
+
+      {/* DOMAIN CONTENT: FINANCE */}
+      {activeDomain === "finance" && (
+        <FinanceTab businessId={business.id} lang={lang} />
+      )}
+
       {/* TAB CONTENT: 1. OVERVIEW */}
-      {activeTab === "overview" && (
+      {activeDomain === "business" && activeTab === "overview" && (
         <div className="space-y-6">
           
           {/* Keep My Business Alive Banner */}
@@ -1089,7 +1192,7 @@ export default function OwnerDashboardPage() {
       )}
 
       {/* TAB CONTENT: 2. PROFILE & LOCATION */}
-      {activeTab === "profile" && (
+      {activeDomain === "business" && activeTab === "profile" && (
         <form onSubmit={handleProfileSubmit} className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200 shadow-card space-y-6">
           <div className="border-b border-slate-100 pb-4">
             <h3 className="text-lg font-bold text-slate-900">{lang === "rw" ? "Umwirondoro n'Aho Riherereye" : "Business Profile & Geographic Location"}</h3>
@@ -1294,7 +1397,7 @@ export default function OwnerDashboardPage() {
       )}
 
       {/* TAB CONTENT: LOCATION & DIRECTIONS */}
-      {activeTab === "location" && (
+      {activeDomain === "business" && activeTab === "location" && (
         <form onSubmit={handleLocationSubmit} className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200 shadow-card space-y-6">
           <div className="border-b border-slate-100 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
@@ -1627,7 +1730,7 @@ export default function OwnerDashboardPage() {
       )}
 
       {/* TAB CONTENT: 3. OPENING HOURS */}
-      {activeTab === "hours" && (
+      {activeDomain === "business" && activeTab === "hours" && (
         <form onSubmit={handleHoursSubmit} className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200 shadow-card space-y-6">
           <div className="border-b border-slate-100 pb-4">
             <h3 className="text-lg font-bold text-slate-900">{lang === "rw" ? "Amasaha yo Gukora" : "Operating Hours Schedule"}</h3>
@@ -1711,7 +1814,7 @@ export default function OwnerDashboardPage() {
       )}
 
       {/* TAB CONTENT: 4. CATALOGUE & SERVICES */}
-      {activeTab === "catalog" && (
+      {activeDomain === "business" && activeTab === "catalog" && (
         <div className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200 shadow-card space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
             <div>
@@ -1825,7 +1928,7 @@ export default function OwnerDashboardPage() {
       )}
 
       {/* TAB CONTENT: 5. SPECIAL OFFERS */}
-      {activeTab === "offers" && (
+      {activeDomain === "business" && activeTab === "offers" && (
         <div className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200 shadow-card space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
             <div>
@@ -1866,8 +1969,8 @@ export default function OwnerDashboardPage() {
         </div>
       )}
 
-      {/* TAB CONTENT: 6. MOSA AI ASSISTANT */}
-      {activeTab === "assistant" && (
+      {/* TAB CONTENT: 6. MOSA AI ASSISTANT / INTELLIGENCE */}
+      {(activeDomain === "intelligence" || activeTab === "assistant") && (
         <div className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200 shadow-card space-y-6">
           <div className="border-b border-slate-100 pb-4">
             <div className="flex items-center gap-2">
@@ -1996,8 +2099,8 @@ export default function OwnerDashboardPage() {
         </div>
       )}
 
-      {/* TAB CONTENT: 8. SMART REMINDERS & DEMAND */}
-      {activeTab === "reminders" && (
+      {/* TAB CONTENT: 8. SMART REMINDERS & COMMUNICATION */}
+      {(activeDomain === "communication" || activeTab === "reminders") && (
         <div className="space-y-6">
           <div className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200 shadow-card space-y-6">
             <div className="border-b border-slate-100 pb-4">
@@ -2083,7 +2186,7 @@ export default function OwnerDashboardPage() {
       )}
 
       {/* TAB CONTENT: 9. ACCOUNT & SECURITY */}
-      {activeTab === "account" && (
+      {(activeDomain === "account" || activeTab === "account") && (
         <div className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200 shadow-card space-y-6">
           <div className="border-b border-slate-100 pb-4">
             <h3 className="text-lg font-bold text-slate-900">Account Security & Language Preferences</h3>

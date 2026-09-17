@@ -4,7 +4,6 @@ import React from "react";
 import Link from "next/link";
 import { Business } from "@/types";
 import { useLanguage } from "@/lib/i18n";
-import { store } from "@/lib/store";
 import { VerificationBadge, DataStatusBadge } from "@/components/common/Badge";
 import { MapPin, Phone, MessageCircle, Clock, ChevronRight, Tag } from "lucide-react";
 
@@ -17,7 +16,11 @@ export function BusinessCard({ business }: BusinessCardProps) {
 
   const handleContactClick = (e: React.MouseEvent, type: "phone" | "whatsapp") => {
     e.stopPropagation();
-    store.trackContactClick(business.id);
+    fetch(`/api/businesses/${business.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ contactClick: true }),
+    }).catch(() => {});
   };
 
   const displayName = lang === "rw" && business.nameRw ? business.nameRw : business.name;

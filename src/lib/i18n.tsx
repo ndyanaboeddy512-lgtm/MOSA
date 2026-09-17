@@ -8,10 +8,18 @@ import { sw } from "./translations/sw";
 
 export type Language = "en" | "rw" | "fr" | "sw";
 
+export interface TranslationsRecord {
+  rw: string;
+  en: string;
+  fr?: string;
+  sw?: string;
+}
+
 interface LanguageContextType {
   lang: Language;
   setLang: (lang: Language) => void;
   t: typeof en;
+  tr: (translations: TranslationsRecord) => string;
 }
 
 function createDictionaryWithFallback(target: any, fallback: any): any {
@@ -45,10 +53,13 @@ const dictionaries: Record<Language, typeof en> = {
   sw: createDictionaryWithFallback(sw, en),
 };
 
+const defaultTr = (translations: TranslationsRecord) => translations.rw;
+
 const LanguageContext = createContext<LanguageContextType>({
   lang: "rw",
   setLang: () => {},
   t: dictionaries.rw,
+  tr: defaultTr,
 });
 
 export function LanguageProvider({ children }: { children: React.ReactNode }) {
@@ -59,6 +70,14 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
       const saved = localStorage.getItem("mosa_lang") as Language;
       if (saved && (saved === "en" || saved === "rw" || saved === "fr" || saved === "sw")) {
         setLangState(saved);
+        return;
+      }
+      if (typeof document !== "undefined") {
+        const match = document.cookie.match(/(?:^|;\s*)mosa_lang=([a-z]{2})/);
+        if (match && (match[1] === "en" || match[1] === "rw" || match[1] === "fr" || match[1] === "sw")) {
+          setLangState(match[1] as Language);
+          localStorage.setItem("mosa_lang", match[1]);
+        }
       }
     } catch {}
   }, []);
@@ -68,6 +87,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     if (typeof window !== "undefined") {
       try {
         localStorage.setItem("mosa_lang", newLang);
+        document.cookie = `mosa_lang=${newLang}; path=/; max-age=31536000; SameSite=Lax`;
       } catch {}
       // Asynchronously sync preference to user account in database if logged in
       fetch("/api/auth/me", {
@@ -78,10 +98,17 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const tr = (translations: TranslationsRecord): string => {
+    if (lang === "rw") return translations.rw;
+    if (lang === "fr") return translations.fr || translations.en;
+    if (lang === "sw") return translations.sw || translations.en;
+    return translations.en;
+  };
+
   const t = dictionaries[lang] || dictionaries.rw;
 
   return (
-    <LanguageContext.Provider value={{ lang, setLang, t }}>
+    <LanguageContext.Provider value={{ lang, setLang, t, tr }}>
       {children}
     </LanguageContext.Provider>
   );

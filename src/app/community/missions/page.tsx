@@ -4,7 +4,6 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useLanguage } from "@/lib/i18n";
 import { useAuth } from "@/lib/auth-context";
-import { store } from "@/lib/store";
 import { CommunityMission } from "@/types";
 import { 
   Award, 
@@ -32,30 +31,34 @@ export default function MissionsPage() {
         const res = await fetch("/api/missions");
         if (res.ok) {
           const data = await res.json();
-          if (data.missions && data.missions.length > 0) {
+          if (data.missions) {
             setMissions(data.missions);
             return;
           }
         }
-      } catch {}
-      setMissions(store.getMissions());
+      } catch (err) {
+        console.error("Failed to load missions:", err);
+      }
+      setMissions([]);
     }
     loadMissions();
   }, []);
 
   const handleAcceptMission = async (missionId: string) => {
-    store.completeMission(missionId);
-    setCompletedMissionId(missionId);
-    setMissions([...store.getMissions()]);
-
     try {
-      await fetch("/api/missions", {
+      const res = await fetch("/api/missions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ missionId }),
       });
+      if (res.ok) {
+        setCompletedMissionId(missionId);
+        setMissions((prev) =>
+          prev.map((m) => (m.id === missionId ? { ...m, isCompleted: true } : m))
+        );
+      }
     } catch (err) {
-      console.warn("[Mission completion DB sync error]:", err);
+      console.error("[Mission completion DB error]:", err);
     }
 
     setTimeout(() => {

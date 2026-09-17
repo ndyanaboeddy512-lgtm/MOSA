@@ -372,6 +372,10 @@ model Business {
   changeHistory      BusinessChangeHistory[]
   reminders          BusinessReminder[]
   smsMessages        SMSMessage[]
+  purchases          BusinessPurchase[]
+  monthlyReports     MonthlyFinancialReport[]
+  expenses           BusinessExpense[]
+  inventoryItems     BusinessInventoryItem[]
 
   @@index([category])
   @@index([cell])
@@ -723,5 +727,86 @@ model SMSMessage {
   @@index([recipientPhone])
   @@index([status])
   @@index([createdAt])
+}
+
+model BusinessPurchase {
+  id                   String    @id @default(cuid())
+  businessId           String
+  business             Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  itemName             String
+  quantity             Float     @default(1)
+  unit                 String    @default("units") // kg, pcs, bags, boxes, liters, etc.
+  buyingPriceUnit      Float     // Buying/cost price per unit (RWF)
+  totalCost            Float     // quantity * buyingPriceUnit
+  sellingPriceUnit     Float     // Expected selling price per unit (RWF)
+  expectedRevenue      Float     // quantity * sellingPriceUnit
+  expectedGrossProfit  Float     // expectedRevenue - totalCost
+  supplierName         String?
+  supplierContact      String?
+  purchaseDate         DateTime  @default(now())
+  monthYear            String    // format "YYYY-MM", e.g. "2026-09"
+  notes                String?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  @@index([businessId])
+  @@index([businessId, monthYear])
+  @@index([purchaseDate])
+}
+
+model MonthlyFinancialReport {
+  id                      String    @id @default(cuid())
+  businessId              String
+  business                Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  monthYear               String    // e.g. "2026-09"
+  totalCost               Float     @default(0)
+  expectedRevenue         Float     @default(0)
+  expectedGrossProfit     Float     @default(0)
+  totalExpenses           Float     @default(0)
+  purchaseCount           Int       @default(0)
+  notes                   String?
+  smsAlertSent            Boolean   @default(false)
+  smsAlertSentAt          DateTime?
+  smsStatus               String?   // "DELIVERED", "FAILED", "CONFIGURATION_REQUIRED", "PENDING"
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+
+  @@unique([businessId, monthYear])
+  @@index([businessId])
+  @@index([monthYear])
+}
+
+model BusinessExpense {
+  id          String    @id @default(cuid())
+  businessId  String
+  business    Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  category    String    // RENT, TRANSPORT, ELECTRICITY_WATER, WAGES, PACKAGING, TAXES, OTHER
+  amount      Float
+  monthYear   String    // e.g. "2026-09"
+  description String?
+  expenseDate DateTime  @default(now())
+  createdAt   DateTime  @default(now())
+
+  @@index([businessId])
+  @@index([businessId, monthYear])
+}
+
+model BusinessInventoryItem {
+  id               String    @id @default(cuid())
+  businessId       String
+  business         Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  name             String
+  nameRw           String?
+  currentStock     Float     @default(0)
+  unit             String    @default("units")
+  reorderThreshold Float     @default(5)
+  sellingPrice     Float     // Public reference selling price
+  buyingPrice      Float?    // Private reference buying cost
+  status           String    @default("IN_STOCK") // IN_STOCK, LOW_STOCK, OUT_OF_STOCK
+  updatedAt        DateTime  @updatedAt
+  createdAt        DateTime  @default(now())
+
+  @@index([businessId])
+  @@index([businessId, status])
 }
 

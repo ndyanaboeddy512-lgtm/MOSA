@@ -165,6 +165,8 @@ export function formatBusinessRecord(raw: any): Business {
     claimedAt: raw.claimedAt ? new Date(raw.claimedAt).toISOString() : undefined,
     claimPhone: raw.claimPhone || undefined,
     isClaimed: Boolean(raw.isClaimed || raw.ownerId),
+    status: raw.status || "ACTIVE",
+    ownerId: raw.ownerId || raw.claimedByUserId || undefined,
     featuredOffer: raw.featuredOffer || (Array.isArray(raw.offers) && raw.offers.length > 0 ? {
       id: raw.offers[0].id,
       title: raw.offers[0].title,

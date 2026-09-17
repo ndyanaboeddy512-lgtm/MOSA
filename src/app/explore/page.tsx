@@ -1,9 +1,9 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import Link from "next/link";
 import { useLanguage } from "@/lib/i18n";
 import { useLocation } from "@/lib/location-context";
-import { store } from "@/lib/store";
 import { Business } from "@/types";
 import { BusinessCard } from "@/components/discovery/BusinessCard";
 import { CategoryPills } from "@/components/discovery/CategoryPills";
@@ -18,7 +18,8 @@ import {
   Phone,
   ShieldCheck,
   ChevronRight,
-  Filter
+  Filter,
+  Store
 } from "lucide-react";
 
 export default function ExplorePage() {
@@ -71,19 +72,10 @@ export default function ExplorePage() {
             return;
           }
         }
-      } catch {}
-
-      let list = store.getBusinesses({ category: selectedCategory });
-      if (currentCell) {
-        list = list.filter((b) => (b.location?.cell || (b as any).cell || "").toLowerCase().includes(currentCell.toLowerCase()));
+      } catch (err) {
+        console.error("Failed to load businesses:", err);
       }
-      if (selectedDataStatus !== "all") {
-        list = list.filter((b) => (b as any).dataStatus === selectedDataStatus);
-      }
-      setBusinesses(list);
-      if (list.length > 0 && !selectedPin) {
-        setSelectedPin(list[0]);
-      }
+      setBusinesses([]);
     }
     loadBusinesses();
   }, [selectedCategory, currentSector, currentCell, selectedDataStatus]);
@@ -338,6 +330,28 @@ export default function ExplorePage() {
           ))}
         </div>
       )}
+
+      {/* Merchant Self-Registration Callout Banner */}
+      <div className="mt-12 bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-6">
+        <div className="space-y-1.5 text-center sm:text-left">
+          <h3 className="font-bold text-slate-900 text-base sm:text-lg flex items-center justify-center sm:justify-start gap-2">
+            <Store className="w-5 h-5 text-emerald-600" />
+            <span>{lang === "rw" ? "Ucuruza muri aka gace? Ntiwirengagize abakiliya!" : "Do you run a shop or service in this area?"}</span>
+          </h3>
+          <p className="text-xs text-slate-600 max-w-xl leading-relaxed">
+            {lang === "rw"
+              ? "Andika ubucuruzi bwawe ku buntu kuri MOSA kugira ngo abaturage bo mu murenge wawe bakubone bidasabye ubuhuza."
+              : "Register your business directly on MOSA for free discovery across your sector without commission fees."}
+          </p>
+        </div>
+        <Link
+          href="/register-business"
+          className="px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs sm:text-sm shadow-md transition-all shrink-0 flex items-center gap-2 cursor-pointer"
+        >
+          <Store className="w-4 h-4 text-emerald-200" />
+          <span>{lang === "rw" ? "Andika Ubucuruzi Bwawe" : "Register Your Business"}</span>
+        </Link>
+      </div>
     </div>
   );
 }

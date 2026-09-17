@@ -11,7 +11,7 @@ type AuthTab = "password" | "sms" | "register";
 
 export default function LoginPage() {
   const router = useRouter();
-  const { lang } = useLanguage();
+  const { lang, t } = useLanguage();
   const { switchDemoRole, loginWithPhone, loginWithPassword, register, verifyOtp } = useAuth();
 
   const [activeTab, setActiveTab] = useState<AuthTab>("password");
@@ -52,7 +52,7 @@ export default function LoginPage() {
     try {
       const res = await loginWithPassword(phone, password);
       if (res.success) {
-        setSuccessMsg(lang === "rw" ? "Mwinjiye neza!" : "Logged in successfully!");
+        setSuccessMsg(t.auth.successLogin);
         setTimeout(() => {
           redirectByRole();
         }, 600);
@@ -88,7 +88,7 @@ export default function LoginPage() {
       if (ok) {
         redirectByRole();
       } else {
-        setErrorMsg(lang === "rw" ? "Umubare w'ibanga si wo." : "Invalid code. Please try again.");
+        setErrorMsg(t.auth.invalidCode);
       }
     } finally {
       setLoading(false);
@@ -117,7 +117,7 @@ export default function LoginPage() {
       });
 
       if (res.success) {
-        setSuccessMsg(lang === "rw" ? "Kwandika byarangiye neza!" : "Registration successful! Redirecting...");
+        setSuccessMsg(t.auth.successRegister);
         setTimeout(() => {
           redirectByRole(regRole);
         }, 800);
@@ -142,12 +142,10 @@ export default function LoginPage() {
           M
         </div>
         <h1 className="text-2xl font-black text-slate-900">
-          {lang === "rw" ? "Injira muri MOSA" : "Sign in to MOSA"}
+          {t.auth.signInTitle}
         </h1>
         <p className="text-xs text-slate-500">
-          {lang === "rw"
-            ? "Urubuga rwo guteza imbere ubucuruzi buciriritse mu Rwanda"
-            : "Rwanda's verified local business network & discovery platform"}
+          {t.auth.signInSubtitle}
         </p>
       </div>
 
@@ -164,7 +162,7 @@ export default function LoginPage() {
                 : "text-slate-600 hover:text-slate-900"
             }`}
           >
-            {lang === "rw" ? "Ijambo banga" : "Password"}
+            {t.auth.passwordTab}
           </button>
           <button
             type="button"
@@ -175,7 +173,7 @@ export default function LoginPage() {
                 : "text-slate-600 hover:text-slate-900"
             }`}
           >
-            {lang === "rw" ? "SMS Code" : "SMS Code"}
+            {t.auth.otpTab}
           </button>
           <button
             type="button"
@@ -186,7 +184,7 @@ export default function LoginPage() {
                 : "text-slate-600 hover:text-slate-900"
             }`}
           >
-            {lang === "rw" ? "Iyandikishe" : "Register"}
+            {t.auth.registerTab}
           </button>
         </div>
 
@@ -207,14 +205,14 @@ export default function LoginPage() {
           <form onSubmit={handlePasswordLogin} className="space-y-4">
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">
-                {lang === "rw" ? "Nimero ya Telefone" : "Rwanda Phone Number"}
+                {t.auth.phoneLabel}
               </label>
               <div className="relative">
                 <input
                   type="tel"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
-                  placeholder="+250 788 123 456"
+                  placeholder={t.auth.phonePlaceholder}
                   required
                   className="w-full pl-10 pr-4 py-2.5 bg-slate-50 rounded-xl border border-slate-300 text-sm font-semibold text-slate-900 focus:ring-2 focus:ring-emerald-500 outline-none"
                 />
@@ -225,14 +223,14 @@ export default function LoginPage() {
 
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">
-                {lang === "rw" ? "Ijambo ry'Ibanga (Password)" : "Password"}
+                {t.auth.passwordLabel}
               </label>
               <div className="relative">
                 <input
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
+                  placeholder={t.auth.passwordPlaceholder}
                   required
                   className="w-full pl-10 pr-4 py-2.5 bg-slate-50 rounded-xl border border-slate-300 text-sm font-semibold text-slate-900 focus:ring-2 focus:ring-emerald-500 outline-none"
                 />
@@ -245,9 +243,7 @@ export default function LoginPage() {
               disabled={loading}
               className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md transition-all cursor-pointer disabled:opacity-60"
             >
-              {loading
-                ? (lang === "rw" ? "Gufungura..." : "Signing in...")
-                : (lang === "rw" ? "Injira n'Ijambo ry'Ibanga" : "Sign in with Password")}
+              {loading ? t.auth.signingInBtn : t.auth.signInBtn}
             </button>
           </form>
         )}
@@ -259,14 +255,14 @@ export default function LoginPage() {
               <form onSubmit={handleSmsPhoneSubmit} className="space-y-4">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
-                    {lang === "rw" ? "Nimero ya Telefone (Rwanda)" : "Phone Number"}
+                    {t.auth.phoneLabel}
                   </label>
                   <div className="relative">
                     <input
                       type="tel"
                       value={smsPhone}
                       onChange={(e) => setSmsPhone(e.target.value)}
-                      placeholder="+250 788 000 000"
+                      placeholder={t.auth.phonePlaceholder}
                       required
                       className="w-full pl-10 pr-4 py-2.5 bg-slate-50 rounded-xl border border-slate-300 text-sm font-semibold text-slate-900 focus:ring-2 focus:ring-emerald-500 outline-none"
                     />
@@ -279,23 +275,21 @@ export default function LoginPage() {
                   disabled={loading}
                   className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md transition-all cursor-pointer disabled:opacity-60"
                 >
-                  {loading
-                    ? (lang === "rw" ? "Kohereza..." : "Sending...")
-                    : (lang === "rw" ? "Ohereza Umubare w'Ibanga (Send OTP)" : "Send Verification Code")}
+                  {loading ? t.auth.sendingOtpBtn : t.auth.sendOtpBtn}
                 </button>
               </form>
             ) : (
               <form onSubmit={handleOtpSubmit} className="space-y-4">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
-                    {lang === "rw" ? "Injiza Umubare w'Ibanga (4-Digit OTP)" : "Enter 4-Digit Code"}
+                    {t.auth.otpLabel}
                   </label>
                   <input
                     type="text"
                     maxLength={4}
                     value={otp}
                     onChange={(e) => setOtp(e.target.value)}
-                    placeholder="1234"
+                    placeholder={t.auth.otpPlaceholder}
                     className="w-full text-center tracking-widest text-2xl font-black py-2.5 bg-slate-50 rounded-xl border border-slate-300 focus:ring-2 focus:ring-emerald-500 outline-none"
                     autoFocus
                   />
@@ -317,9 +311,7 @@ export default function LoginPage() {
                   disabled={loading}
                   className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md transition-all cursor-pointer disabled:opacity-60"
                 >
-                  {loading
-                    ? (lang === "rw" ? "Kugenzura..." : "Verifying...")
-                    : (lang === "rw" ? "Emeza Maze Winjire" : "Verify & Continue")}
+                  {loading ? t.auth.verifyingBtn : t.auth.verifyBtn}
                 </button>
               </form>
             )}
@@ -331,14 +323,14 @@ export default function LoginPage() {
           <form onSubmit={handleRegisterSubmit} className="space-y-4">
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">
-                {lang === "rw" ? "Amazina Yose" : "Full Name"}
+                {t.auth.fullNameLabel}
               </label>
               <div className="relative">
                 <input
                   type="text"
                   value={regName}
                   onChange={(e) => setRegName(e.target.value)}
-                  placeholder="e.g. Marie Claire Uwase"
+                  placeholder={t.auth.fullNamePlaceholder}
                   required
                   className="w-full pl-10 pr-4 py-2.5 bg-slate-50 rounded-xl border border-slate-300 text-sm font-semibold text-slate-900 focus:ring-2 focus:ring-emerald-500 outline-none"
                 />
@@ -348,14 +340,14 @@ export default function LoginPage() {
 
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">
-                {lang === "rw" ? "Nimero ya Telefone (Rwanda)" : "Rwanda Phone Number"}
+                {t.auth.phoneLabel}
               </label>
               <div className="relative">
                 <input
                   type="tel"
                   value={regPhone}
                   onChange={(e) => setRegPhone(e.target.value)}
-                  placeholder="+250 788 123 456"
+                  placeholder={t.auth.phonePlaceholder}
                   required
                   className="w-full pl-10 pr-4 py-2.5 bg-slate-50 rounded-xl border border-slate-300 text-sm font-semibold text-slate-900 focus:ring-2 focus:ring-emerald-500 outline-none"
                 />
@@ -365,14 +357,14 @@ export default function LoginPage() {
 
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">
-                {lang === "rw" ? "Ijambo ry'Ibanga (Min. 8 inyuguti)" : "Password (Min. 8 characters)"}
+                {t.auth.passwordLabel}
               </label>
               <div className="relative">
                 <input
                   type="password"
                   value={regPassword}
                   onChange={(e) => setRegPassword(e.target.value)}
-                  placeholder="••••••••"
+                  placeholder={t.auth.passwordPlaceholder}
                   minLength={8}
                   required
                   className="w-full pl-10 pr-4 py-2.5 bg-slate-50 rounded-xl border border-slate-300 text-sm font-semibold text-slate-900 focus:ring-2 focus:ring-emerald-500 outline-none"
@@ -384,21 +376,21 @@ export default function LoginPage() {
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  {lang === "rw" ? "Ubwoko bwa Konti" : "Account Type"}
+                  {t.auth.accountTypeLabel}
                 </label>
                 <select
                   value={regRole}
                   onChange={(e) => setRegRole(e.target.value as Role)}
                   className="w-full px-3 py-2.5 bg-slate-50 rounded-xl border border-slate-300 text-xs font-semibold text-slate-900 outline-none"
                 >
-                  <option value="BUSINESS_OWNER">Business Owner</option>
-                  <option value="CUSTOMER">Customer / Resident</option>
+                  <option value="BUSINESS_OWNER">{t.auth.accountTypes.owner}</option>
+                  <option value="CUSTOMER">{t.auth.accountTypes.customer}</option>
                 </select>
               </div>
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  {lang === "rw" ? "Agace / Umurenge" : "Primary Area"}
+                  {t.auth.primaryAreaLabel}
                 </label>
                 <input
                   type="text"
@@ -415,9 +407,7 @@ export default function LoginPage() {
               disabled={loading}
               className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md transition-all cursor-pointer disabled:opacity-60"
             >
-              {loading
-                ? (lang === "rw" ? "Gufungura konti..." : "Creating account...")
-                : (lang === "rw" ? "Fungura Konti Nshya" : "Create My Account")}
+              {loading ? t.auth.creatingAccountBtn : t.auth.createAccountBtn}
             </button>
           </form>
         )}

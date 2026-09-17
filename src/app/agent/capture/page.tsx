@@ -5,8 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useLanguage } from "@/lib/i18n";
 import { useAuth } from "@/lib/auth-context";
-import { store } from "@/lib/store";
 import { parsePhysicalDocument, SAMPLE_PHYSICAL_DOCUMENTS, ExtractedLineItem } from "@/lib/ocr";
+import { Business } from "@/types";
 import { 
   Camera, 
   UploadCloud, 
@@ -40,8 +40,27 @@ export default function PhysicalCapturePage() {
     overallConfidence: number;
   } | null>(null);
 
-  const [targetBusinessId, setTargetBusinessId] = useState("biz-3");
+  const [businesses, setBusinesses] = useState<Business[]>([]);
+  const [targetBusinessId, setTargetBusinessId] = useState("");
   const [publishSuccess, setPublishSuccess] = useState(false);
+
+  React.useEffect(() => {
+    async function loadBiz() {
+      try {
+        const res = await fetch("/api/businesses");
+        if (res.ok) {
+          const data = await res.json();
+          if (data.businesses && data.businesses.length > 0) {
+            setBusinesses(data.businesses);
+            setTargetBusinessId(data.businesses[0].id);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to load businesses for capture:", err);
+      }
+    }
+    loadBiz();
+  }, []);
 
   // Load a preset sample document
   const handleLoadSample = (sampleId: string) => {
@@ -112,29 +131,7 @@ export default function PhysicalCapturePage() {
   const handlePublish = async () => {
     if (!parseResult || !targetBusinessId) return;
 
-    // 1. Create the capture record in client store
-    const record = store.addCapture({
-      businessId: targetBusinessId,
-      businessName: parseResult.merchantName,
-      agentId: user?.id || "agent-1",
-      agentName: user?.name || "Emmanuel Hakizimana",
-      documentType,
-      imageUrl: "https://images.unsplash.com/photo-1554415707-9e4466aef152?w=800&auto=format&fit=crop&q=60",
-      rawOcrText: inputText,
-      extractedMerchant: parseResult.merchantName,
-      extractedDate: parseResult.detectedDate,
-      extractedItems: parseResult.items,
-      extractedTotal: parseResult.totalAmount,
-      currency: "RWF",
-      status: "VERIFIED",
-      sanitized: true,
-      verifiedAt: new Date().toISOString(),
-    });
-
-    // 2. Publish line items into client store
-    store.verifyCaptureAndPublish(record.id, parseResult.items, targetBusinessId);
-
-    // 3. Persist to PostgreSQL database via API
+    // Persist to PostgreSQL database via API
     try {
       await fetch("/api/capture/ocr", {
         method: "POST",
@@ -150,7 +147,7 @@ export default function PhysicalCapturePage() {
         }),
       });
     } catch (err) {
-      console.warn("[Capture Publish DB sync error]:", err);
+      console.error("[Capture Publish DB error]:", err);
     }
 
     setPublishSuccess(true);
@@ -159,8 +156,6 @@ export default function PhysicalCapturePage() {
       router.push(`/business/${targetBusinessId}`);
     }, 2000);
   };
-
-  const businesses = store.getBusinesses();
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">

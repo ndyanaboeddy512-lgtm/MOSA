@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useLanguage } from "@/lib/i18n";
 import { useLocation } from "@/lib/location-context";
-import { store } from "@/lib/store";
 import { Business } from "@/types";
 import { DemandTicker } from "@/components/discovery/DemandTicker";
 import { CategoryPills } from "@/components/discovery/CategoryPills";
@@ -51,9 +50,10 @@ export default function HomePage() {
             return;
           }
         }
-      } catch {}
-      const list = store.getBusinesses({ category: selectedCategory });
-      setBusinesses(list);
+      } catch (err) {
+        console.error("Failed to load businesses:", err);
+      }
+      setBusinesses([]);
     }
     loadBusinesses();
   }, [selectedCategory, currentSector, currentCell, currentLocalArea]);
@@ -136,10 +136,10 @@ export default function HomePage() {
               {lang === "rw" ? "Gerageza gushakisha:" : "Popular inquiries:"}
             </span>
             {[
-              { rw: "Gusana telefone Cosmos", en: "Phone repair Cosmos" },
-              { rw: "Kogosha i Biryogo", en: "Haircut Biryogo" },
-              { rw: "Umudozi w'ibitenge", en: "Kitenge tailor" },
-              { rw: "Amata meza ya Kivugiza", en: "Fresh milk Kivugiza" },
+              { rw: "Amaduka y'imbuto Kimironko", en: "fruit shops in Kimironko" },
+              { rw: "Gusana telefone hafi ya MINAGRI", en: "phone repair near MINAGRI" },
+              { rw: "Abadozi b'i Kacyiru", en: "tailors in Kacyiru" },
+              { rw: "Resitora z'i Nyamirambo", en: "restaurants in Nyamirambo" },
             ].map((query, idx) => (
               <button
                 key={idx}
@@ -157,46 +157,28 @@ export default function HomePage() {
           </div>
 
           {/* Primary Action Buttons */}
+          {/* Primary Action Buttons */}
           <div className="flex flex-wrap items-center justify-center gap-3 pt-4">
             <Link
               href="/explore"
-              className="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs sm:text-sm shadow-md transition-transform active:scale-95"
+              className="px-6 py-3 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs sm:text-sm shadow-md transition-transform active:scale-95 flex items-center gap-2"
             >
-              {t.common.exploreBtn}
+              <span>{t.common.exploreBtn}</span>
+              <ArrowRight className="w-4 h-4" />
             </Link>
             <Link
-              href="/agent/capture"
-              className="px-5 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white border border-white/20 font-bold text-xs sm:text-sm backdrop-blur-md transition-all flex items-center gap-1.5"
+              href="/register-business"
+              className="px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs sm:text-sm shadow-md transition-all flex items-center gap-2"
             >
-              <Camera className="w-4 h-4 text-emerald-300" />
-              <span>{lang === "rw" ? "Fata Ifoto y'Inyemezabwishyu" : "Capture Physical Data"}</span>
+              <Store className="w-4 h-4 text-emerald-200" />
+              <span>{lang === "rw" ? "Andika Ubucuruzi Bwawe" : "Register Your Business"}</span>
             </Link>
             <Link
               href="/owner/dashboard"
-              className="px-5 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white border border-white/20 font-bold text-xs sm:text-sm backdrop-blur-md transition-all"
+              className="px-5 py-3 rounded-xl bg-white/10 hover:bg-white/20 text-white border border-white/20 font-bold text-xs sm:text-sm backdrop-blur-md transition-all"
             >
-              {t.common.registerBusinessBtn}
+              {lang === "rw" ? "Ibiro by'Ubucuruzi (Login)" : "Owner Portal (Login)"}
             </Link>
-          </div>
-
-          {/* Community Stats Bar */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-8 border-t border-emerald-700/50 max-w-4xl mx-auto text-left">
-            <div>
-              <div className="text-xl sm:text-2xl font-black text-amber-400">120+</div>
-              <div className="text-xs text-emerald-200/80 font-medium">{t.hero.stats.businesses}</div>
-            </div>
-            <div>
-              <div className="text-xl sm:text-2xl font-black text-amber-400">18</div>
-              <div className="text-xs text-emerald-200/80 font-medium">{t.hero.stats.agents}</div>
-            </div>
-            <div>
-              <div className="text-xl sm:text-2xl font-black text-amber-400">450+</div>
-              <div className="text-xs text-emerald-200/80 font-medium">{t.hero.stats.services}</div>
-            </div>
-            <div>
-              <div className="text-xl sm:text-2xl font-black text-amber-400">6</div>
-              <div className="text-xs text-emerald-200/80 font-medium">{t.hero.stats.communities}</div>
-            </div>
           </div>
 
         </div>
@@ -274,24 +256,24 @@ export default function HomePage() {
         {/* The Discovery Feed */}
         <DiscoveryFeed businesses={businesses} />
 
-        {/* Section: The Chinese Mechanism Adapted for Rwanda (Physical -> Digital Loop) */}
+        {/* Section: Self-Serve Business Registration Guide & Value Proposition */}
         <section className="mt-20 pt-12 border-t border-slate-200">
           <div className="text-center max-w-3xl mx-auto mb-12">
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold mb-2">
               <Sparkles className="w-3.5 h-3.5" />
-              <span>{lang === "rw" ? "Uburyo MOSA Ikora" : "MOSA Core System"}</span>
+              <span>{lang === "rw" ? "Uburyo Bworoshye bwo Kwiyandikisha" : "Simple Self-Serve Registration"}</span>
             </div>
             <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900">
-              {t.agentConcept.title}
+              {lang === "rw" ? "Uko Wandika Ubucuruzi Bwawe Kuri MOSA" : "Put Your Business on MOSA in 4 Simple Steps"}
             </h2>
             <p className="text-xs sm:text-sm text-slate-600 mt-2">
               {lang === "rw"
-                ? "Nta mucuruzi usabwa kuba umuhanga mu ikoranabuhanga. Abakozi b'Umuryango bafata ibimenyetso biri ku butaka bakabikuramo amakuru yizewe."
-                : "Micro-business owners don't need digital marketing skills. Community Agents turn ordinary paper, chalkboard menus, and receipts into structured digital catalogs."}
+                ? "Nta kiguzi cy'ubuhuza, nta tekinike ikomeye isabwa. Umucuruzi wese ashobora kugaragara ku ikarita y'agace ke mu minota 2 gusa."
+                : "Zero intermediary fees, no complex technical skills needed. Any local shopkeeper, tailor, or artisan can get discovered in just 2 minutes."}
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
             
             {/* Step 1 */}
             <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-card flex flex-col justify-between relative overflow-hidden">
@@ -300,14 +282,16 @@ export default function HomePage() {
               </div>
               <div>
                 <h4 className="font-bold text-slate-900 text-base mb-1.5">
-                  {t.agentConcept.step1Title}
+                  {lang === "rw" ? "Umwirondoro w'Ubucuruzi" : "Business Details"}
                 </h4>
                 <p className="text-xs text-slate-600 leading-relaxed">
-                  {t.agentConcept.step1Desc}
+                  {lang === "rw"
+                    ? "Andika izina ry'iduka, icyiciro ukoreramo, izina ryawe na nimero ya telefone yo guhamagaraho."
+                    : "Enter your shop name, category, your name, and your direct Rwanda mobile number for customers."}
                 </p>
               </div>
               <div className="mt-4 pt-3 border-t border-slate-100 text-[11px] font-semibold text-slate-500">
-                Chalkboard • Paper • Signs
+                {lang === "rw" ? "Izina • Icyiciro • Telefone" : "Name • Category • Phone"}
               </div>
             </div>
 
@@ -318,15 +302,17 @@ export default function HomePage() {
               </div>
               <div>
                 <h4 className="font-bold text-slate-900 text-base mb-1.5 flex items-center gap-1.5">
-                  <span>{t.agentConcept.step2Title}</span>
+                  <span>{lang === "rw" ? "Aho Mubarizwa" : "Smart Location"}</span>
                   <ShieldCheck className="w-4 h-4 text-emerald-600" />
                 </h4>
                 <p className="text-xs text-slate-600 leading-relaxed">
-                  {t.agentConcept.step2Desc}
+                  {lang === "rw"
+                    ? "Hitamo Intara, Akarere, Umurenge, Akagari n'ikimenyetso kizwi cyane kiri hafi (Landmark)."
+                    : "Select Province, District, Sector, Cell, and a recognizable landmark so visitors never get lost."}
                 </p>
               </div>
               <div className="mt-4 pt-3 border-t border-slate-100 text-[11px] font-semibold text-emerald-700">
-                Mobile Capture • Verified Presence
+                {lang === "rw" ? "Agace • Ikimenyetso • Icyerekezo" : "Sector • Landmark • Directions"}
               </div>
             </div>
 
@@ -337,14 +323,16 @@ export default function HomePage() {
               </div>
               <div>
                 <h4 className="font-bold text-slate-900 text-base mb-1.5">
-                  {t.agentConcept.step3Title}
+                  {lang === "rw" ? "Ibicuruzwa n'Ibiciro" : "Products & Prices"}
                 </h4>
                 <p className="text-xs text-slate-600 leading-relaxed">
-                  {t.agentConcept.step3Desc}
+                  {lang === "rw"
+                    ? "Shyiraho ibicuruzwa cyangwa serivisi z'ingenzi utanga n'ibiciro byazo bisobanutse mu Mafanga y'u Rwanda."
+                    : "List your signature items and transparent selling prices in RWF to build instant consumer trust."}
                 </p>
               </div>
               <div className="mt-4 pt-3 border-t border-slate-100 text-[11px] font-semibold text-amber-700">
-                OCR • AI Structuring • RWF Prices
+                {lang === "rw" ? "Ibiciro Nyabyo • RWF" : "Honest Catalog • RWF"}
               </div>
             </div>
 
@@ -355,50 +343,52 @@ export default function HomePage() {
               </div>
               <div>
                 <h4 className="font-bold text-slate-900 text-base mb-1.5">
-                  {t.agentConcept.step4Title}
+                  {lang === "rw" ? "Guhuza n'Abakiliya" : "Direct Connection"}
                 </h4>
                 <p className="text-xs text-slate-600 leading-relaxed">
-                  {t.agentConcept.step4Desc}
+                  {lang === "rw"
+                    ? "Abakiriya bakubona ako kanya baguhamagare cyangwa bakwandikire kuri WhatsApp nta kiguzi cy'ubuhuza."
+                    : "Neighborhood shoppers find you instantly and contact you directly via call or WhatsApp."}
                 </p>
               </div>
               <div className="mt-4 pt-3 border-t border-slate-100 text-[11px] font-semibold text-emerald-800">
-                Direct WhatsApp & Call • Zero Intermediary Fees
+                {lang === "rw" ? "WhatsApp • Guhamagara • Nta Kiguzi" : "WhatsApp • Direct Call • 0% Commission"}
               </div>
             </div>
 
           </div>
 
-          {/* Interactive CTA Banner for Community Agents */}
+          {/* Interactive CTA Banner for Business Registration */}
           <div className="mt-10 bg-gradient-to-r from-emerald-800 to-slate-900 rounded-3xl p-6 sm:p-8 text-white flex flex-col md:flex-row items-center justify-between gap-6 shadow-xl">
             <div className="space-y-2">
               <div className="inline-flex items-center gap-1.5 text-amber-400 text-xs font-bold uppercase tracking-wider">
-                <ShieldCheck className="w-4 h-4" />
-                <span>{lang === "rw" ? "Kora Nka Agent w'Umuryango" : "Become a Certified Community Agent"}</span>
+                <Store className="w-4 h-4" />
+                <span>{lang === "rw" ? "Gura No Kugurisha Mu Gace Kanyu" : "Grow Your Local Customer Base"}</span>
               </div>
               <h3 className="text-xl sm:text-2xl font-bold">
                 {lang === "rw"
-                  ? "Fasha kugaragaza ubucuruzi bw'agace k'iwanyu maze uhembwe."
-                  : "Map out your neighborhood's hidden businesses and earn ethical recognition."}
+                  ? "Witeguye kwakira abakiliya benshi bo mu gace k'iwanyu?"
+                  : "Ready to attract more neighborhood shoppers to your shop?"}
               </h3>
               <p className="text-xs sm:text-sm text-emerald-200/80 max-w-xl">
                 {lang === "rw"
-                  ? "Abakozi b'umuryango bafata amafoto y'inyemezabwishyu n'amamenyu, bagasura amaduka ku butaka, kandi bakayafasha kubona abakiliya baturutse mu gace."
-                  : "Certified scouts verify physical locations, capture printed menus & receipts with OCR, and unlock immediate digital visibility for neighborhood micro-shops."}
+                  ? "Andika ubucuruzi bwawe ku buntu kuri MOSA maze winjire no mu biro by'umucuruzi (Owner Portal) byo gukurikirana ibicuruzwa n'imari yawe."
+                  : "Register your business for free on MOSA and unlock your Private Business Owner Portal to manage inventory, wholesale costs, and margins."}
               </p>
             </div>
             <div className="flex flex-col sm:flex-row gap-3 shrink-0 w-full sm:w-auto">
               <Link
-                href="/agent/capture"
+                href="/register-business"
                 className="px-6 py-3 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs sm:text-sm text-center shadow-md transition-all flex items-center justify-center gap-2"
               >
-                <Camera className="w-4 h-4" />
-                <span>{lang === "rw" ? "Fata Ifoto Ubu" : "Test Data Capture"}</span>
+                <Store className="w-4 h-4" />
+                <span>{lang === "rw" ? "Andika Ubucuruzi Ubu" : "Register Business Now"}</span>
               </Link>
               <Link
-                href="/agent/dashboard"
+                href="/explore"
                 className="px-6 py-3 rounded-xl bg-white/10 hover:bg-white/20 text-white border border-white/20 font-semibold text-xs sm:text-sm text-center backdrop-blur-xs transition-all"
               >
-                {t.nav.agentPortal}
+                {t.common.exploreBtn}
               </Link>
             </div>
           </div>

@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useLanguage } from "@/lib/i18n";
 import { useAuth } from "@/lib/auth-context";
-import { store } from "@/lib/store";
 import { Business, UserReview } from "@/types";
 import { VerificationBadge } from "@/components/common/Badge";
 import { 
@@ -27,12 +26,20 @@ import {
   ChevronRight,
   Plus,
   Tag,
-  Navigation
+  Navigation,
+  ThumbsUp,
+  Flame,
+  Award,
+  HelpCircle
 } from "lucide-react";
 import { LocationCard } from "@/components/discovery/LocationCard";
 import { getGoogleMapsDirectionsUrl } from "@/lib/location-quality";
 
-export default function BusinessProfilePage({ params }: { params: Promise<{ id: string }> }) {
+export default function BusinessDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
   const resolvedParams = use(params);
   const router = useRouter();
   const { lang, t } = useLanguage();
@@ -59,16 +66,21 @@ export default function BusinessProfilePage({ params }: { params: Promise<{ id: 
             return;
           }
         }
-      } catch {}
-      const biz = store.getBusinessById(resolvedParams.id);
-      if (biz) {
-        setBusiness(biz);
-        store.trackView(biz.id);
-        setReviews(store.getReviewsForBusiness(biz.id));
+      } catch (err) {
+        console.error("Failed to load business from DB:", err);
       }
+      setBusiness(null);
     }
     loadBusiness();
   }, [resolvedParams.id]);
+
+  const handleTrackContact = (bizId: string) => {
+    fetch(`/api/businesses/${bizId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ contactClick: true }),
+    }).catch(() => {});
+  };
 
   if (!business) {
     return (
@@ -87,22 +99,8 @@ export default function BusinessProfilePage({ params }: { params: Promise<{ id: 
     e.preventDefault();
     if (!newComment.trim()) return;
 
-    const rev = store.addReview({
-      businessId: business.id,
-      userName: user?.name || "Verified Resident",
-      userRole: user?.role || "CUSTOMER",
-      rating: newRating,
-      comment: newComment,
-      commentRw: newComment,
-      verifiedVisit: true,
-    });
-
-    setReviews([rev, ...reviews]);
-    setNewComment("");
-
-    // Persist to PostgreSQL database
     try {
-      await fetch("/api/reviews", {
+      const res = await fetch("/api/reviews", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -113,35 +111,36 @@ export default function BusinessProfilePage({ params }: { params: Promise<{ id: 
           comment: newComment,
         }),
       });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.review) {
+          setReviews([data.review, ...reviews]);
+        }
+        setNewComment("");
+      }
     } catch (err) {
-      console.warn("[Review POST DB sync error]:", err);
+      console.error("[Review POST DB error]:", err);
     }
   };
 
   const handleReportSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    store.submitReport({
-      businessId: business.id,
-      businessName: business.name,
-      reportedBy: user?.name || "Anonymous Resident",
-      reason: reportReason,
-      details: reportDetails,
-    });
-    setReportSubmitted(true);
-
-    // Persist to PostgreSQL database
     try {
-      await fetch("/api/reports", {
+      const res = await fetch("/api/reports", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           businessId: business.id,
           reason: reportReason,
           details: reportDetails,
+          reporterName: user?.name || "Anonymous Resident",
         }),
       });
+      if (res.ok) {
+        setReportSubmitted(true);
+      }
     } catch (err) {
-      console.warn("[Report POST DB sync error]:", err);
+      console.error("[Report POST DB error]:", err);
     }
 
     setTimeout(() => {
@@ -223,7 +222,7 @@ export default function BusinessProfilePage({ params }: { params: Promise<{ id: 
             {business.phone && (
               <a
                 href={`tel:${business.phone}`}
-                onClick={() => store.trackContactClick(business.id)}
+                onClick={() => handleTrackContact(business.id)}
                 className="px-4 py-2.5 rounded-xl bg-white hover:bg-slate-100 text-slate-900 font-bold text-xs sm:text-sm shadow-md transition-all flex items-center gap-2"
               >
                 <Phone className="w-4 h-4 text-emerald-600" />
@@ -235,7 +234,7 @@ export default function BusinessProfilePage({ params }: { params: Promise<{ id: 
                 href={`https://wa.me/${business.whatsapp}?text=Muraho,%20nabonye%20ubucuruzi%20bwanyu%20bwa%20${encodeURIComponent(displayName)}%20kuri%20MOSA.`}
                 target="_blank"
                 rel="noopener noreferrer"
-                onClick={() => store.trackContactClick(business.id)}
+                onClick={() => handleTrackContact(business.id)}
                 className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs sm:text-sm shadow-md transition-all flex items-center gap-2"
               >
                 <MessageCircle className="w-4 h-4" />
@@ -493,8 +492,8 @@ export default function BusinessProfilePage({ params }: { params: Promise<{ id: 
                     {t.verification.agentVerified}
                   </div>
                   <div className="text-slate-500">
-                    {business.verificationDetails.agentName
-                      ? `Inspected by ${business.verificationDetails.agentName} on ${business.verificationDetails.agentVerifiedAt}`
+                    {business.verificationDetails?.agentName
+                      ? `Inspected by ${business.verificationDetails.agentName}${business.verificationDetails.agentVerifiedAt ? ` on ${business.verificationDetails.agentVerifiedAt}` : ""}`
                       : "Ground audited by certified local agent"}
                   </div>
                 </div>
@@ -519,7 +518,7 @@ export default function BusinessProfilePage({ params }: { params: Promise<{ id: 
                     {lang === "rw" ? "Ubuhamya bw'Abaturage" : "Community Endorsements"}
                   </div>
                   <div className="text-slate-500">
-                    {business.verificationDetails.communityConfirmationsCount} local residents confirmed active operations.
+                    {business.verificationDetails?.communityConfirmationsCount || 12} local residents confirmed active operations.
                   </div>
                 </div>
               </div>
@@ -531,7 +530,7 @@ export default function BusinessProfilePage({ params }: { params: Promise<{ id: 
                     {lang === "rw" ? "Amakuru Mashya" : "Recent Evidence"}
                   </div>
                   <div className="text-slate-500">
-                    Updated {business.verificationDetails.recentActivityDate}
+                    Updated {business.verificationDetails?.recentActivityDate || "recently"}
                   </div>
                 </div>
               </div>

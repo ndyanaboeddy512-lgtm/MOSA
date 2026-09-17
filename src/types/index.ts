@@ -233,6 +233,8 @@ export interface Business {
   claimedAt?: string;
   claimPhone?: string;
   isClaimed?: boolean;
+  status?: string; // ACTIVE, PENDING, SUSPENDED
+  ownerId?: string;
   featuredOffer?: {
     id?: string;
     title: string;

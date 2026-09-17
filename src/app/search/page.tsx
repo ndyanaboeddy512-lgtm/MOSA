@@ -4,7 +4,6 @@ import React, { useState, useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useLanguage } from "@/lib/i18n";
-import { store } from "@/lib/store";
 import { Business } from "@/types";
 import { BusinessCard } from "@/components/discovery/BusinessCard";
 import { VerificationBadge } from "@/components/common/Badge";
@@ -75,18 +74,10 @@ function SearchContent() {
               return;
             }
           }
-        } catch {}
-
-        let list = store.getBusinesses({ search: initialQuery });
-        if (openNowOnly) list = list.filter((b) => b.isOpenNow);
-        if (verifiedOnly) list = list.filter((b) => b.verificationStatus !== "UNVERIFIED");
-        if (selectedCell !== "all") {
-          list = list.filter((b) => (b.location?.cell || (b as any).cell || "").toLowerCase() === selectedCell.toLowerCase());
+        } catch (err) {
+          console.error("Failed to search businesses:", err);
         }
-        setResults(list);
-        if (list.length > 0) {
-          setSelectedPin(list[0]);
-        }
+        setResults([]);
       } else {
         setNlpIntent(null);
         try {
@@ -101,12 +92,10 @@ function SearchContent() {
               return;
             }
           }
-        } catch {}
-        const defaultList = store.getBusinesses();
-        setResults(defaultList);
-        if (defaultList.length > 0) {
-          setSelectedPin(defaultList[0]);
+        } catch (err) {
+          console.error("Failed to load default businesses:", err);
         }
+        setResults([]);
       }
     }
     loadSearch();

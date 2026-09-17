@@ -52,49 +52,56 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Forbidden: You do not own this business" }, { status: 403 });
     }
 
+    const actorId = auth.user.id;
+
     // Determine normalized priceType
     const normPriceType = (priceType as PriceType) || (priceMin && priceMax ? "RANGE" : (isEstimated ? "ESTIMATED" : "FIXED"));
 
-    // Create Product in Neon PostgreSQL
-    const product = await prisma.product.create({
-      data: {
-        businessId,
-        name: name.trim(),
-        nameRw: nameRw?.trim() || null,
-        description: description?.trim() || null,
-        price: Number(price) || (Number(priceMin) || 0),
-        priceMin: priceMin !== undefined ? Number(priceMin) : null,
-        priceMax: priceMax !== undefined ? Number(priceMax) : null,
-        priceType: normPriceType,
-        unit: unit || "item",
-        category: category || null,
-        isAvailable: Boolean(isAvailable),
-        isEstimated: Boolean(isEstimated || normPriceType === "ESTIMATED" || normPriceType === "RANGE"),
-        dataStatus: "VERIFIED",
-      },
-    });
+    // Create Product and Audit History atomically in Neon PostgreSQL
+    const product = await prisma.$transaction(async (tx) => {
+      const p = await tx.product.create({
+        data: {
+          businessId,
+          name: name.trim(),
+          nameRw: nameRw?.trim() || null,
+          description: description?.trim() || null,
+          price: Number(price) || (Number(priceMin) || 0),
+          priceMin: priceMin !== undefined ? Number(priceMin) : null,
+          priceMax: priceMax !== undefined ? Number(priceMax) : null,
+          priceType: normPriceType,
+          unit: unit || "item",
+          category: category || null,
+          isAvailable: Boolean(isAvailable),
+          isEstimated: Boolean(isEstimated || normPriceType === "ESTIMATED" || normPriceType === "RANGE"),
+          dataStatus: "VERIFIED",
+        },
+      });
 
-    // Record in BusinessChangeHistory
-    await prisma.businessChangeHistory.create({
-      data: {
-        businessId,
-        productId: product.id,
-        actorId: auth.user.id,
-        action: "PRODUCT_ADDED",
-        fieldChanged: "product",
-        previousValue: null,
-        newValue: `${product.name} (${product.price} RWF)`,
-        approvalStatus: "APPROVED",
-        source: "OWNER_DASHBOARD",
-      },
-    });
+      await tx.businessChangeHistory.create({
+        data: {
+          businessId,
+          productId: p.id,
+          actorId,
+          action: "PRODUCT_ADDED",
+          fieldChanged: "product",
+          previousValue: null,
+          newValue: `${p.name} (${p.price} RWF)`,
+          approvalStatus: "APPROVED",
+          source: "OWNER_DASHBOARD",
+        },
+      });
 
-    await logAuditEvent({
-      actorId: auth.user.id,
-      action: "PRODUCT_CREATED",
-      entityType: "PRODUCT",
-      entityId: product.id,
-      metadata: { businessId, name: product.name, price: product.price },
+      await tx.auditLog.create({
+        data: {
+          actorId,
+          action: "PRODUCT_CREATED",
+          entityType: "PRODUCT",
+          entityId: p.id,
+          metadata: JSON.stringify({ businessId, name: p.name, price: p.price }),
+        },
+      });
+
+      return p;
     });
 
     // Revalidate Public Website Cache
@@ -166,16 +173,18 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: "Product not found" }, { status: 404 });
     }
 
+    const actorId = auth.user.id;
+
     // Build update object
     const updateData: any = {};
     const priceChanged = fields.price !== undefined && Number(fields.price) !== existingProduct.price;
 
     if (fields.name !== undefined) updateData.name = fields.name.trim();
-    if (fields.nameRw !== undefined) updateData.nameRw = fields.nameRw.trim();
-    if (fields.description !== undefined) updateData.description = fields.description.trim();
+    if (fields.nameRw !== undefined) updateData.nameRw = fields.nameRw?.trim() || null;
+    if (fields.description !== undefined) updateData.description = fields.description?.trim() || null;
     if (fields.price !== undefined) updateData.price = Number(fields.price);
-    if (fields.priceMin !== undefined) updateData.priceMin = fields.priceMin !== null ? Number(fields.priceMin) : null;
-    if (fields.priceMax !== undefined) updateData.priceMax = fields.priceMax !== null ? Number(fields.priceMax) : null;
+    if (fields.priceMin !== undefined) updateData.priceMin = Number(fields.priceMin);
+    if (fields.priceMax !== undefined) updateData.priceMax = Number(fields.priceMax);
     if (fields.priceType !== undefined) updateData.priceType = fields.priceType as PriceType;
     if (fields.unit !== undefined) updateData.unit = fields.unit;
     if (fields.category !== undefined) updateData.category = fields.category;
@@ -186,60 +195,83 @@ export async function PATCH(request: Request) {
 
     updateData.updatedAt = new Date();
 
-    const updatedProduct = await prisma.product.update({
-      where: { id: productId },
-      data: updateData,
+    const updatedProduct = await prisma.$transaction(async (tx) => {
+      const up = await tx.product.update({
+        where: { id: productId },
+        data: updateData,
+      });
+
+      if (priceChanged) {
+        await tx.businessChangeHistory.create({
+          data: {
+            businessId,
+            productId,
+            actorId,
+            action: "PRICE_CHANGED",
+            fieldChanged: "price",
+            previousValue: `${existingProduct.price} RWF`,
+            newValue: `${up.price} RWF`,
+            approvalStatus: "APPROVED",
+            source: "OWNER_DASHBOARD",
+            metadata: JSON.stringify({
+              productName: up.name,
+              oldPrice: existingProduct.price,
+              newPrice: up.price,
+            }),
+          },
+        });
+
+        await tx.auditLog.create({
+          data: {
+            actorId,
+            action: "PRODUCT_PRICE_UPDATED",
+            entityType: "PRODUCT",
+            entityId: up.id,
+            metadata: JSON.stringify({ businessId, oldPrice: existingProduct.price, newPrice: up.price }),
+          },
+        });
+      } else {
+        await tx.businessChangeHistory.create({
+          data: {
+            businessId,
+            productId,
+            actorId,
+            action: "PRODUCT_EDITED",
+            fieldChanged: Object.keys(updateData).join(", "),
+            previousValue: existingProduct.name,
+            newValue: up.name,
+            approvalStatus: "APPROVED",
+            source: "OWNER_DASHBOARD",
+          },
+        });
+
+        await tx.auditLog.create({
+          data: {
+            actorId,
+            action: "PRODUCT_EDITED",
+            entityType: "PRODUCT",
+            entityId: up.id,
+            metadata: JSON.stringify({ businessId, updatedFields: Object.keys(updateData) }),
+          },
+        });
+      }
+
+      return up;
     });
 
-    // Record in BusinessChangeHistory
-    if (priceChanged) {
-      await prisma.businessChangeHistory.create({
-        data: {
-          businessId,
-          productId,
-          actorId: auth.user.id,
-          action: "PRICE_CHANGED",
-          fieldChanged: "price",
-          previousValue: `${existingProduct.price} RWF`,
-          newValue: `${updatedProduct.price} RWF`,
-          approvalStatus: "APPROVED",
-          source: "OWNER_DASHBOARD",
-          metadata: JSON.stringify({
-            productName: updatedProduct.name,
-            oldPrice: existingProduct.price,
-            newPrice: updatedProduct.price,
-          }),
+    // Dispatch SMS event for price update if price changed
+    if (priceChanged && business.phone) {
+      await sendBusinessSMS({
+        businessId,
+        recipientPhone: business.phone,
+        templateId: "UPDATE_SUCCESS",
+        language: (auth.user.language as any) || "rw",
+        variables: {
+          businessName: business.name,
+          itemName: updatedProduct.name,
+          price: updatedProduct.price,
         },
-      });
-
-      // Dispatch SMS event for price update
-      if (business.phone) {
-        await sendBusinessSMS({
-          businessId,
-          recipientPhone: business.phone,
-          templateId: "UPDATE_SUCCESS",
-          language: (auth.user.language as any) || "rw",
-          variables: {
-            businessName: business.name,
-            itemName: updatedProduct.name,
-            price: updatedProduct.price,
-          },
-        }).catch(() => {});
-      }
-    } else {
-      await prisma.businessChangeHistory.create({
-        data: {
-          businessId,
-          productId,
-          actorId: auth.user.id,
-          action: "PRODUCT_EDITED",
-          fieldChanged: Object.keys(updateData).join(", "),
-          previousValue: existingProduct.name,
-          newValue: updatedProduct.name,
-          approvalStatus: "APPROVED",
-          source: "OWNER_DASHBOARD",
-        },
-      });
+      }).catch(() => {});
     }
 
     // Revalidate Public Website Cache
@@ -287,24 +319,40 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: "Forbidden: You do not own this business" }, { status: 403 });
     }
 
-    // Soft-archive product
-    const archived = await prisma.product.update({
-      where: { id: productId },
-      data: { isArchived: true, isAvailable: false },
-    });
+    const actorId = auth.user.id;
 
-    await prisma.businessChangeHistory.create({
-      data: {
-        businessId,
-        productId,
-        actorId: auth.user.id,
-        action: "PRODUCT_ARCHIVED",
-        fieldChanged: "isArchived",
-        previousValue: "active",
-        newValue: "archived",
-        approvalStatus: "APPROVED",
-        source: "OWNER_DASHBOARD",
-      },
+    // Soft-archive product and record audit atomically
+    const archived = await prisma.$transaction(async (tx) => {
+      const p = await tx.product.update({
+        where: { id: productId },
+        data: { isArchived: true, isAvailable: false },
+      });
+
+      await tx.businessChangeHistory.create({
+        data: {
+          businessId,
+          productId,
+          actorId,
+          action: "PRODUCT_ARCHIVED",
+          fieldChanged: "isArchived",
+          previousValue: "active",
+          newValue: "archived",
+          approvalStatus: "APPROVED",
+          source: "OWNER_DASHBOARD",
+        },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          actorId,
+          action: "PRODUCT_ARCHIVED",
+          entityType: "PRODUCT",
+          entityId: p.id,
+          metadata: JSON.stringify({ businessId, name: p.name }),
+        },
+      });
+
+      return p;
     });
 
     revalidatePath(`/business/${businessId}`);

@@ -75,6 +75,34 @@ export const SMS_TEMPLATES: Record<SMSTemplateId, Record<SMSLanguage, TemplateDe
       render: (v) => `Tahadhari ya Mahitaji ya MOSA: Majirani ${v.searchCount || "wengi"} walitafuta huduma za ${v.category || "kama zako"} huko ${v.cell || "mtaa wako"} wiki hii. mosa.rw/owner`,
     },
   },
+  MONTHLY_SUMMARY: {
+    rw: {
+      render: (v) => `MOSA Raporo (${v.monthYear}): Ibicuruzwa: ${v.totalPurchases || 0}, Igiteranyo cy'ibigurwa: ${v.totalCost || 0} RWF, Ibyitezwe kwinjira: ${v.expectedRevenue || 0} RWF, Inyungu yitezwe: ${v.expectedProfit || 0} RWF (Iteganijwe). mosa.rw/owner`,
+    },
+    en: {
+      render: (v) => `MOSA Summary (${v.monthYear}): Purchases: ${v.totalPurchases || 0}, Cost: ${v.totalCost || 0} RWF, Expected Rev: ${v.expectedRevenue || 0} RWF, Expected Gross Profit: ${v.expectedProfit || 0} RWF (Estimated). mosa.rw/owner`,
+    },
+    fr: {
+      render: (v) => `MOSA Bilan (${v.monthYear}): Achats: ${v.totalPurchases || 0}, Coût: ${v.totalCost || 0} RWF, Revenu prévu: ${v.expectedRevenue || 0} RWF, Bénéfice brut estimé: ${v.expectedProfit || 0} RWF (Estimé). mosa.rw/owner`,
+    },
+    sw: {
+      render: (v) => `MOSA Ripoti (${v.monthYear}): Manunuzi: ${v.totalPurchases || 0}, Gharama: ${v.totalCost || 0} RWF, Mapato yanayotarajiwa: ${v.expectedRevenue || 0} RWF, Faida inayotarajiwa: ${v.expectedProfit || 0} RWF (Makadirio). mosa.rw/owner`,
+    },
+  },
+  WELCOME_OWNER: {
+    rw: {
+      render: (v) => `Murakaza neza kuri MOSA! Ubucuruzi bwanyu "${v.businessName || ""}" bwanditswe neza. Mwinjire hano gucunga ubucuruzi: ${v.dashboardUrl || "mosa.rw/owner"}`,
+    },
+    en: {
+      render: (v) => `Welcome to MOSA! Your business "${v.businessName || ""}" has been registered successfully. Manage your business anytime: ${v.dashboardUrl || "mosa.rw/owner"}`,
+    },
+    fr: {
+      render: (v) => `Bienvenue sur MOSA! Votre entreprise "${v.businessName || ""}" a été enregistrée avec succès. Gérez votre entreprise: ${v.dashboardUrl || "mosa.rw/owner"}`,
+    },
+    sw: {
+      render: (v) => `Karibu MOSA! Biashara yako "${v.businessName || ""}" imesajiliwa kikamilifu. Simamia biashara yako: ${v.dashboardUrl || "mosa.rw/owner"}`,
+    },
+  },
 };
 
 export function renderSMSTemplate(

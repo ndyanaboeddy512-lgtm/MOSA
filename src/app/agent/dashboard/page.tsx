@@ -4,7 +4,6 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useLanguage } from "@/lib/i18n";
 import { useAuth } from "@/lib/auth-context";
-import { store } from "@/lib/store";
 import { Business, PhysicalCaptureRecord } from "@/types";
 import { VerificationBadge } from "@/components/common/Badge";
 import { 
@@ -57,8 +56,10 @@ export default function AgentDashboardPage() {
           const data = await res.json();
           if (data.businesses) setBusinesses(data.businesses);
         }
-      } catch {}
-      setCaptures(store.getCaptures());
+      } catch (err) {
+        console.error("Failed to load businesses:", err);
+      }
+      setCaptures([]);
     }
     loadData();
   }, []);

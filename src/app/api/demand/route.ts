@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { store } from "@/lib/store";
 
 export async function GET(request: Request) {
   try {
@@ -28,37 +27,27 @@ export async function GET(request: Request) {
       take: 20,
     });
 
-    if (demands.length > 0) {
-      return NextResponse.json({
-        success: true,
-        count: demands.length,
-        source: "database",
-        demands: demands.map((d) => ({
-          id: d.id,
-          sector: d.sector,
-          cell: d.cell,
-          category: d.category,
-          queryTerm: d.queryTerm,
-          queryTermRw: d.queryTermRw || d.queryTerm,
-          searchCount: d.searchCount,
-          activeBusinessesCount: d.activeBusinessesCount,
-          opportunityScore: d.opportunityScore,
-          lastSearched: d.updatedAt.toISOString(),
-        })),
-      });
-    }
+    return NextResponse.json({
+      success: true,
+      count: demands.length,
+      source: "database",
+      demands: demands.map((d) => ({
+        id: d.id,
+        sector: d.sector,
+        cell: d.cell,
+        category: d.category,
+        queryTerm: d.queryTerm,
+        queryTermRw: d.queryTermRw || d.queryTerm,
+        searchCount: d.searchCount,
+        activeBusinessesCount: d.activeBusinessesCount,
+        opportunityScore: d.opportunityScore,
+        lastSearched: d.updatedAt.toISOString(),
+      })),
+    });
   } catch (error) {
-    console.warn("[Demands DB Fallback]:", error);
+    console.error("[Demands API DB Error]:", error);
+    return NextResponse.json({ error: "Failed to fetch demands from database" }, { status: 500 });
   }
-
-  // Graceful fallback to initial seeds if database is not yet populated
-  const fallbackDemands = store.getDemands();
-  return NextResponse.json({
-    success: true,
-    count: fallbackDemands.length,
-    source: "seed_cache",
-    demands: fallbackDemands,
-  });
 }
 
 export async function POST(request: Request) {
@@ -71,15 +60,15 @@ export async function POST(request: Request) {
       category = "General Demand" 
     } = body;
 
-    if (!query) {
+    if (!query || typeof query !== "string" || !query.trim()) {
       return NextResponse.json({ error: "Missing search query" }, { status: 400 });
     }
 
     const cleanQuery = query.trim();
 
-    // 1. Record in SearchEvent table for analytics
-    try {
-      await prisma.searchEvent.create({
+    await prisma.$transaction(async (tx) => {
+      // 1. Record search event
+      await tx.searchEvent.create({
         data: {
           query: cleanQuery,
           sector,
@@ -88,7 +77,7 @@ export async function POST(request: Request) {
       });
 
       // 2. Find existing demand signal or create new one
-      const existing = await prisma.communityDemand.findFirst({
+      const existing = await tx.communityDemand.findFirst({
         where: {
           queryTerm: { equals: cleanQuery, mode: "insensitive" },
           cell: { equals: cell, mode: "insensitive" },
@@ -98,7 +87,7 @@ export async function POST(request: Request) {
       if (existing) {
         const newCount = existing.searchCount + 1;
         const score = newCount > 30 ? "HIGH" : newCount > 10 ? "MEDIUM" : "EMERGING";
-        await prisma.communityDemand.update({
+        await tx.communityDemand.update({
           where: { id: existing.id },
           data: {
             searchCount: newCount,
@@ -107,7 +96,7 @@ export async function POST(request: Request) {
           },
         });
       } else {
-        await prisma.communityDemand.create({
+        await tx.communityDemand.create({
           data: {
             sector,
             cell,
@@ -120,16 +109,11 @@ export async function POST(request: Request) {
           },
         });
       }
-    } catch (dbError) {
-      console.warn("[Demand Record DB Warning]:", dbError);
-    }
+    });
 
-    // Keep store synchronized
-    store.recordSearchDemand(cleanQuery);
-
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, query: cleanQuery });
   } catch (error) {
     console.error("[Demand POST Error]:", error);
-    return NextResponse.json({ error: "Failed to record demand" }, { status: 500 });
+    return NextResponse.json({ error: "Failed to record demand in database" }, { status: 500 });
   }
 }

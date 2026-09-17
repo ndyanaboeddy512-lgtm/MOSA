@@ -3,7 +3,6 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useLanguage } from "@/lib/i18n";
-import { store } from "@/lib/store";
 import { CommunityDemandSignal } from "@/types";
 import { 
   TrendingUp, 
@@ -29,18 +28,15 @@ export default function DemandRadarPage() {
         const res = await fetch(url);
         if (res.ok) {
           const data = await res.json();
-          if (data.demands && data.demands.length > 0) {
+          if (data.demands) {
             setDemands(data.demands);
             return;
           }
         }
-      } catch {}
-
-      let list = store.getDemands();
-      if (selectedCell !== "all") {
-        list = list.filter((d) => d.cell.toLowerCase().includes(selectedCell.toLowerCase()));
+      } catch (err) {
+        console.error("Failed to load demands:", err);
       }
-      setDemands(list);
+      setDemands([]);
     }
     loadDemands();
   }, [selectedCell]);

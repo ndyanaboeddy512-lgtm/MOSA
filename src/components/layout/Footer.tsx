@@ -26,8 +26,8 @@ export function Footer() {
             </p>
             <p className="text-sm text-slate-400 max-w-md leading-relaxed">
               {lang === "rw"
-                ? "MOSA igamije gushyira ahagaragara ubukungu buto bwo mu midugudu no mu tugari tw'u Rwanda, binyuze mu Bakozi b'Umuryango bafata amakuru ku butaka bakayashyira mu ikoranabuhanga."
-                : "A Community Commerce Discovery Network bridging Rwanda's vibrant physical micro-economies and digital discovery through certified Community Agents."}
+                ? "MOSA igamije gushyira ahagaragara ubukungu buto bwo mu midugudu no mu tugari tw'u Rwanda, ifasha abacuruzi kwiyandikisha no kuboneka ku buryo bworoshye."
+                : "A Community Commerce Discovery Network bridging Rwanda's vibrant physical micro-economies and digital discovery, empowering local merchants to register and grow."}
             </p>
             <div className="flex items-center gap-2 text-xs text-slate-400 pt-1">
               <MapPin className="w-4 h-4 text-emerald-400" />
@@ -57,29 +57,23 @@ export function Footer() {
                 </Link>
               </li>
               <li>
-                <Link href="/community/missions" className="hover:text-emerald-400 transition-colors">
-                  {t.nav.missions}
+                <Link href="/register-business" className="hover:text-emerald-400 transition-colors">
+                  {lang === "rw" ? "Kwiyandikisha" : "Register Business"}
                 </Link>
               </li>
             </ul>
           </div>
 
-          {/* Community Roles */}
+          {/* Business & Operations */}
           <div className="space-y-2">
             <h4 className="text-sm font-semibold text-white uppercase tracking-wider">
-              {lang === "rw" ? "Uruhare rwawe" : "Participate"}
+              {lang === "rw" ? "Abacuruzi" : "For Merchants"}
             </h4>
             <ul className="space-y-1.5 text-xs text-slate-400">
               <li>
-                <Link href="/agent/dashboard" className="hover:text-emerald-400 transition-colors flex items-center gap-1">
+                <Link href="/register-business" className="hover:text-emerald-400 transition-colors flex items-center gap-1">
                   <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>{t.nav.agentPortal}</span>
-                </Link>
-              </li>
-              <li>
-                <Link href="/agent/capture" className="hover:text-emerald-400 transition-colors flex items-center gap-1">
-                  <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                  <span>{lang === "rw" ? "Fata Ifoto y'Inyemezabwishyu" : "Physical Data Capture"}</span>
+                  <span>{lang === "rw" ? "Andika Ubucuruzi Bwawe" : "Register Your Business"}</span>
                 </Link>
               </li>
               <li>

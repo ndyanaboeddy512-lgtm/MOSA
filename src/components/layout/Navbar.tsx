@@ -36,12 +36,12 @@ export function Navbar() {
     { href: "/", label: t.nav.home, icon: Compass },
     { href: "/explore", label: t.nav.explore, icon: Search },
     { href: "/demand", label: t.nav.whatPeopleNeed, icon: TrendingUp },
-    { href: "/community/missions", label: t.nav.missions, icon: Award },
+    { href: "/register-business", label: t.common.registerBusinessBtn, icon: Store },
   ];
 
   // Role portal links
   const rolePortals: Record<Role, { href: string; label: string; icon: React.ComponentType<{ className?: string }> }> = {
-    COMMUNITY_AGENT: { href: "/agent/dashboard", label: t.nav.agentPortal, icon: Briefcase },
+    COMMUNITY_AGENT: { href: "/owner/dashboard", label: t.nav.ownerPortal, icon: Store },
     BUSINESS_OWNER: { href: "/owner/dashboard", label: t.nav.ownerPortal, icon: Store },
     SUPER_ADMIN: { href: "/admin", label: t.nav.admin, icon: Shield },
     MODERATOR: { href: "/admin", label: "Moderation", icon: Shield },
@@ -85,7 +85,7 @@ export function Navbar() {
           </div>
 
           {/* Desktop Navigation */}
-          <nav className="hidden lg:flex items-center gap-1">
+          <nav className="hidden xl:flex items-center gap-1">
             {navLinks.map((link) => {
               const Icon = link.icon;
               const isActive = pathname === link.href;
@@ -122,22 +122,22 @@ export function Navbar() {
           </nav>
 
           {/* Right Action Items: Language Toggle & Persona Switcher */}
-          <div className="flex items-center gap-2 sm:gap-3">
+          <div className="flex items-center gap-1.5 sm:gap-2.5">
             
-            {/* Quick Physical Capture CTA for Community Agents */}
+            {/* Direct Self-Serve Business Registration CTA */}
             <Link
-              href="/agent/capture"
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg shadow-xs transition-colors"
-              title="Capture receipt, menu, or price board"
+              href="/register-business"
+              className="hidden md:flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-xs hover:shadow-emerald-600/20 transition-all"
+              title="Register your business on MOSA"
             >
-              <Camera className="w-4 h-4 text-emerald-600" />
-              <span className="hidden sm:inline">
-                {lang === "rw" ? "Fata Ifoto" : "Capture Data"}
+              <Store className="w-3.5 h-3.5 text-emerald-200" />
+              <span>
+                {t.common.registerBusinessBtn}
               </span>
             </Link>
 
-            {/* 4-Language Switcher */}
-            <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+            {/* 4-Language Switcher (Visible on >= sm screens) */}
+            <div className="hidden sm:flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200">
               {(
                 [
                   { code: "rw", label: "RW", flag: "🇷🇼", title: "Kinyarwanda" },
@@ -161,17 +161,17 @@ export function Navbar() {
               ))}
             </div>
 
-            {/* Demo Persona Switcher */}
-            <div className="relative">
+            {/* Demo Persona Switcher (Visible on >= sm screens) */}
+            <div className="relative hidden sm:block">
               <button
                 onClick={() => setRoleDropdownOpen(!roleDropdownOpen)}
                 className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-xs font-medium text-slate-700 shadow-xs transition-colors"
               >
                 <div className="w-2 h-2 rounded-full bg-emerald-500" />
-                <span className="max-w-[110px] truncate font-semibold">
+                <span className="max-w-[100px] truncate font-semibold">
                   {user?.name.split(" ")[0] || "Persona"}
                 </span>
-                <span className="hidden sm:inline px-1.5 py-0.2 bg-slate-100 text-[10px] rounded text-slate-700 uppercase">
+                <span className="hidden md:inline px-1.5 py-0.5 bg-slate-100 text-[10px] rounded text-slate-700 uppercase">
                   {user?.role.replace("_", " ")}
                 </span>
                 <ChevronDown className="w-3 h-3 text-slate-400" />
@@ -181,9 +181,11 @@ export function Navbar() {
               {roleDropdownOpen && (
                 <div className="absolute right-0 mt-2 w-64 bg-white rounded-xl shadow-xl border border-slate-200 py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
                   <div className="px-3 py-1.5 border-b border-slate-100 text-[11px] font-semibold text-slate-600 uppercase tracking-wider">
-                    {lang === "rw" ? "Hitamo Umwirondoro wo Kugerageza" : "Switch Demo Perspective"}
+                    {t.nav.switchRole}
                   </div>
-                  {(Object.keys(DEMO_USERS) as Role[]).map((role) => {
+                  {(Object.keys(DEMO_USERS) as Role[])
+                    .filter((r) => r !== "COMMUNITY_AGENT")
+                    .map((role) => {
                     const persona = DEMO_USERS[role];
                     const isCurrent = user?.role === role;
                     return (
@@ -221,7 +223,8 @@ export function Navbar() {
             {/* Mobile menu toggle button */}
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="lg:hidden p-2 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+              className="xl:hidden p-2 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors"
+              aria-label="Toggle navigation menu"
             >
               {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
             </button>
@@ -231,24 +234,30 @@ export function Navbar() {
 
       {/* Mobile Drawer Menu */}
       {mobileMenuOpen && (
-        <div className="lg:hidden border-t border-slate-200 bg-white px-4 pt-2 pb-6 space-y-1 shadow-lg">
-          <div className="py-2 border-b border-slate-100 flex items-center justify-between text-xs text-slate-600">
-            <span>Location: <strong>{displayLabel}</strong></span>
+        <div className="xl:hidden border-t border-slate-200 bg-white px-4 pt-3 pb-6 space-y-3 shadow-lg max-h-[85vh] overflow-y-auto">
+          {/* Location Selector */}
+          <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200 flex items-center justify-between text-xs text-slate-700">
+            <div className="flex items-center gap-1.5 truncate">
+              <MapPin className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span className="truncate">Zone: <strong>{displayLabel}</strong></span>
+            </div>
             <button 
               onClick={() => {
                 setMobileMenuOpen(false);
                 openSelector();
               }}
-              className="text-emerald-600 font-semibold"
+              className="text-emerald-600 font-semibold px-2 py-1 bg-white rounded border border-emerald-200 shrink-0 hover:bg-emerald-50"
             >
               Change
             </button>
           </div>
 
-          {/* Mobile Language Selector */}
-          <div className="py-2.5 border-b border-slate-100 flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-500">Language:</span>
-            <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+          {/* Mobile Language Switcher */}
+          <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200">
+            <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
+              Language / Ururimi:
+            </div>
+            <div className="grid grid-cols-4 gap-1.5">
               {(
                 [
                   { code: "rw", label: "RW 🇷🇼" },
@@ -260,60 +269,92 @@ export function Navbar() {
                 <button
                   key={l.code}
                   onClick={() => setLang(l.code)}
-                  className={`px-2 py-1 text-xs font-bold rounded-md transition-all ${
+                  className={`py-1.5 text-xs font-bold rounded-md transition-all text-center ${
                     lang === l.code
-                      ? "bg-white text-emerald-700 shadow-xs"
-                      : "text-slate-500 hover:text-slate-900"
+                      ? "bg-emerald-600 text-white shadow-xs"
+                      : "bg-white text-slate-700 hover:bg-slate-100 border border-slate-200"
                   }`}
                 >
                   {l.label}
                 </button>
               ))}
             </div>
-            <div className="flex items-center justify-between pt-2 border-t border-slate-100">
-              <span className="text-xs font-semibold text-slate-500">Community:</span>
-              <button
-                onClick={() => {
-                  setMobileMenuOpen(false);
-                  openSelector();
-                }}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-900 bg-emerald-50 border border-emerald-200 rounded-full"
-              >
-                <MapPin className="w-3.5 h-3.5 text-emerald-600" />
-                <span>{displayLabel}</span>
-                <ChevronDown className="w-3 h-3 text-emerald-600" />
-              </button>
+          </div>
+
+          {/* Mobile Persona Switcher */}
+          <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200">
+            <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5 flex items-center justify-between">
+              <span>Demo Role / Umwirondoro:</span>
+              <span className="text-[10px] text-emerald-700 font-bold uppercase">{user?.role.replace("_", " ")}</span>
+            </div>
+            <div className="grid grid-cols-2 gap-1.5">
+              {(Object.keys(DEMO_USERS) as Role[])
+                .filter((r) => r !== "COMMUNITY_AGENT")
+                .map((role) => {
+                const persona = DEMO_USERS[role];
+                const isCurrent = user?.role === role;
+                return (
+                  <button
+                    key={role}
+                    onClick={() => {
+                      switchDemoRole(role);
+                    }}
+                    className={`p-2 text-left rounded-lg text-xs transition-colors border ${
+                      isCurrent
+                        ? "bg-emerald-50 border-emerald-300 font-semibold text-emerald-900"
+                        : "bg-white border-slate-200 text-slate-700 hover:bg-slate-100"
+                    }`}
+                  >
+                    <div className="truncate font-medium">{persona.name.split(" ")[0]}</div>
+                    <div className="text-[10px] text-slate-500 truncate">{role.replace("_", " ")}</div>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
-          {navLinks.map((link) => {
-            const Icon = link.icon;
-            const isActive = pathname === link.href;
-            return (
-              <Link
-                key={link.href}
-                href={link.href}
-                onClick={() => setMobileMenuOpen(false)}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-base font-medium ${
-                  isActive ? "bg-emerald-50 text-emerald-700" : "text-slate-700 hover:bg-slate-50"
-                }`}
-              >
-                <Icon className="w-5 h-5 text-emerald-600" />
-                <span>{link.label}</span>
-              </Link>
-            );
-          })}
+          {/* Nav Links */}
+          <div className="space-y-1 pt-1">
+            {navLinks.map((link) => {
+              const Icon = link.icon;
+              const isActive = pathname === link.href;
+              return (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                    isActive ? "bg-emerald-50 text-emerald-700 font-semibold" : "text-slate-700 hover:bg-slate-50"
+                  }`}
+                >
+                  <Icon className="w-4 h-4 text-emerald-600" />
+                  <span>{link.label}</span>
+                </Link>
+              );
+            })}
 
-          {activePortal && (
+            {/* Direct Self-Serve Registration in Mobile Drawer */}
             <Link
-              href={activePortal.href}
+              href="/register-business"
               onClick={() => setMobileMenuOpen(false)}
-              className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-base font-medium bg-amber-50 text-amber-900 border border-amber-200/60 mt-2"
+              className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold text-emerald-900 bg-emerald-50 border border-emerald-200 shadow-xs"
             >
-              <activePortal.icon className="w-5 h-5 text-amber-600" />
-              <span>{activePortal.label}</span>
+              <Store className="w-4 h-4 text-emerald-600" />
+              <span>{t.common.registerBusinessBtn}</span>
             </Link>
-          )}
+
+            {/* Role Portal Link */}
+            {activePortal && (
+              <Link
+                href={activePortal.href}
+                onClick={() => setMobileMenuOpen(false)}
+                className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium bg-amber-50 text-amber-900 border border-amber-200/80 mt-2"
+              >
+                <activePortal.icon className="w-4 h-4 text-amber-600" />
+                <span>{activePortal.label}</span>
+              </Link>
+            )}
+          </div>
         </div>
       )}
     </header>

@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useLanguage } from "@/lib/i18n";
 import { useAuth } from "@/lib/auth-context";
-import { store } from "@/lib/store";
 import { Business } from "@/types";
 import { ArrowLeft, Phone, ShieldCheck, CheckCircle2, HeartHandshake, Sparkles } from "lucide-react";
 
@@ -33,9 +32,10 @@ export default function BusinessClaimPage({ params }: { params: Promise<{ id: st
             return;
           }
         }
-      } catch {}
-      const biz = store.getBusinessById(resolvedParams.id);
-      if (biz) setBusiness(biz);
+      } catch (err) {
+        console.error("Failed to load business for claiming:", err);
+      }
+      setBusiness(null);
     }
     loadBiz();
   }, [resolvedParams.id]);

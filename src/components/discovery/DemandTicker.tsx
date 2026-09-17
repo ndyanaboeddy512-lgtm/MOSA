@@ -5,7 +5,6 @@ import Link from "next/link";
 import { TrendingUp, ArrowRight, Sparkles } from "lucide-react";
 import { useLanguage } from "@/lib/i18n";
 import { useLocation } from "@/lib/location-context";
-import { store } from "@/lib/store";
 import { CommunityDemandSignal } from "@/types";
 
 export function DemandTicker() {
@@ -23,14 +22,15 @@ export function DemandTicker() {
         const res = await fetch(queryUrl);
         if (res.ok) {
           const data = await res.json();
-          if (data.demands && data.demands.length > 0) {
+          if (data.demands) {
             setDemands(data.demands);
             return;
           }
         }
-      } catch {}
-      const list = store.getDemands();
-      setDemands(list);
+      } catch (err) {
+        console.error("Failed to load demands for ticker:", err);
+      }
+      setDemands([]);
     }
     loadDemands();
 

@@ -32,31 +32,46 @@ export async function POST(request: Request) {
     }
 
     const untilDate = validUntil ? new Date(validUntil) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+    const actorId = auth.user.id;
 
-    const offer = await prisma.offer.create({
-      data: {
-        businessId,
-        title: title.trim(),
-        titleRw: titleRw?.trim() || title.trim(),
-        description: description?.trim() || null,
-        descriptionRw: descriptionRw?.trim() || null,
-        discount: discount.trim(),
-        validUntil: untilDate,
-        status: "ACTIVE",
-      },
-    });
+    const offer = await prisma.$transaction(async (tx) => {
+      const o = await tx.offer.create({
+        data: {
+          businessId,
+          title: title.trim(),
+          titleRw: titleRw?.trim() || title.trim(),
+          description: description?.trim() || null,
+          descriptionRw: descriptionRw?.trim() || null,
+          discount: discount.trim(),
+          validUntil: untilDate,
+          status: "ACTIVE",
+        },
+      });
 
-    await prisma.businessChangeHistory.create({
-      data: {
-        businessId,
-        actorId: auth.user.id,
-        action: "OFFER_CREATED",
-        fieldChanged: "offer",
-        previousValue: null,
-        newValue: `${offer.discount} - ${offer.title}`,
-        approvalStatus: "APPROVED",
-        source: "OWNER_DASHBOARD",
-      },
+      await tx.businessChangeHistory.create({
+        data: {
+          businessId,
+          actorId,
+          action: "OFFER_CREATED",
+          fieldChanged: "offer",
+          previousValue: null,
+          newValue: `${o.discount} - ${o.title}`,
+          approvalStatus: "APPROVED",
+          source: "OWNER_DASHBOARD",
+        },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          actorId,
+          action: "OFFER_CREATED",
+          entityType: "OFFER",
+          entityId: o.id,
+          metadata: JSON.stringify({ businessId, discount: o.discount, title: o.title }),
+        },
+      });
+
+      return o;
     });
 
     revalidatePath(`/business/${businessId}`);
@@ -97,9 +112,35 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: "Forbidden: You do not own this business" }, { status: 403 });
     }
 
-    await prisma.offer.update({
-      where: { id: offerId },
-      data: { status: "EXPIRED" },
+    const actorId = auth.user.id;
+
+    await prisma.$transaction(async (tx) => {
+      await tx.offer.update({
+        where: { id: offerId },
+        data: { status: "EXPIRED" },
+      });
+
+      await tx.businessChangeHistory.create({
+        data: {
+          businessId,
+          actorId,
+          action: "OFFER_EXPIRED",
+          fieldChanged: "status",
+          previousValue: "ACTIVE",
+          newValue: "EXPIRED",
+          approvalStatus: "APPROVED",
+          source: "OWNER_DASHBOARD",
+        },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          actorId,
+          action: "OFFER_DELETED",
+          entityType: "OFFER",
+          entityId: offerId,
+        },
+      });
     });
 
     revalidatePath(`/business/${businessId}`);

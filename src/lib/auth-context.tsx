@@ -135,18 +135,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Continue to default
       }
 
-      // 3. Default to Community Agent for rich out-of-the-box experience
-      const defaultUser = {
-        ...DEMO_USERS.COMMUNITY_AGENT,
-        referralCode: "MOSA-BIR-77",
-      };
-      setUser(defaultUser);
-      localStorage.setItem("mosa_user_session", JSON.stringify(defaultUser));
-      fetch("/api/auth/demo-switch", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ role: "COMMUNITY_AGENT" }),
-      }).catch(() => {});
+      // 3. Unauthenticated guests remain unauthenticated (user = null)
+      setUser(null);
     }
 
     initAuth();
