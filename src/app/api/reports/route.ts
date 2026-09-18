@@ -14,8 +14,10 @@ function mapReason(r?: string): ReportReason {
     case "INCORRECT_PRICES":
       return ReportReason.WRONG_PRICE;
     case "SPAM":
-    case "INAPPROPRIATE_CONTENT":
       return ReportReason.SPAM;
+    case "INAPPROPRIATE_CONTENT":
+    case "OFFENSIVE_MEDIA":
+      return ReportReason.INAPPROPRIATE_CONTENT;
     case "FAKE_BUSINESS":
     default:
       return ReportReason.FAKE_BUSINESS;
@@ -72,7 +74,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { businessId, reason, details } = body;
+    const { businessId, reason, details, targetType = "BUSINESS", targetId } = body;
 
     if (!businessId || !details) {
       return NextResponse.json(
@@ -110,6 +112,8 @@ export async function POST(request: Request) {
           userId,
           reason: reportReason,
           details,
+          targetType,
+          targetId: targetId || null,
           status: ReportStatus.OPEN,
         },
       });

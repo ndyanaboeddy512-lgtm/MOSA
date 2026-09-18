@@ -41,6 +41,9 @@ export async function GET() {
       claims,
       smsMessages,
       changeHistories,
+      flaggedMediaCount,
+      flaggedProductsCount,
+      businessesRequiringReviewCount,
     ] = await Promise.all([
       prisma.business.count(),
       prisma.business.count({ where: { verificationStatus: { in: [VerificationStatus.AGENT_VERIFIED, VerificationStatus.HIGH_CONFIDENCE] } } }),
@@ -119,6 +122,9 @@ export async function GET() {
           product: { select: { name: true } },
         },
       }),
+      prisma.businessMedia.count({ where: { moderationStatus: { in: ["FLAGGED", "REMOVED"] } } }),
+      prisma.product.count({ where: { moderationStatus: { in: ["FLAGGED", "REMOVED"] } } }),
+      prisma.business.count({ where: { status: { in: ["PENDING", "NEEDS_CORRECTION"] } } }),
     ]);
 
     // Duplicate detection analysis across businesses
@@ -223,6 +229,10 @@ export async function GET() {
         potentialDuplicatesCount: duplicateIds.size,
         pendingClaimsCount,
         totalSMSCount: smsMessages.length,
+        itemsRequiringAttention: openReportsCount + flaggedMediaCount + flaggedProductsCount,
+        flaggedMediaCount,
+        flaggedProductsCount,
+        businessesRequiringReview: businessesRequiringReviewCount,
       },
       locationCategoryBreakdown,
       categorySummary,

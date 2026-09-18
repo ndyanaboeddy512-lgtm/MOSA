@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { parsePhysicalDocument, sanitizeReceiptText } from "@/lib/ocr";
 import { prisma } from "@/lib/prisma";
-import { getCurrentUser } from "@/lib/auth";
+import { getCurrentUser, requireAuth } from "@/lib/auth";
 import { logAuditEvent } from "@/lib/audit";
-import { DocumentType, ExtractionStatus } from "@prisma/client";
+import { DocumentType, ExtractionStatus, Role } from "@prisma/client";
 
 function mapDocType(type?: string): DocumentType {
   switch (type?.toUpperCase()) {
@@ -82,34 +82,18 @@ export async function POST(request: Request) {
     }
 
     // Mode 2: Persist capture record and publish line items to PostgreSQL
-    const currentUser = await getCurrentUser();
-    let agentId = currentUser?.id;
+    const auth = await requireAuth([
+      Role.COMMUNITY_AGENT,
+      Role.COMMUNITY_ADMIN,
+      Role.SUPER_ADMIN,
+      Role.BUSINESS_OWNER,
+    ]);
 
-    if (!agentId) {
-      // Fallback to active agent in database
-      const defaultAgent = await prisma.user.findFirst({
-        where: { role: "COMMUNITY_AGENT" },
-      });
-      agentId = defaultAgent?.id;
+    if (auth.error || !auth.user) {
+      return NextResponse.json({ error: auth.error || "Authentication required to persist physical captures" }, { status: auth.status || 401 });
     }
 
-    if (!agentId) {
-      // Create or upsert default community agent if none exists
-      const agent = await prisma.user.upsert({
-        where: { phone: "+250788000003" },
-        update: {},
-        create: {
-          phone: "+250788000003",
-          name: "Emmanuel Hakizimana",
-          role: "COMMUNITY_AGENT",
-          community: "Biryogo",
-          referralCode: "MOSA-BIR-77",
-          points: 420,
-          badges: ["Certified Agent", "Local Scout"],
-        },
-      });
-      agentId = agent.id;
-    }
+    const agentId = auth.user.id;
 
     const docTypeEnum = mapDocType(documentType);
     const sanitizedOcr = rawText ? sanitizeReceiptText(rawText).text : "";

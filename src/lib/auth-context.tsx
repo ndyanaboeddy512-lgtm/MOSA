@@ -117,22 +117,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Fallback to local
       }
 
-      // 2. Check local storage
-      try {
-        const saved = localStorage.getItem("mosa_user_session");
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          setUser(parsed);
-          // Sync server cookie in background
-          fetch("/api/auth/demo-switch", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ role: parsed.role }),
-          }).catch(() => {});
-          return;
+      // 2. Check local storage (demo mode only)
+      if (process.env.NEXT_PUBLIC_ENABLE_DEMO_SWITCH === "true") {
+        try {
+          const saved = localStorage.getItem("mosa_user_session");
+          if (saved) {
+            const parsed = JSON.parse(saved);
+            setUser(parsed);
+            // Sync server cookie in background
+            fetch("/api/auth/demo-switch", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ role: parsed.role }),
+            }).catch(() => {});
+            return;
+          }
+        } catch {
+          // Continue to default
         }
-      } catch {
-        // Continue to default
+      } else {
+        localStorage.removeItem("mosa_user_session");
       }
 
       // 3. Unauthenticated guests remain unauthenticated (user = null)
@@ -143,6 +147,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const switchDemoRole = async (role: Role) => {
+    if (process.env.NEXT_PUBLIC_ENABLE_DEMO_SWITCH !== "true") {
+      console.warn("[Auth]: Demo role switching is disabled in this environment.");
+      return;
+    }
     const demo = DEMO_USERS[role];
     const session: UserSession = {
       ...demo,
@@ -208,8 +216,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.warn("[Verify OTP server error, using fallback]:", err);
     }
 
-    // Dev fallback if offline
-    if (code === expectedOtp || code === "1234" || code === "7294" || code.length === 4) {
+    // Dev fallback ONLY in non-production environments when offline
+    if (process.env.NODE_ENV !== "production" && (code === expectedOtp || code === "1234" || code === "7294")) {
       const session: UserSession = {
         id: `user-${Date.now()}`,
         name: "Verified Resident",

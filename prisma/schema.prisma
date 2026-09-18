@@ -74,6 +74,7 @@ enum ReportReason {
   CLOSED_PERMANENTLY
   WRONG_LOCATION
   SPAM
+  INAPPROPRIATE_CONTENT
 }
 
 enum ReportStatus {
@@ -380,6 +381,9 @@ model Business {
   monthlyReports     MonthlyFinancialReport[]
   expenses           BusinessExpense[]
   inventoryItems     BusinessInventoryItem[]
+  updates            BusinessUpdate[]
+  opportunities      BusinessOpportunity[]
+  inquiries          CustomerInquiry[]
 
   @@index([category])
   @@index([mainCategory])
@@ -438,6 +442,9 @@ model Product {
   unit            String?       @default("item")
   isAvailable     Boolean       @default(true)
   isEstimated     Boolean       @default(false)
+  isService       Boolean       @default(false)
+  moderationStatus String       @default("APPROVED") // APPROVED, FLAGGED, REMOVED
+  moderationNote  String?
   sortOrder       Int           @default(0)
   isArchived      Boolean       @default(false)
   category        String?
@@ -472,15 +479,27 @@ model BusinessHour {
 }
 
 model BusinessMedia {
-  id          String    @id @default(cuid())
-  businessId  String
-  business    Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  url         String
-  caption     String?
-  isCover     Boolean   @default(false)
-  createdAt   DateTime  @default(now())
+  id                String    @id @default(cuid())
+  businessId        String
+  business          Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  url               String
+  caption           String?
+  isCover           Boolean   @default(false)
+  mediaType         String    @default("IMAGE") // IMAGE, VIDEO
+  durationSec       Int?      // Short video duration (max 60s)
+  thumbnailUrl      String?   // Video frame / thumbnail
+  topic             String?   // PRODUCTS, SERVICES, OFFERS, WORKSHOP, NEW_ARRIVALS, FACILITY
+  moderationStatus  String    @default("APPROVED") // APPROVED, FLAGGED, REMOVED
+  moderationReason  String?
+  moderatedById     String?
+  moderatedAt       DateTime?
+  viewsCount        Int       @default(0)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @default(now()) @updatedAt
 
   @@index([businessId])
+  @@index([mediaType])
+  @@index([moderationStatus])
 }
 
 model ReceiptCapture {
@@ -562,10 +581,18 @@ model Report {
   reason      ReportReason
   details     String
   status      ReportStatus  @default(OPEN)
+  targetType  String        @default("BUSINESS") // BUSINESS, VIDEO, PHOTO, PRODUCT, REVIEW
+  targetId    String?       // ID of the specific reported media, product, or review
+  actionTaken String?       // REMOVED, DISMISSED, WARNING_ISSUED
+  resolvedById String?
+  resolvedAt  DateTime?
   createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @default(now()) @updatedAt
 
   @@index([businessId])
   @@index([status])
+  @@index([targetType])
+  @@index([targetId])
 }
 
 model Offer {
@@ -818,4 +845,117 @@ model BusinessInventoryItem {
   @@index([businessId])
   @@index([businessId, status])
 }
+
+enum BusinessUpdateType {
+  ANNOUNCEMENT
+  NEW_ARRIVAL
+  SERVICE_UPDATE
+  OFFER
+  TEMPORARY_CLOSURE
+  NOTICE
+}
+
+model BusinessUpdate {
+  id               String             @id @default(cuid())
+  businessId       String
+  business         Business           @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  type             BusinessUpdateType @default(ANNOUNCEMENT)
+  title            String
+  titleRw          String?
+  content          String
+  contentRw        String?
+  imageUrl         String?
+  badge            String?            // e.g. "20% OFF", "NEW ARRIVAL", "NOTICE"
+  validUntil       DateTime?
+  status           String             @default("ACTIVE") // ACTIVE, ARCHIVED, REMOVED
+  moderationStatus String             @default("APPROVED") // APPROVED, FLAGGED, REMOVED
+  viewsCount       Int                @default(0)
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  @@index([businessId])
+  @@index([status])
+  @@index([type])
+}
+
+enum OpportunityType {
+  EMPLOYMENT
+  PARTNERSHIP
+  SUPPLIER_REQUEST
+  COLLABORATION
+  OTHER
+}
+
+enum OpportunityStatus {
+  OPEN
+  PAUSED
+  FILLED
+  CLOSED
+}
+
+model BusinessOpportunity {
+  id               String             @id @default(cuid())
+  businessId       String
+  business         Business           @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  type             OpportunityType    @default(EMPLOYMENT)
+  title            String
+  titleRw          String?
+  description      String
+  descriptionRw    String?
+  requirements     String?
+  compensation     String?            // e.g. "Monthly Salary: 70,000 RWF", "Commission based", "Negotiable"
+  contactMethod    String             @default("WHATSAPP") // WHATSAPP, PHONE, IN_PERSON
+  contactValue     String?
+  deadline         DateTime?
+  status           OpportunityStatus  @default(OPEN)
+  moderationStatus String             @default("APPROVED") // APPROVED, FLAGGED, REMOVED
+  responsesCount   Int                @default(0)
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  inquiries        OpportunityInquiry[]
+
+  @@index([businessId])
+  @@index([status])
+  @@index([type])
+}
+
+model OpportunityInquiry {
+  id             String              @id @default(cuid())
+  opportunityId  String
+  opportunity    BusinessOpportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  applicantName  String
+  applicantPhone String
+  message        String?
+  status         String              @default("NEW") // NEW, CONTACTED, ARCHIVED
+  createdAt      DateTime            @default(now())
+
+  @@index([opportunityId])
+}
+
+enum InquiryType {
+  WHATSAPP_CLICK
+  PHONE_CALL
+  BOOKING_REQUEST
+  ORDER_INQUIRY
+  OPPORTUNITY_RESPONSE
+  DIRECTIONS_VIEW
+}
+
+model CustomerInquiry {
+  id         String      @id @default(cuid())
+  businessId String
+  business   Business    @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  productId  String?
+  type       InquiryType @default(WHATSAPP_CLICK)
+  channel    String      @default("PUBLIC_WEB") // PUBLIC_WEB, MAP, QR_CODE
+  itemName   String?
+  itemPrice  Float?
+  createdAt  DateTime    @default(now())
+
+  @@index([businessId])
+  @@index([type])
+  @@index([createdAt])
+}
+
 

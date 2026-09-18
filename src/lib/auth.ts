@@ -4,9 +4,22 @@ import bcrypt from "bcryptjs";
 import { prisma } from "./prisma";
 import { Role, User } from "@prisma/client";
 
-const JWT_SECRET_KEY = new TextEncoder().encode(
-  process.env.JWT_SECRET || "mosa-community-network-secure-jwt-secret-key-rwanda-2026"
-);
+const DEFAULT_FALLBACK_SECRET = "mosa-community-network-secure-jwt-secret-key-rwanda-2026";
+
+/**
+ * Returns the cryptographically secure JWT secret key.
+ * In production, strictly enforces that a dedicated high-entropy secret is configured
+ * and prohibits usage of default/fallback secrets.
+ */
+export function getJwtSecretKey(): Uint8Array {
+  const secret = process.env.JWT_SECRET;
+  if (process.env.NODE_ENV === "production" && (!secret || secret === DEFAULT_FALLBACK_SECRET)) {
+    throw new Error(
+      "[SECURITY CRITICAL]: JWT_SECRET must be configured with a high-entropy secret in production. Default fallback secret is prohibited."
+    );
+  }
+  return new TextEncoder().encode(secret || DEFAULT_FALLBACK_SECRET);
+}
 
 const SESSION_COOKIE_NAME = "mosa_session";
 
@@ -25,7 +38,7 @@ export async function createSessionToken(payload: SessionPayload): Promise<strin
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime("30d")
-    .sign(JWT_SECRET_KEY);
+    .sign(getJwtSecretKey());
 }
 
 /**
@@ -33,7 +46,7 @@ export async function createSessionToken(payload: SessionPayload): Promise<strin
  */
 export async function verifySessionToken(token: string): Promise<SessionPayload | null> {
   try {
-    const { payload } = await jwtVerify(token, JWT_SECRET_KEY);
+    const { payload } = await jwtVerify(token, getJwtSecretKey());
     return payload as unknown as SessionPayload;
   } catch {
     return null;

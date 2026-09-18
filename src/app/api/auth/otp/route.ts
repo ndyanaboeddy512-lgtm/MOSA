@@ -28,6 +28,7 @@ export async function POST(request: Request) {
 
     // Upsert persistent user in PostgreSQL
     const referralCode = `MOSA-${cleanPhone.slice(-4)}-${Math.floor(100 + Math.random() * 900)}`;
+    const targetRole: Role = (role === "BUSINESS_OWNER" || role === "CUSTOMER") ? (role as Role) : Role.CUSTOMER;
 
     const user = await prisma.user.upsert({
       where: { phone: cleanPhone },
@@ -37,7 +38,7 @@ export async function POST(request: Request) {
       create: {
         phone: cleanPhone,
         name: name || `Resident ${cleanPhone.slice(-4)}`,
-        role: (role === "SUPER_ADMIN" || role === "COMMUNITY_ADMIN") ? Role.CUSTOMER : ((role as Role) || Role.CUSTOMER),
+        role: targetRole,
         referralCode,
         language: "rw",
         community: "Nyamirambo",

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getCurrentUser } from "@/lib/auth";
+import { requireAuth } from "@/lib/auth";
+import { Role } from "@prisma/client";
 import { logAuditEvent } from "@/lib/audit";
 
 export async function GET(request: Request) {
@@ -46,6 +47,13 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const auth = await requireAuth([Role.COMMUNITY_AGENT, Role.COMMUNITY_ADMIN, Role.SUPER_ADMIN, Role.CUSTOMER]);
+  if (auth.error || !auth.user) {
+    return NextResponse.json({ error: auth.error || "Authentication required to complete missions" }, { status: auth.status || 401 });
+  }
+
+  const currentUser = auth.user;
+
   try {
     const body = await request.json();
     const { missionId, isCompleted = true } = body;
@@ -55,7 +63,6 @@ export async function POST(request: Request) {
     }
 
     let pointsAwarded = 50;
-    const currentUser = await getCurrentUser();
 
     const result = await prisma.$transaction(async (tx) => {
       const mission = await tx.mission.findUnique({
@@ -72,34 +79,32 @@ export async function POST(request: Request) {
         data: { isCompleted },
       });
 
-      if (currentUser) {
-        const userBadges = Array.isArray(currentUser.badges) ? [...currentUser.badges] : [];
-        if (mission.badgeReward && !userBadges.includes(mission.badgeReward)) {
-          userBadges.push(mission.badgeReward);
-        }
-
-        await tx.user.update({
-          where: { id: currentUser.id },
-          data: {
-            points: { increment: pointsAwarded },
-            badges: userBadges,
-          },
-        });
-
-        await tx.auditLog.create({
-          data: {
-            actorId: currentUser.id,
-            action: "MISSION_COMPLETED",
-            entityType: "MISSION",
-            entityId: missionId,
-            metadata: JSON.stringify({
-              pointsEarned: pointsAwarded,
-              badgeEarned: mission.badgeReward,
-              title: mission.title,
-            }),
-          },
-        });
+      const userBadges = Array.isArray(currentUser.badges) ? [...currentUser.badges] : [];
+      if (mission.badgeReward && !userBadges.includes(mission.badgeReward)) {
+        userBadges.push(mission.badgeReward);
       }
+
+      await tx.user.update({
+        where: { id: currentUser.id },
+        data: {
+          points: { increment: pointsAwarded },
+          badges: userBadges,
+        },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          actorId: currentUser.id,
+          action: "MISSION_COMPLETED",
+          entityType: "MISSION",
+          entityId: missionId,
+          metadata: JSON.stringify({
+            pointsEarned: pointsAwarded,
+            badgeEarned: mission.badgeReward,
+            title: mission.title,
+          }),
+        },
+      });
 
       return { mission, pointsAwarded };
     });

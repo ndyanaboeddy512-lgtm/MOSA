@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getCurrentUser } from "@/lib/auth";
+import { getCurrentUser, requireAuth } from "@/lib/auth";
 import { logAuditEvent } from "@/lib/audit";
-import { VerificationStatus } from "@prisma/client";
+import { VerificationStatus, Role } from "@prisma/client";
 import { formatBusinessRecord } from "@/lib/format-business";
 import { serializePublicBusiness } from "@/lib/public-serializer";
 
@@ -22,6 +22,14 @@ export async function GET(
         businessHours: true,
         media: true,
         verifications: true,
+        updates: {
+          where: { status: "ACTIVE", moderationStatus: { not: "REMOVED" } },
+          orderBy: { createdAt: "desc" },
+        },
+        opportunities: {
+          where: { status: "OPEN", moderationStatus: { not: "REMOVED" } },
+          orderBy: { createdAt: "desc" },
+        },
       },
     });
 
@@ -68,11 +76,10 @@ export async function PATCH(
   const { id } = resolvedParams;
 
   try {
-    const user = await getCurrentUser();
     const body = await request.json();
-    const { action, status, userId, details, contactClick } = body;
+    const { action, status, details, contactClick } = body;
 
-    // Contact click tracking
+    // Contact click tracking (public interaction telemetry)
     if (contactClick) {
       await prisma.business.update({
         where: { id },
@@ -81,8 +88,22 @@ export async function PATCH(
       return NextResponse.json({ success: true });
     }
 
-    // Verification update action
+    // Direct claim action via PATCH is prohibited; must use /api/claims with identity verification
+    if (action === "CLAIM") {
+      return NextResponse.json(
+        { error: "Direct claim bypass is disabled. Please submit business claims through /api/claims with phone and identity verification." },
+        { status: 400 }
+      );
+    }
+
+    // Verification update action: Requires SUPER_ADMIN, COMMUNITY_ADMIN, or MODERATOR
     if (action === "VERIFY" && status) {
+      const auth = await requireAuth([Role.SUPER_ADMIN, Role.COMMUNITY_ADMIN, Role.MODERATOR]);
+      if (auth.error || !auth.user) {
+        return NextResponse.json({ error: auth.error || "Unauthorized" }, { status: auth.status || 401 });
+      }
+
+      const adminUser = auth.user;
       const updated = await prisma.$transaction(async (tx) => {
         const b = await tx.business.update({
           where: { id },
@@ -91,65 +112,22 @@ export async function PATCH(
           },
         });
 
-        if (user) {
-          await tx.verificationRecord.create({
-            data: {
-              businessId: id,
-              userId: user.id,
-              type: status,
-              notes: details?.notes || "Verification audit executed",
-            },
-          });
-
-          await tx.auditLog.create({
-            data: {
-              actorId: user.id,
-              action: "BUSINESS_VERIFIED",
-              entityType: "BUSINESS",
-              entityId: id,
-              metadata: JSON.stringify({ newStatus: status, notes: details?.notes }),
-            },
-          });
-        }
-        return b;
-      });
-
-      return NextResponse.json({ success: true, business: formatBusinessRecord(updated) });
-    }
-
-    // Business claim action by owner
-    if (action === "CLAIM") {
-      const claimUserId = user?.id || userId;
-      if (!claimUserId) {
-        return NextResponse.json({ error: "User authentication required to claim business" }, { status: 401 });
-      }
-
-      const updated = await prisma.$transaction(async (tx) => {
-        const b = await tx.business.update({
-          where: { id },
-          data: {
-            ownerId: claimUserId,
-            isClaimed: true,
-            claimedAt: new Date(),
-            verificationStatus: VerificationStatus.BUSINESS_VERIFIED,
-          },
-        });
-
-        await tx.businessClaim.create({
+        await tx.verificationRecord.create({
           data: {
             businessId: id,
-            userId: claimUserId,
-            claimPhone: user?.phone || "+250788000000",
-            status: "APPROVED",
+            userId: adminUser.id,
+            type: status,
+            notes: details?.notes || "Verification audit executed",
           },
         });
 
         await tx.auditLog.create({
           data: {
-            actorId: claimUserId,
-            action: "BUSINESS_CLAIMED",
+            actorId: adminUser.id,
+            action: "BUSINESS_VERIFIED",
             entityType: "BUSINESS",
             entityId: id,
+            metadata: JSON.stringify({ newStatus: status, notes: details?.notes }),
           },
         });
 
@@ -159,8 +137,27 @@ export async function PATCH(
       return NextResponse.json({ success: true, business: formatBusinessRecord(updated) });
     }
 
-    // Business location update / re-verification action
+    // Business location update action: Requires authenticated owner, community agent, or admin
     if (action === "UPDATE_LOCATION") {
+      const auth = await requireAuth([Role.BUSINESS_OWNER, Role.COMMUNITY_AGENT, Role.SUPER_ADMIN, Role.COMMUNITY_ADMIN]);
+      if (auth.error || !auth.user) {
+        return NextResponse.json({ error: auth.error || "Unauthorized" }, { status: auth.status || 401 });
+      }
+
+      const existingBiz = await prisma.business.findUnique({
+        where: { id },
+        select: { id: true, ownerId: true },
+      });
+
+      if (!existingBiz) {
+        return NextResponse.json({ error: "Business not found" }, { status: 404 });
+      }
+
+      const isPrivileged = auth.user.role === Role.SUPER_ADMIN || auth.user.role === Role.COMMUNITY_ADMIN || auth.user.role === Role.COMMUNITY_AGENT;
+      if (existingBiz.ownerId !== auth.user.id && !isPrivileged) {
+        return NextResponse.json({ error: "Forbidden: You do not own this business" }, { status: 403 });
+      }
+
       const {
         latitude,
         longitude,
@@ -192,15 +189,13 @@ export async function PATCH(
       if (district) updateData.district = district;
       if (addressNote) updateData.addressNote = addressNote;
 
-      if (user) {
-        if (locationAccuracy || locationSource === "GPS_DEVICE") {
-          updateData.locationCapturedById = user.id;
-          updateData.locationCapturedAt = new Date();
-        }
-        if (user.role === "COMMUNITY_AGENT" || user.role === "SUPER_ADMIN" || user.role === "COMMUNITY_ADMIN") {
-          updateData.locationVerifiedById = user.id;
-          updateData.locationVerifiedAt = new Date();
-        }
+      if (locationAccuracy || locationSource === "GPS_DEVICE") {
+        updateData.locationCapturedById = auth.user.id;
+        updateData.locationCapturedAt = new Date();
+      }
+      if (auth.user.role === "COMMUNITY_AGENT" || auth.user.role === "SUPER_ADMIN" || auth.user.role === "COMMUNITY_ADMIN") {
+        updateData.locationVerifiedById = auth.user.id;
+        updateData.locationVerifiedAt = new Date();
       }
 
       updateData.updatedAt = new Date();
@@ -212,23 +207,22 @@ export async function PATCH(
           include: { products: true, localArea: true },
         });
 
-        if (user) {
-          await tx.auditLog.create({
-            data: {
-              actorId: user.id,
-              action: "BUSINESS_LOCATION_UPDATED",
-              entityType: "BUSINESS",
-              entityId: id,
-              metadata: JSON.stringify({
-                latitude: b.latitude,
-                longitude: b.longitude,
-                nearestLandmark: b.nearestLandmark,
-                accuracy: b.locationAccuracy,
-                verificationStatus: b.locationVerificationStatus,
-              }),
-            },
-          });
-        }
+        await tx.auditLog.create({
+          data: {
+            actorId: auth.user!.id,
+            action: "BUSINESS_LOCATION_UPDATED",
+            entityType: "BUSINESS",
+            entityId: id,
+            metadata: JSON.stringify({
+              latitude: b.latitude,
+              longitude: b.longitude,
+              nearestLandmark: b.nearestLandmark,
+              accuracy: b.locationAccuracy,
+              verificationStatus: b.locationVerificationStatus,
+            }),
+          },
+        });
+
         return b;
       });
 

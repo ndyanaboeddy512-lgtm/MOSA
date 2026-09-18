@@ -412,37 +412,39 @@ export default function LoginPage() {
           </form>
         )}
 
-        {/* Instant Demo Role Switcher for Evaluators */}
-        <div className="pt-4 border-t border-slate-100">
-          <div className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
-            <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-            <span>Instant Demo Switcher (For Evaluators)</span>
-          </div>
-          <p className="text-[11px] text-slate-400 mb-3">
-            Quickly preview platform roles without manual registration:
-          </p>
+        {/* Instant Demo Role Switcher (Hidden in production when demo switch is disabled) */}
+        {process.env.NEXT_PUBLIC_ENABLE_DEMO_SWITCH === "true" && (
+          <div className="pt-4 border-t border-slate-100">
+            <div className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+              <span>Instant Demo Switcher (For Evaluators)</span>
+            </div>
+            <p className="text-[11px] text-slate-400 mb-3">
+              Quickly preview platform roles without manual registration:
+            </p>
 
-          <div className="space-y-1.5">
-            {[
-              { role: "BUSINESS_OWNER" as Role, name: "Business Owner", desc: "Kevine Mukashyaka (Salon Owner)" },
-              { role: "COMMUNITY_AGENT" as Role, name: "Community Agent", desc: "Emmanuel Hakizimana (Biryogo Scout)" },
-              { role: "SUPER_ADMIN" as Role, name: "Platform Admin", desc: "Diane Uwera (Command Center Lead)" },
-              { role: "CUSTOMER" as Role, name: "Customer", desc: "Jean-Paul Mugisha (Resident)" },
-            ].map((item) => (
-              <button
-                key={item.role}
-                onClick={() => handleQuickDemoRole(item.role)}
-                className="w-full p-2.5 rounded-xl border border-slate-200 hover:border-emerald-500 hover:bg-emerald-50/50 text-left flex items-center justify-between text-xs transition-colors cursor-pointer"
-              >
-                <div>
-                  <div className="font-bold text-slate-900">{item.name}</div>
-                  <div className="text-[10px] text-slate-500">{item.desc}</div>
-                </div>
-                <ArrowRight className="w-3.5 h-3.5 text-slate-400" />
-              </button>
-            ))}
+            <div className="space-y-1.5">
+              {[
+                { role: "BUSINESS_OWNER" as Role, name: "Business Owner", desc: "Kevine Mukashyaka (Salon Owner)" },
+                { role: "COMMUNITY_AGENT" as Role, name: "Community Agent", desc: "Emmanuel Hakizimana (Biryogo Scout)" },
+                { role: "SUPER_ADMIN" as Role, name: "Platform Admin", desc: "Diane Uwera (Command Center Lead)" },
+                { role: "CUSTOMER" as Role, name: "Customer", desc: "Jean-Paul Mugisha (Resident)" },
+              ].map((item) => (
+                <button
+                  key={item.role}
+                  onClick={() => handleQuickDemoRole(item.role)}
+                  className="w-full p-2.5 rounded-xl border border-slate-200 hover:border-emerald-500 hover:bg-emerald-50/50 text-left flex items-center justify-between text-xs transition-colors cursor-pointer"
+                >
+                  <div>
+                    <div className="font-bold text-slate-900">{item.name}</div>
+                    <div className="text-[10px] text-slate-500">{item.desc}</div>
+                  </div>
+                  <ArrowRight className="w-3.5 h-3.5 text-slate-400" />
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

@@ -112,6 +112,15 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: "Forbidden: You do not own this business" }, { status: 403 });
     }
 
+    const existingOffer = await prisma.offer.findUnique({
+      where: { id: offerId },
+      select: { id: true, businessId: true },
+    });
+
+    if (!existingOffer || existingOffer.businessId !== businessId) {
+      return NextResponse.json({ error: "Offer not found or does not belong to this business" }, { status: 404 });
+    }
+
     const actorId = auth.user.id;
 
     await prisma.$transaction(async (tx) => {

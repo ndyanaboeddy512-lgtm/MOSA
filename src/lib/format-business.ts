@@ -64,6 +64,8 @@ export function formatBusinessRecord(raw: any): Business {
         currency: "RWF",
         unit: p.unit || "item",
         isAvailable: typeof p.isAvailable === "boolean" ? p.isAvailable : true,
+        isService: Boolean(p.isService),
+        moderationStatus: p.moderationStatus || "APPROVED",
         category: p.category || undefined,
         extractedFrom: p.extractedFrom || "MANUAL",
         confidenceScore: typeof p.confidenceScore === "number" ? p.confidenceScore : undefined,

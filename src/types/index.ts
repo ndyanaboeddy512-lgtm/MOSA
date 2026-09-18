@@ -146,12 +146,32 @@ export interface ProductItem {
   unit?: string; // e.g. "service", "item", "kg", "plate", "meter"
   isAvailable: boolean;
   isEstimated?: boolean;
+  isService?: boolean;
+  moderationStatus?: "APPROVED" | "FLAGGED" | "REMOVED";
+  moderationNote?: string;
   dataStatus?: DataStatus;
   category?: string;
   extractedFrom?: "RECEIPT" | "MENU" | "PRICE_BOARD" | "STOREFRONT_SIGN" | "MANUAL";
   confidenceScore?: number;
   verifiedByAgent: boolean;
   lastVerifiedAt?: string;
+}
+
+export interface BusinessMedia {
+  id: string;
+  businessId: string;
+  mediaType: "IMAGE" | "VIDEO";
+  url: string;
+  caption?: string;
+  isCover: boolean;
+  durationSec?: number;
+  thumbnailUrl?: string;
+  topic?: "PRODUCTS" | "SERVICES" | "OFFERS" | "WORKSHOP" | "NEW_ARRIVALS" | "FACILITY";
+  moderationStatus: "APPROVED" | "FLAGGED" | "REMOVED";
+  moderationReason?: string;
+  viewsCount: number;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface BusinessHours {
@@ -250,6 +270,8 @@ export interface Business {
     validUntil: string;
     status?: string;
   };
+  updates?: BusinessUpdateRecord[];
+  opportunities?: BusinessOpportunityRecord[];
   createdAt: string;
   updatedAt: string;
 }
@@ -405,4 +427,90 @@ export interface BusinessClaimRecord {
   reviewedAt?: string;
   claimedAt: string;
 }
+
+export type BusinessUpdateType = 
+  | "ANNOUNCEMENT"
+  | "NEW_ARRIVAL"
+  | "SERVICE_UPDATE"
+  | "OFFER"
+  | "TEMPORARY_CLOSURE"
+  | "NOTICE";
+
+export interface BusinessUpdateRecord {
+  id: string;
+  businessId: string;
+  type: BusinessUpdateType;
+  title: string;
+  titleRw?: string | null;
+  content: string;
+  contentRw?: string | null;
+  imageUrl?: string | null;
+  badge?: string | null;
+  validUntil?: string | null;
+  status: "ACTIVE" | "ARCHIVED" | "REMOVED";
+  moderationStatus: "APPROVED" | "FLAGGED" | "REMOVED";
+  viewsCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type OpportunityType = 
+  | "EMPLOYMENT"
+  | "PARTNERSHIP"
+  | "SUPPLIER_REQUEST"
+  | "COLLABORATION"
+  | "OTHER";
+
+export type OpportunityStatus = "OPEN" | "PAUSED" | "FILLED" | "CLOSED";
+
+export interface BusinessOpportunityRecord {
+  id: string;
+  businessId: string;
+  type: OpportunityType;
+  title: string;
+  titleRw?: string | null;
+  description: string;
+  descriptionRw?: string | null;
+  requirements?: string | null;
+  compensation?: string | null;
+  contactMethod: "WHATSAPP" | "PHONE" | "IN_PERSON";
+  contactValue?: string | null;
+  deadline?: string | null;
+  status: OpportunityStatus;
+  moderationStatus: "APPROVED" | "FLAGGED" | "REMOVED";
+  responsesCount: number;
+  inquiries?: OpportunityInquiryRecord[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OpportunityInquiryRecord {
+  id: string;
+  opportunityId: string;
+  applicantName: string;
+  applicantPhone: string;
+  message?: string | null;
+  status: "NEW" | "CONTACTED" | "ARCHIVED";
+  createdAt: string;
+}
+
+export type InquiryType = 
+  | "WHATSAPP_CLICK"
+  | "PHONE_CALL"
+  | "BOOKING_REQUEST"
+  | "ORDER_INQUIRY"
+  | "OPPORTUNITY_RESPONSE"
+  | "DIRECTIONS_VIEW";
+
+export interface CustomerInquiryRecord {
+  id: string;
+  businessId: string;
+  productId?: string | null;
+  type: InquiryType;
+  channel: string;
+  itemName?: string | null;
+  itemPrice?: number | null;
+  createdAt: string;
+}
+
 

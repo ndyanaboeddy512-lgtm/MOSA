@@ -42,6 +42,7 @@ interface SmartLocationFormProps {
   businessCategory?: string;
   onChange: (data: SmartLocationFormData) => void;
   existingBusinesses?: Array<{ id: string; name: string; latitude: number; longitude: number; category?: string }>;
+  errors?: Record<string, string>;
 }
 
 export function SmartLocationForm({
@@ -50,6 +51,7 @@ export function SmartLocationForm({
   businessCategory,
   onChange,
   existingBusinesses = [],
+  errors = {},
 }: SmartLocationFormProps) {
   // Geographic hierarchy tree from /api/geo
   const [geoTree, setGeoTree] = useState<any[]>([]);
@@ -320,58 +322,86 @@ export function SmartLocationForm({
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
           {/* Province */}
           <div>
-            <label className="block text-slate-600 font-bold mb-1">Province</label>
+            <label className="block text-slate-600 font-bold mb-1">
+              Province <span className="text-red-500">*</span>
+            </label>
             <select
               value={provinceId}
               onChange={(e) => handleProvinceChange(e.target.value)}
-              className="w-full p-2 rounded-xl bg-white border border-slate-300 font-medium outline-none"
+              className={`w-full p-2 rounded-xl border font-medium outline-none transition-colors ${
+                errors?.province ? "border-rose-400 bg-rose-50/30 ring-2 ring-rose-200" : "border-slate-300 bg-white"
+              }`}
             >
               {geoTree.map((p) => (
                 <option key={p.id} value={p.id}>{p.name}</option>
               ))}
             </select>
+            {errors?.province && (
+              <span className="text-[11px] text-rose-600 font-bold mt-1 block">{errors.province}</span>
+            )}
           </div>
 
           {/* District */}
           <div>
-            <label className="block text-slate-600 font-bold mb-1">District</label>
+            <label className="block text-slate-600 font-bold mb-1">
+              District <span className="text-red-500">*</span>
+            </label>
             <select
               value={districtId}
               onChange={(e) => handleDistrictChange(e.target.value)}
-              className="w-full p-2 rounded-xl bg-white border border-slate-300 font-medium outline-none"
+              className={`w-full p-2 rounded-xl border font-medium outline-none transition-colors ${
+                errors?.district ? "border-rose-400 bg-rose-50/30 ring-2 ring-rose-200" : "border-slate-300 bg-white"
+              }`}
             >
               {availableDistricts.map((d: any) => (
                 <option key={d.id} value={d.id}>{d.name}</option>
               ))}
             </select>
+            {errors?.district && (
+              <span className="text-[11px] text-rose-600 font-bold mt-1 block">{errors.district}</span>
+            )}
           </div>
 
           {/* Sector */}
           <div>
-            <label className="block text-slate-600 font-bold mb-1">Sector</label>
+            <label className="block text-slate-600 font-bold mb-1">
+              Sector <span className="text-red-500">*</span>
+            </label>
             <select
               value={sectorId}
               onChange={(e) => handleSectorChange(e.target.value)}
-              className="w-full p-2 rounded-xl bg-white border border-slate-300 font-medium outline-none"
+              className={`w-full p-2 rounded-xl border font-medium outline-none transition-colors ${
+                errors?.sector ? "border-rose-400 bg-rose-50/30 ring-2 ring-rose-200" : "border-slate-300 bg-white"
+              }`}
             >
               {availableSectors.map((s: any) => (
                 <option key={s.id} value={s.id}>{s.name}</option>
               ))}
             </select>
+            {errors?.sector && (
+              <span className="text-[11px] text-rose-600 font-bold mt-1 block">{errors.sector}</span>
+            )}
           </div>
 
           {/* Cell */}
           <div>
-            <label className="block text-slate-600 font-bold mb-1">Cell</label>
+            <label className="block text-slate-600 font-bold mb-1">
+              Cell <span className="text-red-500">*</span>
+            </label>
             <select
               value={cellId}
               onChange={(e) => handleCellChange(e.target.value)}
-              className="w-full p-2 rounded-xl bg-white border border-slate-300 font-medium outline-none"
+              className={`w-full p-2 rounded-xl border font-medium outline-none transition-colors ${
+                errors?.cell ? "border-rose-400 bg-rose-50/30 ring-2 ring-rose-200" : "border-slate-300 bg-white"
+              }`}
             >
               {availableCells.map((c: any) => (
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}
             </select>
+            {errors?.cell && (
+              <span className="text-[11px] text-rose-600 font-bold mt-1 block">{errors.cell}</span>
+            )}
           </div>
         </div>
       </div>
@@ -386,7 +416,7 @@ export function SmartLocationForm({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label className="block text-slate-700 font-bold mb-1">
-              Nearest Landmark <span className="text-red-500">*</span>
+              Nearest Walking Landmark <span className="text-red-500">*</span>
             </label>
             <input
               type="text"
@@ -394,8 +424,21 @@ export function SmartLocationForm({
               value={nearestLandmark}
               onChange={(e) => setNearestLandmark(e.target.value)}
               placeholder="e.g. MINAGRI Main Gate, Cosmos Junction, Green Mosque"
-              className="w-full p-2.5 rounded-xl border border-slate-300 bg-white font-medium"
+              className={`w-full p-2.5 rounded-xl border font-medium transition-colors ${
+                errors?.nearestLandmark
+                  ? "border-rose-400 bg-rose-50/30 text-slate-900 ring-2 ring-rose-200"
+                  : "border-slate-300 bg-white focus:border-emerald-500"
+              }`}
             />
+            {errors?.nearestLandmark ? (
+              <span className="text-xs text-rose-600 font-bold mt-1 block">
+                {errors.nearestLandmark}
+              </span>
+            ) : (
+              <span className="text-[11px] text-slate-500 mt-1 block">
+                Crucial for ground discovery: a shop, church, school, or well-known junction nearby.
+              </span>
+            )}
           </div>
 
           <div>
@@ -407,7 +450,7 @@ export function SmartLocationForm({
               value={streetName}
               onChange={(e) => setStreetName(e.target.value)}
               placeholder="e.g. KG 569 St, KN 123 St"
-              className="w-full p-2.5 rounded-xl border border-slate-300 bg-white font-medium"
+              className="w-full p-2.5 rounded-xl border border-slate-300 bg-white font-medium focus:border-emerald-500"
             />
           </div>
         </div>

@@ -35,6 +35,7 @@ import {
   ALL_BUSINESS_TYPES,
   validateCategoryHierarchy,
   formatCategoryClassification,
+  getBusinessOperatingModel,
 } from "@/lib/taxonomy";
 
 export default function RegisterBusinessPage() {
@@ -72,6 +73,11 @@ export default function RegisterBusinessPage() {
     coverImage: "",
     certifyAccurate: false,
   });
+
+  // Dynamic Operating Model (Services vs Products vs Food & Dining)
+  const operatingModel = useMemo(() => {
+    return getBusinessOperatingModel(formData.mainCategory, formData.subCategory, formData.businessType);
+  }, [formData.mainCategory, formData.subCategory, formData.businessType]);
 
   // Cascading Category Helpers
   const currentMain = useMemo(() => {
@@ -226,13 +232,17 @@ export default function RegisterBusinessPage() {
     if (!locationData.district) errors.district = "District is required";
     if (!locationData.sector) errors.sector = "Sector is required";
     if (!locationData.cell) errors.cell = "Cell is required";
-    if (!locationData.nearestLandmark.trim()) {
-      errors.nearestLandmark = t.registration.errors.landmarkRequired;
+    if (!locationData.nearestLandmark || !locationData.nearestLandmark.trim()) {
+      errors.nearestLandmark = (t.registration as any)?.errors?.landmarkRequired || "Nearest recognizable landmark is required";
     }
 
     setFieldErrors(errors);
     if (Object.keys(errors).length > 0) {
-      setErrorMsg("Please specify your district, sector, cell and nearest recognizable walking landmark.");
+      setErrorMsg(
+        lang === "rw"
+          ? "Nyamuneka hitamo Akarere, Umurenge, Akagari kandi wandike ikimenyetso kigaragara cyo ku butaka (Landmark)."
+          : "Please specify your district, sector, cell and nearest recognizable walking landmark."
+      );
       return false;
     }
     setErrorMsg(null);
@@ -307,7 +317,7 @@ export default function RegisterBusinessPage() {
       },
       {
         id: "products",
-        label: "Product Catalog Pricing (if specified)",
+        label: `${operatingModel.stepLabel} Pricing (if specified)`,
         valid: products.every((p) => {
           if (p.name.trim()) return Number(p.price) >= 0;
           if (p.price.trim()) return Boolean(p.name.trim());
@@ -316,7 +326,7 @@ export default function RegisterBusinessPage() {
         step: 3,
       },
     ];
-  }, [formData, locationData, products]);
+  }, [formData, locationData, products, operatingModel]);
 
   const isAllValid = useMemo(() => {
     return validationChecklist.every((c) => c.valid);
@@ -342,6 +352,7 @@ export default function RegisterBusinessPage() {
         .map((p) => ({
           name: p.name.trim(),
           price: Number(p.price) || 0,
+          isService: operatingModel.isServiceDefault,
         }));
 
       const effectiveWhatsapp = formData.hasDifferentWhatsapp && formData.whatsapp.trim()
@@ -477,7 +488,11 @@ export default function RegisterBusinessPage() {
               <button
                 type="button"
                 onClick={() => {
-                  if (validateStep1() && validateStep2()) setStep(3);
+                  if (validateStep1() && validateStep2()) {
+                    setErrorMsg(null);
+                    setStep(3);
+                    window.scrollTo({ top: 0, behavior: "smooth" });
+                  }
                 }}
                 className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs cursor-pointer ${
                   step === 3 
@@ -490,7 +505,7 @@ export default function RegisterBusinessPage() {
                 {step > 3 ? <CheckCircle2 className="w-4 h-4" /> : "3"}
               </button>
               <span className={`text-xs font-bold hidden sm:inline ${step === 3 ? "text-slate-900" : "text-slate-500"}`}>
-                {t.registration.step3}
+                {lang === "rw" ? operatingModel.stepLabelRw : operatingModel.stepLabel}
               </span>
             </div>
 
@@ -886,14 +901,31 @@ export default function RegisterBusinessPage() {
                     initialValues={locationData}
                     businessName={formData.name}
                     businessCategory={formData.category}
-                    onChange={(updated) => setLocationData(updated)}
+                    errors={fieldErrors}
+                    onChange={(updated) => {
+                      setLocationData(updated);
+                      if (fieldErrors.nearestLandmark && updated.nearestLandmark?.trim()) {
+                        setFieldErrors((prev) => ({ ...prev, nearestLandmark: "" }));
+                      }
+                    }}
                   />
+
+                  {/* Step 2 Inline Validation Alert */}
+                  {errorMsg && step === 2 && (
+                    <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center gap-2.5 shadow-xs">
+                      <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                      <span className="font-bold">{errorMsg}</span>
+                    </div>
+                  )}
 
                   {/* Step 2 Actions */}
                   <div className="pt-4 flex items-center justify-between border-t border-slate-100">
                     <button
                       type="button"
-                      onClick={() => setStep(1)}
+                      onClick={() => {
+                        setErrorMsg(null);
+                        setStep(1);
+                      }}
                       className="px-5 py-2.5 rounded-xl border border-slate-200 text-slate-700 font-bold text-xs hover:bg-slate-50 transition-colors flex items-center gap-1.5 cursor-pointer"
                     >
                       <ArrowLeft className="w-4 h-4" />
@@ -902,11 +934,15 @@ export default function RegisterBusinessPage() {
                     <button
                       type="button"
                       onClick={() => {
-                        if (validateStep2()) setStep(3);
+                        if (validateStep2()) {
+                          setErrorMsg(null);
+                          setStep(3);
+                          window.scrollTo({ top: 0, behavior: "smooth" });
+                        }
                       }}
                       className="px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm shadow-md transition-all flex items-center gap-2 cursor-pointer"
                     >
-                      <span>{t.registration.continueToProducts}</span>
+                      <span>{lang === "rw" ? operatingModel.continueBtnLabelRw : operatingModel.continueBtnLabel}</span>
                       <ArrowRight className="w-4 h-4" />
                     </button>
                   </div>
@@ -914,20 +950,25 @@ export default function RegisterBusinessPage() {
               </div>
             )}
 
-            {/* STEP 3: CATALOG PRODUCTS & STOREFRONT MEDIA */}
+            {/* STEP 3: DYNAMIC CATALOG (SERVICES / PRODUCTS / MENU) & STOREFRONT MEDIA */}
             {step === 3 && (
               <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-card space-y-6">
-                <div className="border-b border-slate-100 pb-4">
-                  <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                    <Tag className="w-5 h-5 text-emerald-600" />
-                    <span>{t.registration.productsTitle}</span>
-                  </h2>
-                  <p className="text-xs text-slate-500 mt-1">
-                    {t.registration.productsSubtitle}
-                  </p>
+                <div className="border-b border-slate-100 pb-4 flex items-center justify-between">
+                  <div>
+                    <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                      <Tag className="w-5 h-5 text-emerald-600" />
+                      <span>{lang === "rw" ? operatingModel.sectionTitleRw : operatingModel.sectionTitle}</span>
+                    </h2>
+                    <p className="text-xs text-slate-500 mt-1">
+                      {lang === "rw" ? operatingModel.sectionSubtitleRw : operatingModel.sectionSubtitle}
+                    </p>
+                  </div>
+                  <span className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold">
+                    {operatingModel.model === "SERVICES" ? "Services-Based" : operatingModel.model === "FOOD_DINING" ? "Food & Dining" : "Product Retail"}
+                  </span>
                 </div>
 
-                {/* Product Rows */}
+                {/* Product / Service / Menu Rows */}
                 <div className="space-y-3">
                   {products.map((prod, idx) => (
                     <div key={idx} className="flex items-center gap-3 p-3 rounded-2xl bg-slate-50 border border-slate-200">
@@ -937,7 +978,7 @@ export default function RegisterBusinessPage() {
                       <div className="flex-1">
                         <input
                           type="text"
-                          placeholder={t.registration.itemNamePlaceholder}
+                          placeholder={lang === "rw" ? operatingModel.itemPlaceholderRw : operatingModel.itemPlaceholder}
                           value={prod.name}
                           onChange={(e) => handleProductChange(idx, "name", e.target.value)}
                           className={`w-full px-3 py-2 rounded-xl bg-white border text-xs font-semibold outline-none ${
@@ -973,14 +1014,14 @@ export default function RegisterBusinessPage() {
                     </div>
                   ))}
 
-                  {products.length < 5 && (
+                  {products.length < 8 && (
                     <button
                       type="button"
                       onClick={addProductRow}
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-dashed border-emerald-300 text-emerald-700 hover:bg-emerald-50 text-xs font-bold transition-colors cursor-pointer"
                     >
                       <Plus className="w-3.5 h-3.5" />
-                      <span>{t.registration.addAnotherItem}</span>
+                      <span>{lang === "rw" ? operatingModel.addAnotherTextRw : operatingModel.addAnotherText}</span>
                     </button>
                   )}
                 </div>
@@ -1007,7 +1048,10 @@ export default function RegisterBusinessPage() {
                 <div className="pt-4 flex items-center justify-between border-t border-slate-100">
                   <button
                     type="button"
-                    onClick={() => setStep(2)}
+                    onClick={() => {
+                      setErrorMsg(null);
+                      setStep(2);
+                    }}
                     className="px-5 py-2.5 rounded-xl border border-slate-200 text-slate-700 font-bold text-xs hover:bg-slate-50 transition-colors flex items-center gap-1.5 cursor-pointer"
                   >
                     <ArrowLeft className="w-4 h-4" />
@@ -1016,7 +1060,11 @@ export default function RegisterBusinessPage() {
                   <button
                     type="button"
                     onClick={() => {
-                      if (validateStep3()) setStep(4);
+                      if (validateStep3()) {
+                        setErrorMsg(null);
+                        setStep(4);
+                        window.scrollTo({ top: 0, behavior: "smooth" });
+                      }
                     }}
                     className="px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm shadow-md transition-all flex items-center gap-2 cursor-pointer"
                   >
@@ -1072,6 +1120,7 @@ export default function RegisterBusinessPage() {
                           <div><span className="text-slate-500 font-medium">Sector:</span> <strong className="text-slate-900">{getTaxonomyLabel(currentMain)}</strong></div>
                           <div><span className="text-slate-500 font-medium">Domain:</span> <strong className="text-slate-900">{getTaxonomyLabel(currentSub)}</strong></div>
                           <div><span className="text-slate-500 font-medium">Type:</span> <strong className="text-emerald-700 font-bold">{getTaxonomyLabel(currentType)}</strong></div>
+                          <div><span className="text-slate-500 font-medium">Model:</span> <strong className="text-emerald-800 bg-emerald-100 px-1.5 py-0.5 rounded text-[10px] uppercase font-bold">{operatingModel.model}</strong></div>
                         </div>
                         <div><strong className="text-slate-900">Owner:</strong> {formData.ownerName}</div>
                         <div><strong className="text-slate-900">Phone:</strong> <span className="font-mono">{formData.phone}</span></div>
@@ -1118,12 +1167,12 @@ export default function RegisterBusinessPage() {
                       </div>
                     </div>
 
-                    {/* Section 3: Catalogue Items */}
+                    {/* Section 3: Catalogue Items (Dynamic Services vs Products vs Menu) */}
                     <div className="sm:col-span-2 p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-black uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
                           <Layers className="w-3.5 h-3.5 text-emerald-600" />
-                          Initial Products & Offerings
+                          Initial {lang === "rw" ? operatingModel.stepLabelRw : operatingModel.stepLabel} & Pricing
                         </span>
                         <button
                           type="button"
@@ -1139,13 +1188,18 @@ export default function RegisterBusinessPage() {
                           {products.filter((p) => p.name.trim()).map((p, i) => (
                             <div key={i} className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-xs">
                               <span className="font-semibold text-slate-800">{p.name}</span>
-                              <span className="font-mono font-bold text-emerald-700">{Number(p.price).toLocaleString()} RWF</span>
+                              <div className="flex items-center gap-2">
+                                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                  {operatingModel.model === "SERVICES" ? "Service" : operatingModel.model === "FOOD_DINING" ? "Menu Item" : "Product"}
+                                </span>
+                                <span className="font-mono font-bold text-emerald-700">{Number(p.price).toLocaleString()} RWF</span>
+                              </div>
                             </div>
                           ))}
                         </div>
                       ) : (
                         <p className="text-xs text-slate-500 italic">
-                          No initial products specified. You can add items later in your Private Owner Portal.
+                          No initial {operatingModel.stepLabel.toLowerCase()} specified. You can add items later in your Private Owner Portal.
                         </p>
                       )}
                     </div>

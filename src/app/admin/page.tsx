@@ -40,7 +40,12 @@ import {
   Edit3,
   MessageCircle,
   ExternalLink,
-  Layers
+  Layers,
+  ShieldAlert,
+  Eye,
+  Video,
+  Film,
+  Play
 } from "lucide-react";
 import { SmartLocationForm, SmartLocationFormData } from "@/components/location/SmartLocationForm";
 import { calculateLocationCompleteness } from "@/lib/location-quality";
@@ -50,6 +55,7 @@ import {
   ALL_SUBCATEGORIES,
   ALL_BUSINESS_TYPES,
   formatCategoryClassification,
+  getCategoryHierarchy,
 } from "@/lib/taxonomy";
 
 interface AdminAuditLog {
@@ -83,6 +89,10 @@ interface AdminMetrics {
   potentialDuplicatesCount: number;
   pendingClaimsCount?: number;
   totalSMSCount?: number;
+  itemsRequiringAttention?: number;
+  flaggedMediaCount?: number;
+  flaggedProductsCount?: number;
+  businessesRequiringReview?: number;
 }
 
 const CATEGORY_OPTIONS = [
@@ -103,7 +113,7 @@ export default function AdminPanelPage() {
   const { user, switchDemoRole } = useAuth();
 
   const [activeTab, setActiveTab] = useState<
-    "businesses" | "intelligence" | "pending_applications" | "claims" | "sms" | "history" | "captures" | "reports" | "demands" | "audit"
+    "businesses" | "intelligence" | "pending_applications" | "moderation" | "claims" | "sms" | "history" | "captures" | "reports" | "demands" | "audit"
   >("businesses");
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [claims, setClaims] = useState<any[]>([]);
@@ -126,6 +136,24 @@ export default function AdminPanelPage() {
   const [reviewAction, setReviewAction] = useState<"APPROVE" | "CORRECTIONS" | "REJECT" | null>(null);
   const [adminNotes, setAdminNotes] = useState<string>("");
   const [isActionSubmitting, setIsActionSubmitting] = useState<boolean>(false);
+
+  // Content Moderation & On-Demand Inspection State
+  const [moderationOpenReports, setModerationOpenReports] = useState<any[]>([]);
+  const [moderationFlaggedMedia, setModerationFlaggedMedia] = useState<any[]>([]);
+  const [moderationUpdates, setModerationUpdates] = useState<any[]>([]);
+  const [moderationOpportunities, setModerationOpportunities] = useState<any[]>([]);
+  const [moderationFilter, setModerationFilter] = useState<"ALL" | "VIDEO" | "PHOTO" | "PRODUCT" | "UPDATE" | "OPPORTUNITY">("ALL");
+  const [inspectingBizContent, setInspectingBizContent] = useState<any | null>(null);
+  const [isInspectingLoading, setIsInspectingLoading] = useState(false);
+  const [activePreviewVideo, setActivePreviewVideo] = useState<any | null>(null);
+  const [moderationActionModal, setModerationActionModal] = useState<{
+    open: boolean;
+    action: string;
+    targetId: string;
+    targetType: string;
+    title: string;
+  } | null>(null);
+  const [moderationActionReason, setModerationActionReason] = useState("");
   
   const [metrics, setMetrics] = useState<AdminMetrics>({
     totalBusinesses: 0,
@@ -555,8 +583,60 @@ export default function AdminPanelPage() {
         body: JSON.stringify({ action: "RESOLVE_REPORT", reportId, status }),
       });
       fetchAdminData();
+      fetchModerationData();
     } catch (err) {
       console.warn("[Admin PATCH report error]:", err);
+    }
+  };
+
+  const fetchModerationData = async () => {
+    try {
+      const res = await fetch("/api/admin/moderation");
+      if (res.ok) {
+        const d = await res.json();
+        setModerationOpenReports(d.openReports || []);
+        setModerationFlaggedMedia(d.flaggedMedia || []);
+        setModerationUpdates(d.updates || []);
+        setModerationOpportunities(d.opportunities || []);
+      }
+    } catch (err) {
+      console.error("Failed to load moderation data:", err);
+    }
+  };
+
+  const handleInspectBusinessContent = async (businessId: string) => {
+    setIsInspectingLoading(true);
+    try {
+      const res = await fetch(`/api/admin/businesses/${businessId}/content`);
+      if (res.ok) {
+        const d = await res.json();
+        setInspectingBizContent(d);
+      }
+    } catch (err) {
+      console.error("Failed to inspect business content:", err);
+    } finally {
+      setIsInspectingLoading(false);
+    }
+  };
+
+  const handleExecuteModerationAction = async (action: string, targetId: string, reason?: string) => {
+    try {
+      const res = await fetch("/api/admin/moderation", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action, targetId, reason }),
+      });
+      if (res.ok) {
+        fetchModerationData();
+        fetchAdminData();
+        if (inspectingBizContent?.business?.id) {
+          handleInspectBusinessContent(inspectingBizContent.business.id);
+        }
+        setModerationActionModal(null);
+        setModerationActionReason("");
+      }
+    } catch (err) {
+      console.error("Moderation action failed:", err);
     }
   };
 
@@ -663,25 +743,47 @@ export default function AdminPanelPage() {
       
       {/* Role Notice if Not Admin */}
       {!isPermittedAdmin && (
-        <div className="mb-6 p-4 rounded-2xl bg-amber-50 border border-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <Lock className="w-5 h-5 text-amber-600 shrink-0" />
-            <div>
-              <div className="font-bold text-sm text-amber-900">
-                Viewing in {user?.role.replace("_", " ") || "Guest"} Mode
-              </div>
-              <div className="text-xs text-amber-700">
-                Switch to Super Admin to test administrative geographic data progression and database modifications.
+        process.env.NEXT_PUBLIC_ENABLE_DEMO_SWITCH === "true" ? (
+          <div className="mb-6 p-4 rounded-2xl bg-amber-50 border border-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <Lock className="w-5 h-5 text-amber-600 shrink-0" />
+              <div>
+                <div className="font-bold text-sm text-amber-900">
+                  Viewing in {user?.role.replace("_", " ") || "Guest"} Mode
+                </div>
+                <div className="text-xs text-amber-700">
+                  Switch to Super Admin to test administrative geographic data progression and database modifications.
+                </div>
               </div>
             </div>
+            <button
+              onClick={() => switchDemoRole("SUPER_ADMIN")}
+              className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl shadow-xs transition-colors shrink-0"
+            >
+              Switch to Super Admin
+            </button>
           </div>
-          <button
-            onClick={() => switchDemoRole("SUPER_ADMIN")}
-            className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl shadow-xs transition-colors shrink-0"
-          >
-            Switch to Super Admin
-          </button>
-        </div>
+        ) : (
+          <div className="mb-6 p-4 rounded-2xl bg-rose-50 border border-rose-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <Lock className="w-5 h-5 text-rose-600 shrink-0" />
+              <div>
+                <div className="font-bold text-sm text-rose-900">
+                  Restricted Administrative Console
+                </div>
+                <div className="text-xs text-rose-700">
+                  Administrative actions require authenticated staff credentials.
+                </div>
+              </div>
+            </div>
+            <Link
+              href="/auth/login"
+              className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl shadow-xs transition-colors shrink-0 text-center"
+            >
+              Staff Sign In
+            </Link>
+          </div>
+        )
       )}
 
       {/* Top Banner with Real Neon PostgreSQL Counters */}
@@ -760,6 +862,69 @@ export default function AdminPanelPage() {
         </div>
       </div>
 
+      {/* Platform Content Integrity & Governance Indicator Card */}
+      <div className="bg-white border border-slate-200/80 rounded-2xl p-5 mb-6 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex items-start gap-3">
+          <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 border border-purple-200 flex items-center justify-center shrink-0">
+            <ShieldAlert className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h4 className="font-bold text-slate-900 text-sm">Content Moderation & Ecosystem Governance</h4>
+              <span className="text-[10px] bg-purple-100 text-purple-800 font-bold px-2 py-0.5 rounded-full">
+                System-Wide Authority
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Business owners independently manage products, prices, and showcase videos. Main Command Center monitors platform integrity without cluttering the overview.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-4 bg-slate-50 border border-slate-200 px-4 py-2 rounded-xl text-xs">
+            <div>
+              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Attention Required</div>
+              <div className="text-base font-black text-purple-700">
+                {((metrics as any).itemsRequiringAttention ?? (moderationOpenReports.length + moderationFlaggedMedia.length)) || 0} items
+              </div>
+            </div>
+            <div className="h-6 w-px bg-slate-200" />
+            <div>
+              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Flagged Media</div>
+              <div className="text-base font-black text-amber-600">
+                {((metrics as any).flaggedMediaCount ?? moderationFlaggedMedia.length) || 0}
+              </div>
+            </div>
+            <div className="h-6 w-px bg-slate-200" />
+            <div>
+              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">User Reports</div>
+              <div className="text-base font-black text-rose-600">
+                {((metrics as any).openReportsCount ?? moderationOpenReports.length) || 0}
+              </div>
+            </div>
+            <div className="h-6 w-px bg-slate-200" />
+            <div>
+              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Review Needed</div>
+              <div className="text-base font-black text-slate-800">
+                {((metrics as any).businessesRequiringReview) || 0}
+              </div>
+            </div>
+          </div>
+
+          <button
+            onClick={() => {
+              fetchModerationData();
+              setActiveTab("moderation");
+            }}
+            className="px-4 py-2.5 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer shrink-0"
+          >
+            <Shield className="w-4 h-4" />
+            <span>Open Moderation Console</span>
+          </button>
+        </div>
+      </div>
+
       {/* Tabs Navigation */}
       <div className="flex items-center gap-2 border-b border-slate-200 pb-3 mb-6 overflow-x-auto no-scrollbar">
         {[
@@ -775,6 +940,12 @@ export default function AdminPanelPage() {
             label: "Pending Verification", 
             count: businesses.filter((b: any) => b.status === "PENDING" || b.status === "NEEDS_CORRECTION").length, 
             icon: ShieldCheck 
+          },
+          { 
+            id: "moderation", 
+            label: "Content Moderation", 
+            count: (moderationOpenReports.length + moderationFlaggedMedia.length), 
+            icon: Film 
           },
           { id: "claims", label: "Ownership Claims", count: claims.filter((c) => c.status === "PENDING").length, icon: HeartHandshake },
           { id: "sms", label: "SMS Queue & Status", count: smsMessages.length, icon: Smartphone },
@@ -1251,6 +1422,15 @@ export default function AdminPanelPage() {
                       )}
 
                       <button
+                        onClick={() => handleInspectBusinessContent(biz.id)}
+                        className="px-2.5 py-1.5 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 text-xs font-bold transition-colors flex items-center gap-1 cursor-pointer"
+                        title="Inspect Content & Assets (Videos, Photos, Catalog, Reports)"
+                      >
+                        <Film className="w-3.5 h-3.5 text-purple-600" />
+                        <span>Inspect Assets</span>
+                      </button>
+
+                      <button
                         onClick={() => {
                           setEditingBiz(biz);
                           setIsEditModalOpen(true);
@@ -1567,6 +1747,459 @@ export default function AdminPanelPage() {
                 ))
             )}
           </div>
+        </div>
+      )}
+
+      {/* Moderation Tab: Platform Integrity & Content Governance */}
+      {activeTab === "moderation" && (
+        <div className="space-y-6">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-card p-6 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+              <div>
+                <div className="flex items-center gap-2">
+                  <ShieldAlert className="w-5 h-5 text-purple-600" />
+                  <h3 className="font-bold text-slate-900 text-lg">Platform Content Moderation & Integrity</h3>
+                </div>
+                <p className="text-xs text-slate-500 mt-1">
+                  Governance center for short business showcase videos (≤ 60s), storefront photos, and community complaints.
+                  Business owners independently manage their content, while administrators retain underlying authority to enforce commercial rules and community safety.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    fetchModerationData();
+                    fetchAdminData();
+                  }}
+                  className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  <span>Refresh Queue</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Filter Pills */}
+            <div className="flex items-center gap-2 flex-wrap">
+              {[
+                { id: "ALL", label: "All Items", count: moderationOpenReports.length + moderationFlaggedMedia.length + moderationUpdates.length + moderationOpportunities.length },
+                { id: "VIDEO", label: "Short Videos", count: moderationFlaggedMedia.filter(m => m.mediaType === "VIDEO").length },
+                { id: "PHOTO", label: "Photos", count: moderationFlaggedMedia.filter(m => m.mediaType === "IMAGE").length },
+                { id: "PRODUCT", label: "Reports", count: moderationOpenReports.length },
+                { id: "UPDATE", label: "Updates", count: moderationUpdates.length },
+                { id: "OPPORTUNITY", label: "Opportunities", count: moderationOpportunities.length },
+              ].map((f) => (
+                <button
+                  key={f.id}
+                  onClick={() => setModerationFilter(f.id as any)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                    moderationFilter === f.id
+                      ? "bg-purple-600 text-white shadow-xs"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  }`}
+                >
+                  <span>{f.label}</span>
+                  <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
+                    moderationFilter === f.id ? "bg-purple-700 text-white" : "bg-slate-200 text-slate-700"
+                  }`}>
+                    {f.count}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Section 1: Flagged Showcase Videos & Media */}
+          {(moderationFilter === "ALL" || moderationFilter === "VIDEO" || moderationFilter === "PHOTO") && (
+            <div className="bg-white rounded-3xl border border-slate-200 shadow-card p-6 space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Film className="w-4 h-4 text-purple-600" />
+                  <h4 className="font-bold text-slate-900 text-sm">
+                    Flagged Business Media & Videos ({
+                      moderationFilter === "ALL" 
+                        ? moderationFlaggedMedia.length 
+                        : moderationFlaggedMedia.filter(m => m.mediaType === (moderationFilter === "VIDEO" ? "VIDEO" : "IMAGE")).length
+                    })
+                  </h4>
+                </div>
+              </div>
+
+              {moderationFlaggedMedia.length === 0 ? (
+                <div className="p-8 text-center border-2 border-dashed border-slate-100 rounded-2xl text-xs text-slate-400">
+                  <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto mb-2" />
+                  No flagged media requiring moderation. All videos and photos comply with MOSA commercial standards.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {moderationFlaggedMedia
+                    .filter(m => moderationFilter === "ALL" || m.mediaType === (moderationFilter === "VIDEO" ? "VIDEO" : "IMAGE"))
+                    .map((media) => (
+                      <div
+                        key={media.id}
+                        className="bg-slate-50 rounded-2xl border border-slate-200 p-4 space-y-3 flex flex-col justify-between hover:shadow-md transition-shadow"
+                      >
+                        <div className="space-y-2">
+                          <div className="flex items-start gap-3">
+                            <div className="relative w-28 h-20 rounded-xl overflow-hidden bg-slate-900 shrink-0 flex items-center justify-center">
+                              {media.mediaType === "VIDEO" ? (
+                                <>
+                                  <div className="w-full h-full flex items-center justify-center bg-purple-950 text-purple-300">
+                                    <Video className="w-6 h-6" />
+                                  </div>
+                                  <button
+                                    onClick={() => setActivePreviewVideo(media)}
+                                    className="absolute inset-0 m-auto w-8 h-8 rounded-full bg-white/90 text-slate-900 flex items-center justify-center shadow-md hover:scale-110 transition-transform cursor-pointer"
+                                  >
+                                    <Play className="w-4 h-4 ml-0.5 fill-slate-900" />
+                                  </button>
+                                  {media.durationSec && (
+                                    <span className="absolute bottom-1 right-1 text-[9px] font-bold px-1.5 py-0.2 rounded bg-black/80 text-white">
+                                      {media.durationSec}s
+                                    </span>
+                                  )}
+                                </>
+                              ) : (
+                                <img
+                                  src={media.url}
+                                  alt="Flagged media"
+                                  className="w-full h-full object-cover"
+                                />
+                              )}
+                            </div>
+
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded ${
+                                  media.mediaType === "VIDEO" ? "bg-purple-100 text-purple-800" : "bg-emerald-100 text-emerald-800"
+                                }`}>
+                                  {media.mediaType}
+                                </span>
+                                {media.topic && (
+                                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-slate-200 text-slate-700 uppercase">
+                                    {media.topic}
+                                  </span>
+                                )}
+                                <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-amber-100 text-amber-800">
+                                  {media.moderationStatus}
+                                </span>
+                              </div>
+
+                              <p className="text-xs font-semibold text-slate-800 mt-1 line-clamp-2">
+                                {media.caption || "No caption provided"}
+                              </p>
+
+                              <div className="text-[11px] text-slate-500 mt-1 flex items-center gap-1">
+                                <span className="font-bold text-slate-700">{media.business?.name || "Unknown Business"}</span>
+                                <span>•</span>
+                                <span>{media.business?.sector || "Rwanda"}</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {media.moderationReason && (
+                            <div className="p-2 rounded-xl bg-amber-50 border border-amber-200 text-[11px] text-amber-900">
+                              Flag Note: {media.moderationReason}
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="flex items-center justify-between pt-2 border-t border-slate-200 text-xs">
+                          <button
+                            onClick={() => handleInspectBusinessContent(media.businessId)}
+                            className="text-purple-600 hover:text-purple-800 font-bold flex items-center gap-1 text-[11px] cursor-pointer"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                            <span>Inspect Owner</span>
+                          </button>
+
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => handleExecuteModerationAction("APPROVE_MEDIA", media.id)}
+                              className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] transition-colors cursor-pointer"
+                            >
+                              Approve
+                            </button>
+                            <button
+                              onClick={() => setModerationActionModal({
+                                open: true,
+                                action: "REMOVE_MEDIA",
+                                targetId: media.id,
+                                targetType: "MEDIA",
+                                title: `Remove ${media.mediaType === "VIDEO" ? "Video" : "Photo"} from Public MOSA`,
+                              })}
+                              className="px-2.5 py-1 rounded-lg bg-red-600 hover:bg-red-700 text-white font-bold text-[11px] transition-colors cursor-pointer"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Section 2: Open User Reports */}
+          {(moderationFilter === "ALL" || moderationFilter === "PRODUCT") && (
+            <div className="bg-white rounded-3xl border border-slate-200 shadow-card p-6 space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-rose-600" />
+                  <h4 className="font-bold text-slate-900 text-sm">
+                    Open Community Reports ({moderationOpenReports.length})
+                  </h4>
+                </div>
+              </div>
+
+              {moderationOpenReports.length === 0 ? (
+                <div className="p-8 text-center border-2 border-dashed border-slate-100 rounded-2xl text-xs text-slate-400">
+                  <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto mb-2" />
+                  No open user reports filed. Community data accuracy is intact.
+                </div>
+              ) : (
+                <div className="divide-y divide-slate-100">
+                  {moderationOpenReports.map((report) => (
+                    <div
+                      key={report.id}
+                      className="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+                    >
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-black text-xs text-slate-900">
+                            {report.business?.name || "Reported Business"}
+                          </span>
+                          <span className="text-[10px] bg-rose-100 text-rose-800 font-bold px-2 py-0.5 rounded-full">
+                            {report.reason?.replace(/_/g, " ") || "Complaint"}
+                          </span>
+                          <span className="text-[10px] bg-slate-100 text-slate-700 font-bold px-2 py-0.5 rounded-full">
+                            Target: {report.targetType || "BUSINESS"}
+                          </span>
+                        </div>
+
+                        {report.details && (
+                          <p className="text-xs text-slate-600 italic">
+                            &ldquo;{report.details}&rdquo;
+                          </p>
+                        )}
+
+                        <div className="text-[11px] text-slate-400">
+                          Reported: {new Date(report.createdAt).toLocaleString()} • Contact: {report.contactPhone || "Anonymous"}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        {report.businessId && (
+                          <button
+                            onClick={() => handleInspectBusinessContent(report.businessId)}
+                            className="px-3 py-1.5 rounded-xl bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200 text-xs font-bold transition-colors flex items-center gap-1 cursor-pointer"
+                          >
+                            <Film className="w-3.5 h-3.5 text-purple-600" />
+                            <span>Inspect Assets</span>
+                          </button>
+                        )}
+                        <button
+                          onClick={() => handleExecuteModerationAction("DISMISS_REPORT", report.id)}
+                          className="px-3 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-600 text-xs font-bold transition-colors cursor-pointer"
+                        >
+                          Dismiss
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Section 3: Business Updates Moderation */}
+          {(moderationFilter === "ALL" || moderationFilter === "UPDATE") && (
+            <div className="bg-white rounded-3xl border border-slate-200 shadow-card p-6 space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-emerald-600" />
+                  <h4 className="font-bold text-slate-900 text-sm">
+                    Business Updates & Announcements ({moderationUpdates.length})
+                  </h4>
+                </div>
+              </div>
+
+              {moderationUpdates.length === 0 ? (
+                <div className="p-8 text-center border-2 border-dashed border-slate-100 rounded-2xl text-xs text-slate-400">
+                  <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto mb-2" />
+                  No business updates posted yet.
+                </div>
+              ) : (
+                <div className="divide-y divide-slate-100">
+                  {moderationUpdates.map((update: any) => (
+                    <div key={update.id} className="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <div className="space-y-1 max-w-2xl">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-bold text-sm text-slate-900">{update.title}</span>
+                          {update.titleRw && <span className="text-xs text-slate-400">({update.titleRw})</span>}
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 uppercase">
+                            {update.type?.replace(/_/g, " ")}
+                          </span>
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                            (update.status === "ACTIVE" && update.moderationStatus !== "REMOVED")
+                              ? "bg-emerald-50 text-emerald-700 border border-emerald-200" 
+                              : "bg-rose-50 text-rose-700 border border-rose-200"
+                          }`}>
+                            {(update.status === "ACTIVE" && update.moderationStatus !== "REMOVED") ? "Active / Public" : "Deactivated"}
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-600 line-clamp-2">{update.content}</p>
+                        <div className="text-[11px] text-slate-400 flex items-center gap-2">
+                          <span className="font-semibold text-slate-600">{update.business?.name || "Business"}</span>
+                          <span>•</span>
+                          <span>{update.business?.sector || "Rwanda"}</span>
+                          <span>•</span>
+                          <span>Posted {new Date(update.createdAt).toLocaleDateString()}</span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        {update.businessId && (
+                          <button
+                            onClick={() => handleInspectBusinessContent(update.businessId)}
+                            className="px-3 py-1.5 rounded-xl bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200 text-xs font-bold transition-colors flex items-center gap-1 cursor-pointer"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                            <span>Inspect</span>
+                          </button>
+                        )}
+                        {(update.status === "ACTIVE" && update.moderationStatus !== "REMOVED") ? (
+                          <button
+                            onClick={() => setModerationActionModal({
+                              open: true,
+                              action: "REMOVE_UPDATE",
+                              targetId: update.id,
+                              targetType: "UPDATE",
+                              title: `Deactivate Update: ${update.title}`,
+                            })}
+                            className="px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition-colors cursor-pointer"
+                          >
+                            Deactivate
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => handleExecuteModerationAction("APPROVE_UPDATE", update.id)}
+                            className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-colors cursor-pointer"
+                          >
+                            Reactivate
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Section 4: Business Opportunities Moderation */}
+          {(moderationFilter === "ALL" || moderationFilter === "OPPORTUNITY") && (
+            <div className="bg-white rounded-3xl border border-slate-200 shadow-card p-6 space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <HeartHandshake className="w-4 h-4 text-blue-600" />
+                  <h4 className="font-bold text-slate-900 text-sm">
+                    Business Opportunities & Hiring ({moderationOpportunities.length})
+                  </h4>
+                </div>
+              </div>
+
+              {moderationOpportunities.length === 0 ? (
+                <div className="p-8 text-center border-2 border-dashed border-slate-100 rounded-2xl text-xs text-slate-400">
+                  <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto mb-2" />
+                  No business opportunities posted yet.
+                </div>
+              ) : (
+                <div className="divide-y divide-slate-100">
+                  {moderationOpportunities.map((opp: any) => (
+                    <div key={opp.id} className="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <div className="space-y-1 max-w-2xl">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-bold text-sm text-slate-900">{opp.title}</span>
+                          {opp.titleRw && <span className="text-xs text-slate-400">({opp.titleRw})</span>}
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 uppercase">
+                            {opp.type?.replace(/_/g, " ")}
+                          </span>
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                            opp.status === "OPEN"
+                              ? "bg-emerald-100 text-emerald-800"
+                              : opp.status === "PAUSED"
+                              ? "bg-amber-100 text-amber-800"
+                              : "bg-slate-200 text-slate-700"
+                          }`}>
+                            {opp.status}
+                          </span>
+                          {opp._count?.inquiries > 0 && (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-800">
+                              {opp._count.inquiries} Applicants
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-slate-600 line-clamp-2">{opp.description}</p>
+                        <div className="text-[11px] text-slate-400 flex items-center gap-2 flex-wrap">
+                          <span className="font-semibold text-slate-600">{opp.business?.name || "Business"}</span>
+                          {opp.compensation && (
+                            <>
+                              <span>•</span>
+                              <span className="text-slate-600 font-semibold">{opp.compensation}</span>
+                            </>
+                          )}
+                          {opp.deadline && (
+                            <>
+                              <span>•</span>
+                              <span>Deadline: {new Date(opp.deadline).toLocaleDateString()}</span>
+                            </>
+                          )}
+                          <span>•</span>
+                          <span>Posted {new Date(opp.createdAt).toLocaleDateString()}</span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        {opp.businessId && (
+                          <button
+                            onClick={() => handleInspectBusinessContent(opp.businessId)}
+                            className="px-3 py-1.5 rounded-xl bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200 text-xs font-bold transition-colors flex items-center gap-1 cursor-pointer"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                            <span>Inspect</span>
+                          </button>
+                        )}
+                        {opp.status !== "CLOSED" ? (
+                          <button
+                            onClick={() => setModerationActionModal({
+                              open: true,
+                              action: "REMOVE_OPPORTUNITY",
+                              targetId: opp.id,
+                              targetType: "OPPORTUNITY",
+                              title: `Close Opportunity: ${opp.title}`,
+                            })}
+                            className="px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition-colors cursor-pointer"
+                          >
+                            Close
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => handleExecuteModerationAction("APPROVE_OPPORTUNITY", opp.id)}
+                            className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-colors cursor-pointer"
+                          >
+                            Reopen
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -2449,6 +3082,466 @@ export default function AdminPanelPage() {
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: ADMIN VIDEO PREVIEW PLAYER */}
+      {activePreviewVideo && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 rounded-3xl max-w-2xl w-full p-6 shadow-2xl border border-slate-800 text-white space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div className="flex items-center gap-2">
+                <Film className="w-5 h-5 text-purple-400" />
+                <span className="font-bold text-sm">{activePreviewVideo.caption || "Business Showcase Video"}</span>
+              </div>
+              <button
+                onClick={() => setActivePreviewVideo(null)}
+                className="p-1 text-slate-400 hover:text-white cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="relative aspect-video rounded-2xl overflow-hidden bg-black flex items-center justify-center">
+              <video
+                controls
+                autoPlay
+                src={activePreviewVideo.url}
+                className="w-full h-full object-contain"
+              >
+                Your browser does not support HTML5 video.
+              </video>
+            </div>
+
+            <div className="flex items-center justify-between text-xs text-slate-400">
+              <div className="flex items-center gap-2">
+                {activePreviewVideo.topic && (
+                  <span className="px-2 py-0.5 rounded bg-purple-900/60 text-purple-300 font-semibold uppercase">
+                    {activePreviewVideo.topic}
+                  </span>
+                )}
+                {activePreviewVideo.durationSec && (
+                  <span>Duration: {activePreviewVideo.durationSec}s (max 60s)</span>
+                )}
+              </div>
+              <div>
+                Status: <span className="font-bold text-emerald-400">{activePreviewVideo.moderationStatus}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: MODERATION ACTION CONFIRMATION & REASON */}
+      {moderationActionModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <ShieldAlert className="w-5 h-5 text-red-600" />
+                <h3 className="font-bold text-slate-900 text-sm">{moderationActionModal.title}</h3>
+              </div>
+              <button
+                onClick={() => {
+                  setModerationActionModal(null);
+                  setModerationActionReason("");
+                }}
+                className="p-1 text-slate-400 hover:text-slate-700 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-600">
+              Specify the moderation violation reason. This will be recorded in the persistent Audit Log and delivered as an official notification to the business owner.
+            </p>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Reason for Removal / Action</label>
+              <textarea
+                rows={3}
+                required
+                placeholder="e.g. Video exceeds 60s maximum limit, or content is unrelated to commercial business operations."
+                value={moderationActionReason}
+                onChange={(e) => setModerationActionReason(e.target.value)}
+                className="w-full p-2.5 rounded-xl border border-slate-300 text-xs outline-none focus:ring-2 focus:ring-red-500"
+              />
+            </div>
+
+            <div className="flex items-center gap-2 pt-2">
+              <button
+                onClick={() => {
+                  setModerationActionModal(null);
+                  setModerationActionReason("");
+                }}
+                className="flex-1 py-2.5 rounded-xl bg-slate-100 text-slate-700 font-bold text-xs cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleExecuteModerationAction(
+                  moderationActionModal.action,
+                  moderationActionModal.targetId,
+                  moderationActionReason.trim() || "Policy compliance removal"
+                )}
+                className="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs shadow-md transition-all cursor-pointer"
+              >
+                Confirm Removal
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: ON-DEMAND BUSINESS CONTENT INSPECTION DRAWER */}
+      {inspectingBizContent && (
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-4xl w-full p-6 sm:p-8 shadow-2xl border border-slate-200 max-h-[90vh] overflow-y-auto space-y-6">
+            <div className="flex items-start justify-between pb-4 border-b border-slate-100">
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="text-xl font-black text-slate-900">{inspectingBizContent.business.name}</h3>
+                  <VerificationBadge status={inspectingBizContent.business.verificationStatus} />
+                  <span className="text-xs bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full font-semibold">
+                    {inspectingBizContent.business.category}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 mt-1">
+                  On-demand content inspection: {inspectingBizContent.business.location?.sector || inspectingBizContent.business.sector}, {inspectingBizContent.business.location?.cell || inspectingBizContent.business.cell} • Phone: {inspectingBizContent.business.phone}
+                </p>
+              </div>
+
+              <button
+                onClick={() => setInspectingBizContent(null)}
+                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Short Showcase Videos */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Film className="w-4 h-4 text-purple-600" />
+                  <h4 className="font-bold text-sm text-slate-800">
+                    Short Business Showcase Videos ({inspectingBizContent.videos?.length || 0})
+                  </h4>
+                </div>
+              </div>
+
+              {(!inspectingBizContent.videos || inspectingBizContent.videos.length === 0) ? (
+                <div className="p-4 rounded-xl bg-slate-50 border border-slate-100 text-xs text-slate-400 text-center">
+                  No short videos uploaded by this business.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                  {inspectingBizContent.videos.map((vid: any) => (
+                    <div
+                      key={vid.id}
+                      className="bg-slate-50 rounded-2xl border border-slate-200 overflow-hidden flex flex-col justify-between p-3 space-y-2"
+                    >
+                      <div className="relative aspect-video rounded-xl overflow-hidden bg-slate-900 flex items-center justify-center">
+                        <Video className="w-8 h-8 text-purple-300/70" />
+                        <button
+                          onClick={() => setActivePreviewVideo(vid)}
+                          className="absolute inset-0 m-auto w-10 h-10 rounded-full bg-white/90 text-slate-900 flex items-center justify-center shadow-md hover:scale-110 transition-transform cursor-pointer"
+                        >
+                          <Play className="w-4 h-4 ml-0.5 fill-slate-900" />
+                        </button>
+                        <div className="absolute top-1.5 left-1.5 flex items-center gap-1">
+                          <span className="text-[9px] font-black px-1.5 py-0.2 rounded bg-black/80 text-white">
+                            {vid.durationSec}s
+                          </span>
+                          <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-purple-600 text-white uppercase">
+                            {vid.topic}
+                          </span>
+                        </div>
+                        <span className={`absolute bottom-1.5 right-1.5 text-[9px] font-bold px-1.5 py-0.2 rounded ${
+                          vid.moderationStatus === "APPROVED" ? "bg-emerald-600 text-white" : vid.moderationStatus === "REMOVED" ? "bg-red-600 text-white" : "bg-amber-500 text-white"
+                        }`}>
+                          {vid.moderationStatus}
+                        </span>
+                      </div>
+
+                      <p className="text-xs font-semibold text-slate-800 line-clamp-2">
+                        {vid.caption || "Showcase clip"}
+                      </p>
+
+                      <div className="flex items-center justify-between pt-1 border-t border-slate-200 text-xs">
+                        <span className="text-[10px] text-slate-400">{vid.viewsCount || 0} views</span>
+                        <div className="flex items-center gap-1.5">
+                          {vid.moderationStatus !== "APPROVED" && (
+                            <button
+                              onClick={() => handleExecuteModerationAction("APPROVE_MEDIA", vid.id)}
+                              className="px-2 py-0.5 rounded bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px] cursor-pointer"
+                            >
+                              Approve
+                            </button>
+                          )}
+                          {vid.moderationStatus !== "REMOVED" && (
+                            <button
+                              onClick={() => setModerationActionModal({
+                                open: true,
+                                action: "REMOVE_MEDIA",
+                                targetId: vid.id,
+                                targetType: "MEDIA",
+                                title: "Remove Video from Public Website",
+                              })}
+                              className="px-2 py-0.5 rounded bg-red-600 hover:bg-red-700 text-white font-bold text-[10px] cursor-pointer"
+                            >
+                              Remove
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Photos */}
+            <div className="space-y-3 pt-4 border-t border-slate-100">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Eye className="w-4 h-4 text-emerald-600" />
+                  <h4 className="font-bold text-sm text-slate-800">
+                    Storefront & Gallery Photos ({inspectingBizContent.photos?.length || 0})
+                  </h4>
+                </div>
+              </div>
+
+              {(!inspectingBizContent.photos || inspectingBizContent.photos.length === 0) ? (
+                <div className="p-4 rounded-xl bg-slate-50 border border-slate-100 text-xs text-slate-400 text-center">
+                  No photos uploaded by this business.
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  {inspectingBizContent.photos.map((photo: any) => (
+                    <div
+                      key={photo.id}
+                      className="group relative rounded-xl border border-slate-200 overflow-hidden aspect-square bg-slate-100"
+                    >
+                      <img src={photo.url} alt="Photo" className="w-full h-full object-cover" />
+                      {photo.isCover && (
+                        <div className="absolute top-1.5 left-1.5 px-1.5 py-0.2 rounded bg-emerald-600 text-white text-[9px] font-black">
+                          Cover
+                        </div>
+                      )}
+                      <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity p-2 flex flex-col justify-between text-white text-xs">
+                        <span className="text-[10px] font-semibold line-clamp-2">{photo.caption || "No caption"}</span>
+                        <div className="flex items-center justify-between gap-1">
+                          <button
+                            onClick={() => handleExecuteModerationAction("APPROVE_MEDIA", photo.id)}
+                            className="px-2 py-0.5 rounded bg-emerald-600 text-white font-bold text-[10px]"
+                          >
+                            Keep
+                          </button>
+                          <button
+                            onClick={() => setModerationActionModal({
+                              open: true,
+                              action: "REMOVE_MEDIA",
+                              targetId: photo.id,
+                              targetType: "MEDIA",
+                              title: "Remove Photo from Public Gallery",
+                            })}
+                            className="px-2 py-0.5 rounded bg-red-600 text-white font-bold text-[10px]"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Products & Services */}
+            <div className="space-y-3 pt-4 border-t border-slate-100">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Tag className="w-4 h-4 text-blue-600" />
+                  <h4 className="font-bold text-sm text-slate-800">
+                    Products & Catalogue Items ({inspectingBizContent.products?.length || 0})
+                  </h4>
+                </div>
+              </div>
+
+              {(!inspectingBizContent.products || inspectingBizContent.products.length === 0) ? (
+                <div className="p-4 rounded-xl bg-slate-50 border border-slate-100 text-xs text-slate-400 text-center">
+                  No products in catalogue.
+                </div>
+              ) : (
+                <div className="divide-y divide-slate-100 border border-slate-200 rounded-2xl overflow-hidden">
+                  {inspectingBizContent.products.map((p: any) => (
+                    <div key={p.id} className="p-3 bg-white flex items-center justify-between text-xs hover:bg-slate-50">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-slate-900">{p.name}</span>
+                          {p.isService && (
+                            <span className="text-[9px] bg-purple-100 text-purple-800 font-bold px-1.5 py-0.2 rounded">
+                              Service
+                            </span>
+                          )}
+                          <span className="text-[9px] bg-slate-100 text-slate-600 px-1.5 py-0.2 rounded">
+                            {p.category || "General"}
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-slate-500">
+                          {p.price?.toLocaleString()} RWF • Status: {p.isAvailable ? "In Stock" : "Unavailable"}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        {p.moderationStatus === "REMOVED" ? (
+                          <button
+                            onClick={() => handleExecuteModerationAction("APPROVE_PRODUCT", p.id)}
+                            className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] cursor-pointer"
+                          >
+                            Restore
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => setModerationActionModal({
+                              open: true,
+                              action: "REMOVE_PRODUCT",
+                              targetId: p.id,
+                              targetType: "PRODUCT",
+                              title: `Remove Product "${p.name}"`,
+                            })}
+                            className="px-2.5 py-1 rounded-lg bg-red-50 text-red-700 hover:bg-red-100 border border-red-200 font-bold text-[11px] cursor-pointer"
+                          >
+                            Remove
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Business Updates */}
+            <div className="space-y-3 pt-4 border-t border-slate-100">
+              <h4 className="font-bold text-sm text-slate-900 flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-emerald-600" />
+                <span>Business Updates ({inspectingBizContent.business?.updates?.length || 0})</span>
+              </h4>
+              {(!inspectingBizContent.business?.updates || inspectingBizContent.business.updates.length === 0) ? (
+                <p className="text-xs text-slate-400 italic">No updates published by this business.</p>
+              ) : (
+                <div className="space-y-2">
+                  {inspectingBizContent.business.updates.map((u: any) => (
+                    <div key={u.id} className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-3 text-xs">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-slate-900">{u.title}</span>
+                          <span className="text-[10px] font-bold px-1.5 py-0.2 rounded uppercase bg-emerald-100 text-emerald-800">
+                            {u.type}
+                          </span>
+                          <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded ${
+                            (u.status === "ACTIVE" && u.moderationStatus !== "REMOVED") ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"
+                          }`}>
+                            {(u.status === "ACTIVE" && u.moderationStatus !== "REMOVED") ? "Active" : "Deactivated"}
+                          </span>
+                        </div>
+                        <p className="text-slate-600 text-[11px] line-clamp-1 mt-0.5">{u.content}</p>
+                      </div>
+                      <div className="shrink-0">
+                        {(u.status === "ACTIVE" && u.moderationStatus !== "REMOVED") ? (
+                          <button
+                            onClick={() => handleExecuteModerationAction("REMOVE_UPDATE", u.id, "Deactivated from owner inspection")}
+                            className="px-2.5 py-1 rounded-lg bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 font-bold text-[11px] cursor-pointer"
+                          >
+                            Deactivate
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => handleExecuteModerationAction("APPROVE_UPDATE", u.id)}
+                            className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] cursor-pointer"
+                          >
+                            Reactivate
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Business Opportunities */}
+            <div className="space-y-3 pt-4 border-t border-slate-100">
+              <h4 className="font-bold text-sm text-slate-900 flex items-center gap-2">
+                <HeartHandshake className="w-4 h-4 text-blue-600" />
+                <span>Opportunities & Hiring ({inspectingBizContent.business?.opportunities?.length || 0})</span>
+              </h4>
+              {(!inspectingBizContent.business?.opportunities || inspectingBizContent.business.opportunities.length === 0) ? (
+                <p className="text-xs text-slate-400 italic">No business opportunities posted by this business.</p>
+              ) : (
+                <div className="space-y-2">
+                  {inspectingBizContent.business.opportunities.map((opp: any) => (
+                    <div key={opp.id} className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-3 text-xs">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-slate-900">{opp.title}</span>
+                          <span className="text-[10px] font-bold px-1.5 py-0.2 rounded uppercase bg-blue-100 text-blue-800">
+                            {opp.type}
+                          </span>
+                          <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded ${
+                            opp.status === "OPEN" ? "bg-emerald-100 text-emerald-800" : "bg-slate-200 text-slate-700"
+                          }`}>
+                            {opp.status}
+                          </span>
+                        </div>
+                        <p className="text-slate-600 text-[11px] line-clamp-1 mt-0.5">{opp.description}</p>
+                      </div>
+                      <div className="shrink-0">
+                        {opp.status !== "CLOSED" ? (
+                          <button
+                            onClick={() => handleExecuteModerationAction("REMOVE_OPPORTUNITY", opp.id, "Closed from owner inspection")}
+                            className="px-2.5 py-1 rounded-lg bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 font-bold text-[11px] cursor-pointer"
+                          >
+                            Close
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => handleExecuteModerationAction("APPROVE_OPPORTUNITY", opp.id)}
+                            className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] cursor-pointer"
+                          >
+                            Reopen
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Community Reports */}
+            {inspectingBizContent.reports && inspectingBizContent.reports.length > 0 && (
+              <div className="space-y-3 pt-4 border-t border-slate-100">
+                <h4 className="font-bold text-sm text-rose-700 flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4" />
+                  <span>Reports Filed Against This Business ({inspectingBizContent.reports.length})</span>
+                </h4>
+                <div className="space-y-2">
+                  {inspectingBizContent.reports.map((rep: any) => (
+                    <div key={rep.id} className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-rose-900">{rep.reason}</span>
+                        <span className="text-[10px] text-rose-600">{new Date(rep.createdAt).toLocaleDateString()}</span>
+                      </div>
+                      <p className="text-slate-700">{rep.details || "No details provided"}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

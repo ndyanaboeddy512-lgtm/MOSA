@@ -30,10 +30,25 @@ import {
   ThumbsUp,
   Flame,
   Award,
-  HelpCircle
+  HelpCircle,
+  Play,
+  Video,
+  Film,
+  X,
+  Megaphone,
+  Sparkles,
+  Briefcase,
+  Users,
+  Truck,
+  Info,
+  Clock3,
+  Send,
+  Check,
+  Building2
 } from "lucide-react";
 import { LocationCard } from "@/components/discovery/LocationCard";
 import { getGoogleMapsDirectionsUrl } from "@/lib/location-quality";
+import { getBusinessOperatingModel } from "@/lib/taxonomy";
 
 export default function BusinessDetailPage({
   params,
@@ -49,10 +64,23 @@ export default function BusinessDetailPage({
   const [reviews, setReviews] = useState<UserReview[]>([]);
   const [newComment, setNewComment] = useState("");
   const [newRating, setNewRating] = useState(5);
+  const [activeVideo, setActiveVideo] = useState<any | null>(null);
   const [reportModalOpen, setReportModalOpen] = useState(false);
-  const [reportReason, setReportReason] = useState<"WRONG_PRICE" | "FAKE_BUSINESS" | "CLOSED_PERMANENTLY" | "WRONG_LOCATION">("WRONG_PRICE");
+  const [reportReason, setReportReason] = useState<"WRONG_PRICE" | "FAKE_BUSINESS" | "CLOSED_PERMANENTLY" | "WRONG_LOCATION" | "INAPPROPRIATE_CONTENT">("WRONG_PRICE");
   const [reportDetails, setReportDetails] = useState("");
+  const [reportTargetType, setReportTargetType] = useState<"BUSINESS" | "VIDEO" | "PHOTO" | "PRODUCT">("BUSINESS");
+  const [reportTargetId, setReportTargetId] = useState<string | null>(null);
+  const [reportTargetLabel, setReportTargetLabel] = useState<string>("");
   const [reportSubmitted, setReportSubmitted] = useState(false);
+
+  // Opportunity Inquiry Modal State
+  const [oppModalOpen, setOppModalOpen] = useState(false);
+  const [selectedOpp, setSelectedOpp] = useState<any | null>(null);
+  const [applicantName, setApplicantName] = useState("");
+  const [applicantPhone, setApplicantPhone] = useState("");
+  const [applicantMessage, setApplicantMessage] = useState("");
+  const [oppSubmitting, setOppSubmitting] = useState(false);
+  const [oppSubmitted, setOppSubmitted] = useState(false);
 
   useEffect(() => {
     async function loadBusiness() {
@@ -74,12 +102,65 @@ export default function BusinessDetailPage({
     loadBusiness();
   }, [resolvedParams.id]);
 
-  const handleTrackContact = (bizId: string) => {
+  const handleTrackInquiry = (
+    bizId: string,
+    type: "WHATSAPP_CLICK" | "PHONE_CALL" | "DIRECTIONS_VIEW" | "ORDER_INQUIRY" | "BOOKING_REQUEST",
+    item?: { id?: string; name?: string; price?: number }
+  ) => {
+    fetch("/api/inquiries", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "TELEMETRY",
+        businessId: bizId,
+        type,
+        channel: "PUBLIC_WEB",
+        productId: item?.id,
+        itemName: item?.name,
+        itemPrice: item?.price,
+      }),
+    }).catch(() => {});
+
+    // Backwards-compatible click tracking
     fetch(`/api/businesses/${bizId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ contactClick: true }),
     }).catch(() => {});
+  };
+
+  const handleOppSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedOpp || !applicantName.trim() || !applicantPhone.trim()) return;
+    setOppSubmitting(true);
+    try {
+      const res = await fetch("/api/inquiries", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "OPPORTUNITY_APPLY",
+          opportunityId: selectedOpp.id,
+          applicantName,
+          applicantPhone,
+          message: applicantMessage,
+        }),
+      });
+      if (res.ok) {
+        setOppSubmitted(true);
+        setTimeout(() => {
+          setOppModalOpen(false);
+          setOppSubmitted(false);
+          setApplicantName("");
+          setApplicantPhone("");
+          setApplicantMessage("");
+          setSelectedOpp(null);
+        }, 2200);
+      }
+    } catch (err) {
+      console.error("Failed to submit opportunity application:", err);
+    } finally {
+      setOppSubmitting(false);
+    }
   };
 
   if (!business) {
@@ -123,6 +204,24 @@ export default function BusinessDetailPage({
     }
   };
 
+  const openReportForTarget = (
+    type: "BUSINESS" | "VIDEO" | "PHOTO" | "PRODUCT",
+    id: string | null = null,
+    label: string = ""
+  ) => {
+    setReportTargetType(type);
+    setReportTargetId(id);
+    setReportTargetLabel(label);
+    if (type === "VIDEO" || type === "PHOTO") {
+      setReportReason("INAPPROPRIATE_CONTENT");
+    } else {
+      setReportReason("WRONG_PRICE");
+    }
+    setReportSubmitted(false);
+    setReportDetails("");
+    setReportModalOpen(true);
+  };
+
   const handleReportSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -133,6 +232,8 @@ export default function BusinessDetailPage({
           businessId: business.id,
           reason: reportReason,
           details: reportDetails,
+          targetType: reportTargetType,
+          targetId: reportTargetId,
           reporterName: user?.name || "Anonymous Resident",
         }),
       });
@@ -153,8 +254,51 @@ export default function BusinessDetailPage({
   const displayName = lang === "rw" && business.nameRw ? business.nameRw : business.name;
   const displayCategory = lang === "rw" && business.categoryDisplayRw ? business.categoryDisplayRw : business.categoryDisplay;
 
+  const operatingModel = getBusinessOperatingModel(
+    business.mainCategory || business.category,
+    business.subCategory,
+    business.businessType
+  );
+
+  const rawWhatsApp = (business.whatsapp || business.phone || "").replace(/[^0-9]/g, "");
+  const formattedWhatsApp = rawWhatsApp.startsWith("0")
+    ? "250" + rawWhatsApp.slice(1)
+    : (rawWhatsApp.startsWith("250") ? rawWhatsApp : "250" + rawWhatsApp);
+
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "LocalBusiness",
+    name: business.name,
+    description: business.description,
+    telephone: business.phone,
+    image: business.coverImage,
+    address: {
+      "@type": "PostalAddress",
+      streetAddress: business.streetName || business.nearestLandmark || "N/A",
+      addressLocality: business.location?.cell || (business as any).cell || "Kigali",
+      addressRegion: business.location?.sector || (business as any).sector || "Kigali",
+      addressCountry: "RW",
+    },
+    geo: {
+      "@type": "GeoCoordinates",
+      latitude: business.location?.coordinates?.lat ?? business.latitude,
+      longitude: business.location?.coordinates?.lng ?? business.longitude,
+    },
+    openingHoursSpecification: business.openingHours?.map((h) => ({
+      "@type": "OpeningHoursSpecification",
+      dayOfWeek: h.day,
+      opens: h.isClosed ? undefined : h.open,
+      closes: h.isClosed ? undefined : h.close,
+    })),
+  };
+
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      {/* Native Google / Chrome Discoverability JSON-LD LocalBusiness Schema */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
       
       {/* Back Link */}
       <button
@@ -182,7 +326,7 @@ export default function BusinessDetailPage({
             <div className="flex flex-wrap items-center gap-2">
               <VerificationBadge status={business.verificationStatus} size="md" />
               <span className="text-xs font-medium px-2.5 py-1 bg-white/20 backdrop-blur-md rounded-full text-emerald-200">
-                {displayCategory}
+                {(lang === "rw" ? business.classificationPathRw : business.classificationPath) || displayCategory}
               </span>
               <span className="text-xs font-medium px-2.5 py-1 bg-emerald-600/80 backdrop-blur-md rounded-full text-white">
                 {business.isOpenNow ? t.common.openNow : t.common.closedNow}
@@ -213,6 +357,7 @@ export default function BusinessDetailPage({
               )}
               target="_blank"
               rel="noopener noreferrer"
+              onClick={() => handleTrackInquiry(business.id, "DIRECTIONS_VIEW")}
               className="px-4 py-2.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-white font-bold text-xs sm:text-sm border border-slate-700 shadow-md transition-all flex items-center gap-2 cursor-pointer"
               title="Get Directions via Google Maps"
             >
@@ -222,23 +367,33 @@ export default function BusinessDetailPage({
             {business.phone && (
               <a
                 href={`tel:${business.phone}`}
-                onClick={() => handleTrackContact(business.id)}
+                onClick={() => handleTrackInquiry(business.id, "PHONE_CALL")}
                 className="px-4 py-2.5 rounded-xl bg-white hover:bg-slate-100 text-slate-900 font-bold text-xs sm:text-sm shadow-md transition-all flex items-center gap-2"
               >
                 <Phone className="w-4 h-4 text-emerald-600" />
                 <span>{t.common.call}</span>
               </a>
             )}
-            {business.whatsapp && (
+            {(business.whatsapp || business.phone) && (
               <a
-                href={`https://wa.me/${business.whatsapp}?text=Muraho,%20nabonye%20ubucuruzi%20bwanyu%20bwa%20${encodeURIComponent(displayName)}%20kuri%20MOSA.`}
+                href={`https://wa.me/${formattedWhatsApp}?text=${encodeURIComponent(
+                  operatingModel.hasBookings
+                    ? `Muraho, nabonye serivisi zanyu kuri MOSA, ndifuza gufata gahunda kuri ${displayName}.`
+                    : `Muraho, nabonye ibicuruzwa byanyu kuri MOSA, ndifuza gutumiza/kubaza kuri ${displayName}.`
+                )}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                onClick={() => handleTrackContact(business.id)}
+                onClick={() => handleTrackInquiry(business.id, operatingModel.hasBookings ? "BOOKING_REQUEST" : "WHATSAPP_CLICK")}
                 className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs sm:text-sm shadow-md transition-all flex items-center gap-2"
               >
                 <MessageCircle className="w-4 h-4" />
-                <span>WhatsApp</span>
+                <span>
+                  {operatingModel.hasBookings
+                    ? (lang === "rw" ? "Gufata Gahunda kuri WhatsApp" : "Book on WhatsApp")
+                    : (operatingModel.hasOrders
+                        ? (lang === "rw" ? "Gutumiza kuri WhatsApp" : "Order via WhatsApp")
+                        : "WhatsApp")}
+                </span>
               </a>
             )}
           </div>
@@ -284,6 +439,82 @@ export default function BusinessDetailPage({
               </div>
             </div>
           )}
+          {/* Active Business Updates & Bulletins */}
+          {business.updates && business.updates.length > 0 && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <Megaphone className="w-5 h-5 text-emerald-600" />
+                <h3 className="font-bold text-slate-900 text-lg">
+                  {lang === "rw" ? "Amatangazo n'Amakuru Mashya" : "Business Updates & Notices"}
+                </h3>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {business.updates.map((update) => {
+                  const isNotice = update.type === "NOTICE" || update.type === "TEMPORARY_CLOSURE";
+                  const isOffer = update.type === "OFFER";
+                  const isNewArrival = update.type === "NEW_ARRIVAL";
+
+                  return (
+                    <div
+                      key={update.id}
+                      className={`p-5 rounded-3xl border transition-all ${
+                        isNotice
+                          ? "bg-amber-50/70 border-amber-200"
+                          : isOffer
+                          ? "bg-gradient-to-br from-emerald-50/70 to-teal-50/40 border-emerald-200"
+                          : "bg-white border-slate-200 shadow-xs hover:shadow-md"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-2 mb-2">
+                        <span
+                          className={`text-[10px] font-black uppercase px-2.5 py-1 rounded-full border ${
+                            isNotice
+                              ? "bg-amber-100 text-amber-900 border-amber-300"
+                              : isOffer
+                              ? "bg-emerald-100 text-emerald-900 border-emerald-300"
+                              : isNewArrival
+                              ? "bg-purple-100 text-purple-900 border-purple-300"
+                              : "bg-slate-100 text-slate-800 border-slate-200"
+                          }`}
+                        >
+                          {update.badge || update.type.replace("_", " ")}
+                        </span>
+                        <span className="text-[11px] text-slate-400">
+                          {new Date(update.createdAt).toLocaleDateString()}
+                        </span>
+                      </div>
+
+                      <h4 className="text-base font-bold text-slate-900 mb-1.5">
+                        {lang === "rw" && update.titleRw ? update.titleRw : update.title}
+                      </h4>
+
+                      <p className="text-xs text-slate-600 leading-relaxed">
+                        {lang === "rw" && update.contentRw ? update.contentRw : update.content}
+                      </p>
+
+                      {update.imageUrl && (
+                        <img
+                          src={update.imageUrl}
+                          alt={update.title}
+                          className="mt-3 rounded-2xl w-full h-36 object-cover border border-slate-100"
+                        />
+                      )}
+
+                      {update.validUntil && (
+                        <div className="mt-3 flex items-center gap-1 text-[11px] text-slate-500 font-medium">
+                          <Clock3 className="w-3.5 h-3.5 text-slate-400" />
+                          <span>
+                            {lang === "rw" ? "Bizarangira ku ya:" : "Valid until:"}{" "}
+                            {new Date(update.validUntil).toLocaleDateString()}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* Verified Products & Services Catalogue */}
           <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-card">
@@ -310,12 +541,21 @@ export default function BusinessDetailPage({
             ) : (
               <div className="divide-y divide-slate-100">
                 {business.products.map((item) => (
-                  <div key={item.id} className="py-3.5 flex items-center justify-between gap-4 group">
-                    <div className="space-y-0.5">
-                      <div className="flex items-center gap-2">
+                  <div key={item.id} className="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 group">
+                    <div className="space-y-1">
+                      <div className="flex flex-wrap items-center gap-2">
                         <span className="font-semibold text-slate-900 text-sm group-hover:text-emerald-700 transition-colors">
                           {lang === "rw" && item.nameRw ? item.nameRw : item.name}
                         </span>
+                        {item.isAvailable === false ? (
+                          <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-red-100 text-red-700 border border-red-200">
+                            {lang === "rw" ? "Bishize (Out of Stock)" : "Out of Stock"}
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200/60">
+                            {lang === "rw" ? "Birahari" : "In Stock"}
+                          </span>
+                        )}
                         {item.verifiedByAgent && (
                           <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200/60">
                             ✓ {lang === "rw" ? "Kuri fagitire" : "Verified Source"}
@@ -332,22 +572,275 @@ export default function BusinessDetailPage({
                       )}
                     </div>
 
-                    <div className="text-right shrink-0">
-                      <div className="text-base font-extrabold text-slate-900">
-                        {item.priceType === "RANGE" && item.priceMin && item.priceMax
-                          ? `${item.priceMin.toLocaleString()} – ${item.priceMax.toLocaleString()} Frw`
-                          : `${item.price.toLocaleString()} Frw`}
+                    <div className="flex items-center sm:flex-col sm:items-end justify-between sm:justify-center gap-2 shrink-0">
+                      <div className="text-right">
+                        <div className="text-base font-extrabold text-slate-900">
+                          {item.priceType === "RANGE" && item.priceMin && item.priceMax
+                            ? `${item.priceMin.toLocaleString()} – ${item.priceMax.toLocaleString()} Frw`
+                            : `${item.price.toLocaleString()} Frw`}
+                        </div>
+                        <div className="flex items-center justify-end gap-1 text-[10px] text-slate-400">
+                          {item.isEstimated && <span className="text-amber-600 font-semibold">(Est.)</span>}
+                          {item.unit && <span>/{item.unit}</span>}
+                        </div>
                       </div>
-                      <div className="flex items-center justify-end gap-1 text-[10px] text-slate-400">
-                        {item.isEstimated && <span className="text-amber-600 font-semibold">(Est.)</span>}
-                        {item.unit && <span>/{item.unit}</span>}
-                      </div>
+
+                      {(business.whatsapp || business.phone) && (
+                        item.isAvailable !== false ? (
+                          <a
+                            href={`https://wa.me/${formattedWhatsApp}?text=${encodeURIComponent(
+                              item.isService || operatingModel.hasBookings
+                                ? `Muraho, ndifuza gufata gahunda ya: ${item.name} (${item.price.toLocaleString()} Frw) kuri ${displayName}.`
+                                : `Muraho, ndifuza gutumiza: ${item.name} (${item.price.toLocaleString()} Frw) kuri ${displayName}.`
+                            )}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={() =>
+                              handleTrackInquiry(
+                                business.id,
+                                item.isService || operatingModel.hasBookings
+                                  ? "BOOKING_REQUEST"
+                                  : "ORDER_INQUIRY",
+                                { id: item.id, name: item.name, price: item.price }
+                              )
+                            }
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs transition-all cursor-pointer"
+                          >
+                            <MessageCircle className="w-3.5 h-3.5" />
+                            <span>
+                              {item.isService || operatingModel.hasBookings
+                                ? (lang === "rw" ? "Fata Gahunda" : "Book via WhatsApp")
+                                : (lang === "rw" ? "Tumiza" : "Order via WhatsApp")}
+                            </span>
+                          </a>
+                        ) : (
+                          <span className="text-xs text-red-500 font-bold italic">
+                            {lang === "rw" ? "Ntibikibonetse" : "Out of stock"}
+                          </span>
+                        )
+                      )}
                     </div>
                   </div>
                 ))}
               </div>
             )}
           </div>
+
+          {/* Short Business Showcase Videos (Verified Commercial Media) */}
+          {(business as any).videos && (business as any).videos.length > 0 && (
+            <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-card space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Film className="w-5 h-5 text-emerald-600" />
+                  <div>
+                    <h3 className="font-bold text-slate-900 text-lg">
+                      {lang === "rw" ? "Amashusho Magufi y'Ubucuruzi" : "Short Business Showcase Videos"}
+                    </h3>
+                    <p className="text-xs text-slate-500">
+                      {lang === "rw"
+                        ? "Amashusho y'umwimerere agaragaza ibicuruzwa, serivisi, cyangwa aho rukorera"
+                        : "Verified short videos highlighting authentic products, craftsmanship, and facilities"}
+                    </p>
+                  </div>
+                </div>
+                <span className="hidden sm:inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 text-[11px] font-bold border border-emerald-200">
+                  <Video className="w-3.5 h-3.5" />
+                  Verified Commerce
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 pt-2">
+                {((business as any).videos as any[]).map((vid) => (
+                  <div
+                    key={vid.id}
+                    className="group relative rounded-2xl overflow-hidden border border-slate-200 bg-slate-900 aspect-9/14 flex flex-col justify-end p-4 text-white shadow-md hover:shadow-xl transition-all"
+                  >
+                    {/* Background Preview */}
+                    {vid.thumbnailUrl ? (
+                      <img
+                        src={vid.thumbnailUrl}
+                        alt={vid.caption || "Showcase video"}
+                        className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 opacity-85"
+                      />
+                    ) : (
+                      <div className="absolute inset-0 bg-linear-to-b from-slate-800 via-slate-900 to-black flex items-center justify-center">
+                        <Film className="w-12 h-12 text-slate-600 group-hover:text-emerald-400 transition-colors" />
+                      </div>
+                    )}
+
+                    {/* Gradient Overlay */}
+                    <div className="absolute inset-0 bg-linear-to-t from-black/90 via-black/40 to-transparent" />
+
+                    {/* Top Badges */}
+                    <div className="absolute top-3 left-3 right-3 flex items-center justify-between z-10">
+                      <span className="px-2 py-0.5 rounded-md bg-black/60 backdrop-blur-xs text-[10px] font-extrabold uppercase tracking-wider text-emerald-400 border border-white/10">
+                        {vid.topic || "Showcase"}
+                      </span>
+                      {vid.durationSec && (
+                        <span className="px-2 py-0.5 rounded-md bg-black/60 backdrop-blur-xs text-[10px] font-mono text-slate-200 border border-white/10">
+                          {vid.durationSec}s
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Center Play Button Overlay */}
+                    <button
+                      type="button"
+                      onClick={() => setActiveVideo(vid)}
+                      className="absolute inset-0 flex items-center justify-center z-10 cursor-pointer group-hover:scale-110 transition-transform"
+                      aria-label="Play video"
+                    >
+                      <div className="w-13 h-13 rounded-full bg-emerald-500/90 text-white flex items-center justify-center shadow-lg backdrop-blur-xs hover:bg-emerald-500">
+                        <Play className="w-6 h-6 fill-white ml-0.5" />
+                      </div>
+                    </button>
+
+                    {/* Bottom Caption & Moderation Trigger */}
+                    <div className="relative z-10 space-y-1.5 pointer-events-none">
+                      {vid.caption && (
+                        <p className="text-xs font-medium text-white/95 line-clamp-2 leading-snug drop-shadow-sm">
+                          {vid.caption}
+                        </p>
+                      )}
+                      <div className="flex items-center justify-between pt-1 pointer-events-auto">
+                        <span className="text-[10px] text-slate-300 font-medium">
+                          {displayName}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openReportForTarget("VIDEO", vid.id, vid.caption || "Showcase Video");
+                          }}
+                          className="text-[10px] text-white/70 hover:text-red-300 flex items-center gap-1 transition-colors cursor-pointer"
+                        >
+                          <AlertTriangle className="w-3 h-3" />
+                          Report
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Business Opportunities & Community Openings */}
+          {business.opportunities && business.opportunities.length > 0 && (
+            <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-card space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <div className="flex items-center gap-2.5">
+                  <Briefcase className="w-5 h-5 text-indigo-600" />
+                  <div>
+                    <h3 className="font-bold text-slate-900 text-lg">
+                      {lang === "rw" ? "Amahirwe n'Amatangazo y'Akazi" : "Business Opportunities & Openings"}
+                    </h3>
+                    <p className="text-xs text-slate-500">
+                      {lang === "rw"
+                        ? "Ubufatanye, akazi, n'amahirwe yo kugemura ku bacuruzi b'akarere."
+                        : "Employment, supply contracts, and partnerships directly with this verified merchant."}
+                    </p>
+                  </div>
+                </div>
+                <span className="text-xs font-bold px-2.5 py-1 bg-indigo-50 text-indigo-700 rounded-full border border-indigo-200">
+                  {business.opportunities.length} {lang === "rw" ? "Bihari" : "Open"}
+                </span>
+              </div>
+
+              <div className="space-y-4 pt-1">
+                {business.opportunities.map((opp) => {
+                  const oppTypeLabel = {
+                    EMPLOYMENT: lang === "rw" ? "Akazi / Umwanya Uhari" : "Hiring / Employment",
+                    SUPPLIER_REQUEST: lang === "rw" ? "Gushaka Abagemuzi" : "Supplier Request",
+                    PARTNERSHIP: lang === "rw" ? "Ubufatanye mu Bucuruzi" : "Business Partnership",
+                    COLLABORATION: lang === "rw" ? "Gufatanya" : "Collaboration",
+                    OTHER: lang === "rw" ? "Ibindi" : "Opportunity",
+                  }[opp.type] || opp.type;
+
+                  return (
+                    <div
+                      key={opp.id}
+                      className="p-5 rounded-2xl bg-slate-50 hover:bg-slate-50/80 border border-slate-200/80 space-y-3 transition-colors"
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-indigo-100 text-indigo-800 border border-indigo-200 uppercase tracking-wide">
+                          {oppTypeLabel}
+                        </span>
+                        {opp.deadline && (
+                          <span className="text-[11px] text-slate-500 flex items-center gap-1">
+                            <Clock3 className="w-3.5 h-3.5 text-slate-400" />
+                            {lang === "rw" ? "Itariki ntarengwa:" : "Deadline:"}{" "}
+                            {new Date(opp.deadline).toLocaleDateString()}
+                          </span>
+                        )}
+                      </div>
+
+                      <div>
+                        <h4 className="text-base font-bold text-slate-900 mb-1">
+                          {lang === "rw" && opp.titleRw ? opp.titleRw : opp.title}
+                        </h4>
+                        <p className="text-xs text-slate-600 leading-relaxed">
+                          {lang === "rw" && opp.descriptionRw ? opp.descriptionRw : opp.description}
+                        </p>
+                      </div>
+
+                      {(opp.compensation || opp.requirements) && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs bg-white p-3 rounded-xl border border-slate-200/70">
+                          {opp.compensation && (
+                            <div>
+                              <span className="text-[10px] uppercase font-bold text-slate-400 block">
+                                {lang === "rw" ? "Igihembo / Umushahara" : "Compensation"}
+                              </span>
+                              <span className="font-semibold text-emerald-700">{opp.compensation}</span>
+                            </div>
+                          )}
+                          {opp.requirements && (
+                            <div>
+                              <span className="text-[10px] uppercase font-bold text-slate-400 block">
+                                {lang === "rw" ? "Ibisabwa" : "Requirements"}
+                              </span>
+                              <span className="font-medium text-slate-700">{opp.requirements}</span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* CTAs: Direct WhatsApp or Form Response */}
+                      <div className="flex items-center gap-2 pt-1 flex-wrap">
+                        {(business.whatsapp || business.phone) && (
+                          <a
+                            href={`https://wa.me/${formattedWhatsApp}?text=${encodeURIComponent(
+                              `Muraho, nabonye itangazo ryanyu rya "${opp.title}" kuri MOSA, nifuzaga kubaza uburyo nakora / nasaba.`
+                            )}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={() => handleTrackInquiry(business.id, "WHATSAPP_CLICK")}
+                            className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+                          >
+                            <MessageCircle className="w-3.5 h-3.5" />
+                            <span>{lang === "rw" ? "Baza kuri WhatsApp" : "Inquire on WhatsApp"}</span>
+                          </a>
+                        )}
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedOpp(opp);
+                            setOppSubmitted(false);
+                            setOppModalOpen(true);
+                          }}
+                          className="px-3 py-1.5 rounded-xl bg-white hover:bg-slate-100 text-indigo-700 border border-indigo-200 font-bold text-xs flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+                        >
+                          <Send className="w-3.5 h-3.5 text-indigo-600" />
+                          <span>{lang === "rw" ? "Saba / Ohereza Umwirondoro" : "Apply / Send Details"}</span>
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* Dedicated Smart Ground Location & Navigation */}
           <LocationCard business={business} lang={lang} />
@@ -601,16 +1094,87 @@ export default function BusinessDetailPage({
 
       </div>
 
+      {/* Video Player Modal */}
+      {activeVideo && (
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-slate-950 rounded-3xl max-w-lg w-full overflow-hidden border border-white/10 shadow-2xl flex flex-col max-h-[90vh]">
+            {/* Header */}
+            <div className="p-4 flex items-center justify-between border-b border-white/10 bg-slate-900/60">
+              <div className="flex items-center gap-2">
+                <span className="px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-400 text-xs font-bold border border-emerald-500/30 uppercase tracking-wide">
+                  {activeVideo.topic || "Showcase"}
+                </span>
+                <span className="text-xs text-slate-300 font-medium truncate max-w-[200px]">
+                  {displayName}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveVideo(null)}
+                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors cursor-pointer"
+                aria-label="Close video"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Video Player Box */}
+            <div className="relative bg-black flex-1 flex items-center justify-center aspect-9/16 max-h-[60vh] sm:max-h-[65vh]">
+              <video
+                src={activeVideo.url}
+                poster={activeVideo.thumbnailUrl || undefined}
+                controls
+                autoPlay
+                playsInline
+                className="w-full h-full object-contain"
+              >
+                Your browser does not support the video tag.
+              </video>
+            </div>
+
+            {/* Caption & Report Footer */}
+            <div className="p-4 bg-slate-900/80 border-t border-white/10 flex items-center justify-between gap-3">
+              <p className="text-xs text-slate-200 leading-relaxed line-clamp-2">
+                {activeVideo.caption || "Verified commercial showcase video."}
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  const targetVid = activeVideo;
+                  setActiveVideo(null);
+                  openReportForTarget("VIDEO", targetVid.id, targetVid.caption || "Showcase Video");
+                }}
+                className="shrink-0 text-xs text-red-400 hover:text-red-300 flex items-center gap-1 font-medium transition-colors cursor-pointer"
+              >
+                <AlertTriangle className="w-3.5 h-3.5" />
+                Report
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Report Modal */}
       {reportModalOpen && (
         <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200">
-            <h3 className="font-bold text-slate-900 text-lg mb-2">
-              {lang === "rw" ? "Tanga Raporo ku Makuru Atari Yo" : "Report Inaccurate Information"}
+            <h3 className="font-bold text-slate-900 text-lg mb-1">
+              {lang === "rw" ? "Tanga Raporo ku Makuru Atari Yo" : "Report Content or Information"}
             </h3>
-            <p className="text-xs text-slate-500 mb-4">
-              Help MOSA Community Agents maintain high data integrity in Nyamirambo.
+            <p className="text-xs text-slate-500 mb-3">
+              {reportTargetType === "VIDEO"
+                ? "Help MOSA maintain high commercial integrity. Report prohibited, irrelevant, or offensive videos."
+                : "Help MOSA Community Agents maintain high data integrity."}
             </p>
+
+            {reportTargetLabel && (
+              <div className="mb-3 px-3 py-1.5 rounded-xl bg-slate-100 text-slate-700 text-xs flex items-center gap-2">
+                <span className="font-bold text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-slate-200 text-slate-800">
+                  {reportTargetType}
+                </span>
+                <span className="truncate">{reportTargetLabel}</span>
+              </div>
+            )}
 
             {reportSubmitted ? (
               <div className="p-4 bg-emerald-50 rounded-2xl text-emerald-800 text-xs font-semibold text-center">
@@ -625,10 +1189,21 @@ export default function BusinessDetailPage({
                     onChange={(e) => setReportReason(e.target.value as typeof reportReason)}
                     className="w-full p-2.5 bg-slate-50 rounded-xl border border-slate-200 text-xs outline-none"
                   >
-                    <option value="WRONG_PRICE">Wrong Price Displayed</option>
-                    <option value="CLOSED_PERMANENTLY">Business Closed Permanently</option>
-                    <option value="WRONG_LOCATION">Wrong Location / Relocated</option>
-                    <option value="FAKE_BUSINESS">Non-existent / Fake Business</option>
+                    {reportTargetType === "VIDEO" || reportTargetType === "PHOTO" ? (
+                      <>
+                        <option value="INAPPROPRIATE_CONTENT">Inappropriate, Offensive or Irrelevant Media</option>
+                        <option value="SPAM">Spam or Non-commercial Content</option>
+                        <option value="FAKE_BUSINESS">Misleading / Fake Business Media</option>
+                      </>
+                    ) : (
+                      <>
+                        <option value="WRONG_PRICE">Wrong Price Displayed</option>
+                        <option value="CLOSED_PERMANENTLY">Business Closed Permanently</option>
+                        <option value="WRONG_LOCATION">Wrong Location / Relocated</option>
+                        <option value="FAKE_BUSINESS">Non-existent / Fake Business</option>
+                        <option value="INAPPROPRIATE_CONTENT">Inappropriate or Prohibited Content</option>
+                      </>
+                    )}
                   </select>
                 </div>
 
@@ -637,7 +1212,7 @@ export default function BusinessDetailPage({
                   <textarea
                     value={reportDetails}
                     onChange={(e) => setReportDetails(e.target.value)}
-                    placeholder="Describe what needs correction..."
+                    placeholder="Describe what violates MOSA commercial guidelines..."
                     rows={3}
                     className="w-full p-2.5 bg-slate-50 rounded-xl border border-slate-200 text-xs outline-none"
                     required
@@ -657,6 +1232,112 @@ export default function BusinessDetailPage({
                     className="flex-1 py-2.5 rounded-xl bg-emerald-600 text-white text-xs font-bold"
                   >
                     {t.common.submit}
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Opportunity Response / Application Modal */}
+      {oppModalOpen && selectedOpp && (
+        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="font-bold text-slate-900 text-lg">
+                {lang === "rw" ? "Saba cyangwa Ohereza Umwirondoro" : "Apply or Respond"}
+              </h3>
+              <button
+                type="button"
+                onClick={() => {
+                  setOppModalOpen(false);
+                  setSelectedOpp(null);
+                }}
+                className="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="mb-4 px-3 py-2 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-900 text-xs">
+              <span className="font-bold block text-[10px] uppercase text-indigo-600">Opportunity</span>
+              <span className="font-semibold text-sm">{selectedOpp.title}</span>
+            </div>
+
+            {oppSubmitted ? (
+              <div className="p-4 bg-emerald-50 rounded-2xl text-emerald-800 text-xs font-semibold text-center space-y-1">
+                <Check className="w-6 h-6 text-emerald-600 mx-auto" />
+                <p>
+                  {lang === "rw"
+                    ? "Amakuru yawe yoherejwe kuri nyir'ubucuruzi neza!"
+                    : "Your contact details were sent directly to the business owner!"}
+                </p>
+              </div>
+            ) : (
+              <form onSubmit={handleOppSubmit} className="space-y-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    {lang === "rw" ? "Amazina yawe" : "Your Full Name"}
+                  </label>
+                  <input
+                    type="text"
+                    value={applicantName}
+                    onChange={(e) => setApplicantName(e.target.value)}
+                    placeholder="e.g. Jean Claude Nshimiyimana"
+                    required
+                    className="w-full p-2.5 bg-slate-50 rounded-xl border border-slate-200 text-xs outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    {lang === "rw" ? "Numero ya telefone (WhatsApp)" : "Phone Number (Calls/WhatsApp)"}
+                  </label>
+                  <input
+                    type="tel"
+                    value={applicantPhone}
+                    onChange={(e) => setApplicantPhone(e.target.value)}
+                    placeholder="078... or 079..."
+                    required
+                    className="w-full p-2.5 bg-slate-50 rounded-xl border border-slate-200 text-xs outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    {lang === "rw" ? "Ubutumwa bukubiyemo uburambe cyangwa icyo usaba" : "Brief Message or Qualifications"}
+                  </label>
+                  <textarea
+                    value={applicantMessage}
+                    onChange={(e) => setApplicantMessage(e.target.value)}
+                    rows={3}
+                    placeholder={
+                      lang === "rw"
+                        ? "Sobanura uburambe bwawe n'ubushobozi bwawe muri make..."
+                        : "Briefly mention your experience, availability, or how you can fulfill this role/supply request..."
+                    }
+                    className="w-full p-2.5 bg-slate-50 rounded-xl border border-slate-200 text-xs outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+
+                <div className="flex items-center gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOppModalOpen(false);
+                      setSelectedOpp(null);
+                    }}
+                    className="flex-1 py-2.5 rounded-xl bg-slate-100 text-slate-700 text-xs font-bold"
+                  >
+                    {t.common.cancel}
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={oppSubmitting}
+                    className="flex-1 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold disabled:opacity-50"
+                  >
+                    {oppSubmitting ? "Sending..." : lang === "rw" ? "Ohereza" : "Submit Details"}
                   </button>
                 </div>
               </form>

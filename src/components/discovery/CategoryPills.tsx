@@ -2,18 +2,59 @@
 
 import React from "react";
 import { useLanguage } from "@/lib/i18n";
+import { CANONICAL_TAXONOMY } from "@/lib/taxonomy";
 import { 
-  Scissors, 
-  Shirt, 
-  Coffee, 
-  Smartphone, 
-  Wrench, 
-  ShoppingBag, 
-  Apple, 
-  Palette, 
+  ShoppingBag,
+  Shirt,
+  Utensils,
+  Wine,
+  Hotel,
+  Scissors,
+  HeartPulse,
+  Palette,
+  PartyPopper,
+  Wrench,
+  HardHat,
+  Home,
   Sparkles,
+  Truck,
+  Briefcase,
+  Landmark,
+  GraduationCap,
+  Cpu,
+  Sprout,
+  Factory,
+  Shield,
+  Printer,
+  Baby,
   LayoutGrid
 } from "lucide-react";
+
+const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
+  ShoppingBag,
+  Shirt,
+  Utensils,
+  Wine,
+  Hotel,
+  Scissors,
+  HeartPulse,
+  Palette,
+  PartyPopper,
+  Wrench,
+  HardHat,
+  Home,
+  Sparkles,
+  Truck,
+  Briefcase,
+  Landmark,
+  GraduationCap,
+  Cpu,
+  Sprout,
+  Factory,
+  Shield,
+  Printer,
+  Baby,
+};
 
 interface CategoryPillsProps {
   selectedCategory: string;
@@ -23,22 +64,31 @@ interface CategoryPillsProps {
 export function CategoryPills({ selectedCategory, onSelectCategory }: CategoryPillsProps) {
   const { lang, t } = useLanguage();
 
-  const categories = [
-    { id: "all", label: t.categories.all, icon: LayoutGrid },
-    { id: "salon_barber", label: t.categories.salon_barber, icon: Scissors },
-    { id: "tailor_crafts", label: t.categories.tailor_crafts, icon: Shirt },
-    { id: "food_restaurant", label: t.categories.food_restaurant, icon: Coffee },
-    { id: "phone_electronics", label: t.categories.phone_electronics, icon: Smartphone },
-    { id: "mechanic_repair", label: t.categories.mechanic_repair, icon: Wrench },
-    { id: "shop_retail", label: t.categories.shop_retail, icon: ShoppingBag },
-    { id: "agriculture_produce", label: t.categories.agriculture_produce, icon: Apple },
-    { id: "art_culture", label: t.categories.art_culture, icon: Palette },
-  ];
+  const getLabel = (item: any) => {
+    if (lang === "rw") return item.nameRw || item.name;
+    if (lang === "fr") return item.nameFr || item.name;
+    if (lang === "sw") return item.nameSw || item.name;
+    return item.name;
+  };
 
   return (
     <div className="flex items-center gap-2 overflow-x-auto pb-2 no-scrollbar py-1">
-      {categories.map((cat) => {
-        const Icon = cat.icon;
+      {/* "All" button */}
+      <button
+        onClick={() => onSelectCategory("all")}
+        className={`flex items-center gap-2 px-3.5 py-2 rounded-full text-xs font-semibold whitespace-nowrap transition-all shrink-0 cursor-pointer ${
+          selectedCategory === "all"
+            ? "bg-emerald-700 text-white shadow-sm scale-102"
+            : "bg-white text-slate-700 border border-slate-200 hover:border-slate-300 hover:bg-slate-50"
+        }`}
+      >
+        <LayoutGrid className={`w-3.5 h-3.5 ${selectedCategory === "all" ? "text-white" : "text-emerald-700"}`} />
+        <span>{t.categories.all || "All Categories"}</span>
+      </button>
+
+      {/* Dynamic Canonical Categories */}
+      {CANONICAL_TAXONOMY.map((cat) => {
+        const IconComponent = ICON_MAP[cat.icon] || ShoppingBag;
         const isSelected = selectedCategory === cat.id;
 
         return (
@@ -51,8 +101,8 @@ export function CategoryPills({ selectedCategory, onSelectCategory }: CategoryPi
                 : "bg-white text-slate-700 border border-slate-200 hover:border-slate-300 hover:bg-slate-50"
             }`}
           >
-            <Icon className={`w-3.5 h-3.5 ${isSelected ? "text-white" : "text-emerald-700"}`} />
-            <span>{cat.label}</span>
+            <IconComponent className={`w-3.5 h-3.5 ${isSelected ? "text-white" : "text-emerald-700"}`} />
+            <span>{getLabel(cat)}</span>
           </button>
         );
       })}

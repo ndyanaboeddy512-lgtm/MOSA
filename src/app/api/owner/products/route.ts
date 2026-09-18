@@ -73,6 +73,7 @@ export async function POST(request: Request) {
           category: category || null,
           isAvailable: Boolean(isAvailable),
           isEstimated: Boolean(isEstimated || normPriceType === "ESTIMATED" || normPriceType === "RANGE"),
+          isService: Boolean(body.isService),
           dataStatus: "VERIFIED",
         },
       });
@@ -190,6 +191,7 @@ export async function PATCH(request: Request) {
     if (fields.category !== undefined) updateData.category = fields.category;
     if (fields.isAvailable !== undefined) updateData.isAvailable = Boolean(fields.isAvailable);
     if (fields.isEstimated !== undefined) updateData.isEstimated = Boolean(fields.isEstimated);
+    if (fields.isService !== undefined) updateData.isService = Boolean(fields.isService);
     if (fields.sortOrder !== undefined) updateData.sortOrder = Number(fields.sortOrder);
     if (fields.isArchived !== undefined) updateData.isArchived = Boolean(fields.isArchived);
 
@@ -317,6 +319,15 @@ export async function DELETE(request: Request) {
 
     if (!business || (business.ownerId !== auth.user.id && auth.user.role !== Role.SUPER_ADMIN)) {
       return NextResponse.json({ error: "Forbidden: You do not own this business" }, { status: 403 });
+    }
+
+    const existingProduct = await prisma.product.findUnique({
+      where: { id: productId },
+      select: { id: true, businessId: true, name: true },
+    });
+
+    if (!existingProduct || existingProduct.businessId !== businessId) {
+      return NextResponse.json({ error: "Product not found or does not belong to this business" }, { status: 404 });
     }
 
     const actorId = auth.user.id;
