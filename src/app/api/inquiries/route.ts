@@ -112,7 +112,7 @@ export async function POST(request: Request) {
       }
     });
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true }, { status: 201 });
   } catch (error) {
     console.error("[Inquiry Telemetry POST Error]:", error);
     return NextResponse.json({ error: "Failed to record inquiry" }, { status: 500 });

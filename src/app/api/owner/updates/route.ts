@@ -73,7 +73,7 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     const {
-      businessId,
+      businessId: rawBusinessId,
       type = "ANNOUNCEMENT",
       title,
       titleRw,
@@ -84,6 +84,15 @@ export async function POST(request: Request) {
       validUntil,
       status = "ACTIVE",
     } = body;
+    let businessId = rawBusinessId;
+
+    if (!businessId) {
+      const owned = await prisma.business.findFirst({
+        where: { ownerId: auth.user.id },
+        select: { id: true },
+      });
+      if (owned) businessId = owned.id;
+    }
 
     if (!businessId || !title || !content) {
       return NextResponse.json({ error: "businessId, title, and content are required" }, { status: 400 });

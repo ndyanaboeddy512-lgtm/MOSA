@@ -123,9 +123,17 @@ export async function PATCH(request: Request) {
 
   try {
     const body = await request.json();
-    const businessId = body.businessId;
+    let businessId = body.businessId;
     const action = body.action || body.actionType;
     const { businessId: _b, action: _a, actionType: _at, ...fields } = body;
+
+    if (!businessId) {
+      const owned = await prisma.business.findFirst({
+        where: { ownerId: auth.user.id },
+        select: { id: true },
+      });
+      if (owned) businessId = owned.id;
+    }
 
     if (!businessId) {
       return NextResponse.json({ error: "businessId is required" }, { status: 400 });
