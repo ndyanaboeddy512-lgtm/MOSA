@@ -19,9 +19,24 @@ export async function GET(request: Request) {
   const requestedBizId = searchParams.get("businessId");
 
   try {
-    let businessId = requestedBizId;
+    let businessId: string;
 
-    if (!businessId || auth.user.role === Role.BUSINESS_OWNER) {
+    if (requestedBizId) {
+      const targetBiz = await prisma.business.findUnique({
+        where: { id: requestedBizId },
+        select: { id: true, ownerId: true },
+      });
+
+      if (!targetBiz) {
+        return NextResponse.json({ error: "Business not found" }, { status: 404 });
+      }
+
+      if (auth.user.role === Role.BUSINESS_OWNER && targetBiz.ownerId !== auth.user.id) {
+        return NextResponse.json({ error: "Forbidden: You do not own this business" }, { status: 403 });
+      }
+
+      businessId = targetBiz.id;
+    } else {
       const biz = await prisma.business.findFirst({
         where: { ownerId: auth.user.id },
         select: { id: true },

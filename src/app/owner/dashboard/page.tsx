@@ -1876,110 +1876,200 @@ export default function OwnerDashboardPage() {
             </div>
           )}
 
-          {/* Private Analytics & Customer Telemetry */}
+          {/* Strictly Business-Owner Specific Progress & Operational Telemetry */}
           {analyticsData && (
-            <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-card space-y-6">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100">
+            <div className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200 shadow-card space-y-7">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100">
                 <div>
-                  <div className="flex items-center gap-2">
-                    <Eye className="w-5 h-5 text-indigo-600" />
-                    <h3 className="font-extrabold text-slate-900 text-base">
-                      {lang === "rw" ? "Imibare y'Ibyagezweho n'Ubutumwa bw'Abakiriya" : "Customer Discovery & Telemetry"}
-                    </h3>
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-2 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700">
+                      <TrendingUp className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="font-black text-slate-900 text-lg sm:text-xl">
+                        {lang === "rw" ? "Urugendo rw'Iterambere ry'Ubucuruzi Bwawe" : "How Your Business is Progressing on MOSA"}
+                      </h3>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        {lang === "rw"
+                          ? "Amakuru n'imibare by'ubucuruzi bwawe bwite. Nta makuru y'abandi bacuruzi ahagaragara."
+                          : "Private to your business account. Real-time telemetry on customer inquiries, catalog reach, and milestone progress."}
+                      </p>
+                    </div>
                   </div>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    {lang === "rw"
-                      ? "Amakuru y'ibanga agaragaza uburyo abakiriya bagana ubucuruzi bwawe kuri murandasi."
-                      : "Private operational telemetry tracking customer visits, calls, and orders."}
-                  </p>
                 </div>
-                <span className="text-[11px] font-bold text-slate-400 bg-slate-100 px-2.5 py-1 rounded-full">
-                  100% Private to Owner
-                </span>
+                <div className="flex items-center gap-2 self-start sm:self-center">
+                  <span className="text-[11px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200/80 px-3 py-1.5 rounded-full flex items-center gap-1.5 shadow-xs">
+                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>{lang === "rw" ? "100% Umwirondoro Wihariye" : "100% Private to Your Business"}</span>
+                  </span>
+                </div>
               </div>
 
-              {/* Top Key Metrics Grid */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80">
-                  <div className="flex items-center justify-between text-xs text-slate-500 mb-1">
-                    <span>{lang === "rw" ? "Abasuye Umwirondoro" : "Profile Views"}</span>
-                    <Eye className="w-3.5 h-3.5 text-slate-400" />
+              {/* 6-Card Core Performance Telemetry Grid */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                {/* 1. Profile Views */}
+                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-1">
+                  <div className="flex items-center justify-between text-xs text-slate-500">
+                    <span className="truncate">{lang === "rw" ? "Abasuye Umwirondoro" : "Profile Views"}</span>
+                    <Eye className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                   </div>
                   <div className="text-2xl font-black text-slate-900">{analyticsData.viewsCount || 0}</div>
-                  <div className="text-[10px] text-slate-400 mt-1">Total public impressions</div>
+                  <div className="text-[10px] text-slate-500 truncate">Total public impressions</div>
                 </div>
 
-                <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200/70">
-                  <div className="flex items-center justify-between text-xs text-emerald-800 mb-1">
-                    <span>{lang === "rw" ? "Guhabwa Amakuru" : "Total Inquiries"}</span>
-                    <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
+                {/* 2. Product & Service Inquiries */}
+                <div className="p-4 rounded-2xl bg-indigo-50/70 border border-indigo-200/70 space-y-1">
+                  <div className="flex items-center justify-between text-xs text-indigo-900 font-semibold">
+                    <span className="truncate">{lang === "rw" ? "Ibyabajijwe ku Bicicuruzwa" : "Item Inquiries"}</span>
+                    <Tag className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                  </div>
+                  <div className="text-2xl font-black text-indigo-900">{analyticsData.productInquiriesCount || 0}</div>
+                  <div className="text-[10px] text-indigo-700 truncate">Product & service clicks</div>
+                </div>
+
+                {/* 3. Total Customer Inquiries */}
+                <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200/70 space-y-1">
+                  <div className="flex items-center justify-between text-xs text-emerald-900 font-semibold">
+                    <span className="truncate">{lang === "rw" ? "Ubutumwa bw'Abakiriya" : "Total Inquiries"}</span>
+                    <MessageCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                   </div>
                   <div className="text-2xl font-black text-emerald-900">{analyticsData.totalInquiries || 0}</div>
-                  <div className="text-[10px] text-emerald-700 mt-1">{analyticsData.inquiriesLast30Days || 0} in last 30 days</div>
+                  <div className="text-[10px] text-emerald-700 font-medium truncate">
+                    {analyticsData.inquiriesLast30Days || 0} in last 30 days
+                  </div>
                 </div>
 
-                <div className="p-4 rounded-2xl bg-blue-50 border border-blue-200/70">
-                  <div className="flex items-center justify-between text-xs text-blue-800 mb-1">
-                    <span>{lang === "rw" ? "Kanda kuri Telefone" : "Contact Clicks"}</span>
-                    <PhoneCall className="w-3.5 h-3.5 text-blue-600" />
+                {/* 4. Contact & WhatsApp Clicks */}
+                <div className="p-4 rounded-2xl bg-blue-50 border border-blue-200/70 space-y-1">
+                  <div className="flex items-center justify-between text-xs text-blue-900 font-semibold">
+                    <span className="truncate">{lang === "rw" ? "Guhuza n'Abakiriya" : "Contact Clicks"}</span>
+                    <PhoneCall className="w-3.5 h-3.5 text-blue-600 shrink-0" />
                   </div>
                   <div className="text-2xl font-black text-blue-900">{analyticsData.contactClicksCount || 0}</div>
-                  <div className="text-[10px] text-blue-700 mt-1">Direct calls & chats</div>
+                  <div className="text-[10px] text-blue-700 truncate">Calls, WhatsApp & maps</div>
                 </div>
 
-                <div className="p-4 rounded-2xl bg-purple-50 border border-purple-200/70">
-                  <div className="flex items-center justify-between text-xs text-purple-800 mb-1">
-                    <span>{lang === "rw" ? "Ubwuzuzanye bw'Umwirondoro" : "Completeness"}</span>
-                    <ShieldCheck className="w-3.5 h-3.5 text-purple-600" />
+                {/* 5. Active Offerings in Catalog */}
+                <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200/70 space-y-1">
+                  <div className="flex items-center justify-between text-xs text-amber-900 font-semibold">
+                    <span className="truncate">{lang === "rw" ? "Ibicuruzwa Biriho" : "Active Items"}</span>
+                    <Store className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                  </div>
+                  <div className="text-2xl font-black text-amber-900">{analyticsData.totalProducts || 0}</div>
+                  <div className="text-[10px] text-amber-700 truncate">
+                    {analyticsData.inStockProducts || 0} in stock
+                  </div>
+                </div>
+
+                {/* 6. Profile Completeness */}
+                <div className="p-4 rounded-2xl bg-purple-50 border border-purple-200/70 space-y-1">
+                  <div className="flex items-center justify-between text-xs text-purple-900 font-semibold">
+                    <span className="truncate">{lang === "rw" ? "Ubwuzuzanye" : "Completeness"}</span>
+                    <ShieldCheck className="w-3.5 h-3.5 text-purple-600 shrink-0" />
                   </div>
                   <div className="text-2xl font-black text-purple-900">{analyticsData.completenessPercentage || 0}%</div>
-                  <div className="text-[10px] text-purple-700 mt-1">
-                    {analyticsData.missingFields?.length === 0 ? "All verified" : `${analyticsData.missingFields?.length} items pending`}
+                  <div className="text-[10px] text-purple-700 font-medium truncate">
+                    {analyticsData.missingFields?.length === 0 ? "Profile 100% complete" : `${analyticsData.missingFields?.length} items pending`}
                   </div>
                 </div>
               </div>
 
-              {/* Telemetry Breakdown by Channel & Recent Events */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pt-2">
+              {/* Your Business Assets & Content Inventory */}
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80">
+                <div className="text-xs font-black uppercase tracking-wider text-slate-600 mb-3 flex items-center justify-between">
+                  <span>{lang === "rw" ? "Umutungo n'Ibyashyizwe ku Mwirondoro Wanyu" : "Your Business Content & Catalog Assets"}</span>
+                  <span className="text-[11px] font-bold text-slate-500 lowercase">
+                    {business.name}
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 text-xs">
+                  <div className="bg-white p-3 rounded-xl border border-slate-200">
+                    <div className="text-slate-500 text-[11px]">{lang === "rw" ? "Ibicuruzwa" : "Physical Goods"}</div>
+                    <div className="text-base font-extrabold text-slate-900 mt-0.5">{analyticsData.productsCount || 0}</div>
+                  </div>
+                  <div className="bg-white p-3 rounded-xl border border-slate-200">
+                    <div className="text-slate-500 text-[11px]">{lang === "rw" ? "Serivisi" : "Services Listed"}</div>
+                    <div className="text-base font-extrabold text-slate-900 mt-0.5">{analyticsData.servicesCount || 0}</div>
+                  </div>
+                  <div className="bg-white p-3 rounded-xl border border-slate-200">
+                    <div className="text-slate-500 text-[11px]">{lang === "rw" ? "Amafoto y'Imbere" : "Gallery Photos"}</div>
+                    <div className="text-base font-extrabold text-slate-900 mt-0.5">{analyticsData.photoCount || 0}</div>
+                  </div>
+                  <div className="bg-white p-3 rounded-xl border border-slate-200">
+                    <div className="text-slate-500 text-[11px]">{lang === "rw" ? "Videwo Z'Ubucuruzi" : "Showcase Videos"}</div>
+                    <div className="text-base font-extrabold text-slate-900 mt-0.5">{analyticsData.videoCount || 0}</div>
+                  </div>
+                  <div className="bg-white p-3 rounded-xl border border-slate-200">
+                    <div className="text-slate-500 text-[11px]">{lang === "rw" ? "Amatangazo Mazima" : "Active Updates"}</div>
+                    <div className="text-base font-extrabold text-slate-900 mt-0.5">{analyticsData.activeUpdatesCount || 0}</div>
+                  </div>
+                  <div className="bg-white p-3 rounded-xl border border-slate-200">
+                    <div className="text-slate-500 text-[11px]">{lang === "rw" ? "Amahirwe y'Akazi" : "Open Listings"}</div>
+                    <div className="text-base font-extrabold text-slate-900 mt-0.5">{analyticsData.openOpportunitiesCount || 0}</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Telemetry Breakdown by Channel & Recent Inquiries Activity */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Channel Breakdown */}
                 <div className="space-y-3">
-                  <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-                    {lang === "rw" ? "Uburyo Abakiriya Babaza" : "Interaction Channel Breakdown"}
+                  <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center justify-between">
+                    <span>{lang === "rw" ? "Uburyo Abakiriya Bakugeraho" : "Customer Interaction Channels"}</span>
+                    <span className="text-[10px] text-slate-400 font-normal">Direct actions on your profile</span>
                   </h4>
                   <div className="space-y-2 text-xs">
                     <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-100">
-                      <span className="flex items-center gap-2">
+                      <span className="flex items-center gap-2.5">
                         <MessageCircle className="w-4 h-4 text-emerald-600" />
-                        <span>WhatsApp Direct Chats</span>
+                        <span className="font-medium text-slate-800">WhatsApp Direct Inquiries</span>
                       </span>
-                      <span className="font-bold text-slate-900">
+                      <span className="font-black text-slate-900">
                         {analyticsData.breakdownByType?.WHATSAPP_CLICK || 0}
                       </span>
                     </div>
                     <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-100">
-                      <span className="flex items-center gap-2">
+                      <span className="flex items-center gap-2.5">
                         <PhoneCall className="w-4 h-4 text-blue-600" />
-                        <span>Phone Calls Initiated</span>
+                        <span className="font-medium text-slate-800">Phone Calls Placed</span>
                       </span>
-                      <span className="font-bold text-slate-900">
+                      <span className="font-black text-slate-900">
                         {analyticsData.breakdownByType?.PHONE_CALL || 0}
                       </span>
                     </div>
                     <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-100">
-                      <span className="flex items-center gap-2">
-                        <Navigation className="w-4 h-4 text-amber-600" />
-                        <span>Directions & Navigation Views</span>
+                      <span className="flex items-center gap-2.5">
+                        <Calendar className="w-4 h-4 text-purple-600" />
+                        <span className="font-medium text-slate-800">Booking & Appointment Requests</span>
                       </span>
-                      <span className="font-bold text-slate-900">
+                      <span className="font-black text-slate-900">
+                        {analyticsData.breakdownByType?.BOOKING_REQUEST || 0}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-100">
+                      <span className="flex items-center gap-2.5">
+                        <Smartphone className="w-4 h-4 text-teal-600" />
+                        <span className="font-medium text-slate-800">Order & Delivery Inquiries</span>
+                      </span>
+                      <span className="font-black text-slate-900">
+                        {analyticsData.breakdownByType?.ORDER_INQUIRY || 0}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-100">
+                      <span className="flex items-center gap-2.5">
+                        <Navigation className="w-4 h-4 text-amber-600" />
+                        <span className="font-medium text-slate-800">Directions & Google Maps Views</span>
+                      </span>
+                      <span className="font-black text-slate-900">
                         {analyticsData.breakdownByType?.DIRECTIONS_VIEW || 0}
                       </span>
                     </div>
                     <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-100">
-                      <span className="flex items-center gap-2">
+                      <span className="flex items-center gap-2.5">
                         <Briefcase className="w-4 h-4 text-indigo-600" />
-                        <span>Opportunity / Job Applications</span>
+                        <span className="font-medium text-slate-800">Opportunity & Job Responses</span>
                       </span>
-                      <span className="font-bold text-slate-900">
+                      <span className="font-black text-slate-900">
                         {analyticsData.breakdownByType?.OPPORTUNITY_RESPONSE || 0}
                       </span>
                     </div>
@@ -1988,31 +2078,40 @@ export default function OwnerDashboardPage() {
 
                 {/* Recent Inquiries List */}
                 <div className="space-y-3">
-                  <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-                    {lang === "rw" ? "Ubutumwa bwaherutse kwakirwa" : "Recent Inquiries & Clicks"}
+                  <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center justify-between">
+                    <span>{lang === "rw" ? "Ubutumwa bwaherutse kwakirwa" : "Recent Customer Interactions"}</span>
+                    <span className="text-[10px] text-slate-400 font-normal">Real-time event stream</span>
                   </h4>
                   {(!analyticsData.recentInquiries || analyticsData.recentInquiries.length === 0) ? (
-                    <div className="p-6 text-center text-xs text-slate-400 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-                      {lang === "rw" ? "Nta bakiriya barabaza kuri uyu mwirondoro." : "No interaction events recorded yet."}
+                    <div className="p-8 text-center text-xs text-slate-400 bg-slate-50 rounded-2xl border border-dashed border-slate-200 space-y-1">
+                      <p className="font-bold text-slate-600">
+                        {lang === "rw" ? "Nta bikorwa by'abakiriya birandikwa." : "No interaction events recorded yet."}
+                      </p>
+                      <p className="text-[11px] text-slate-400">
+                        {lang === "rw" ? "Iyo abakiriya bakandye kuri WhatsApp cyangwa telefone, hano hagaragara ako kanya." : "When customers tap WhatsApp, call, or ask about catalog items, they will appear here."}
+                      </p>
                     </div>
                   ) : (
-                    <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                    <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
                       {analyticsData.recentInquiries.map((evt: any) => (
                         <div
                           key={evt.id}
-                          className="p-2.5 rounded-xl bg-slate-50 border border-slate-100 text-xs flex items-center justify-between gap-2"
+                          className="p-3 rounded-xl bg-slate-50 border border-slate-100 text-xs flex items-center justify-between gap-2"
                         >
-                          <div className="truncate">
-                            <span className="font-bold text-slate-800">
-                              {evt.itemName || evt.type.replace("_", " ")}
-                            </span>
-                            {evt.itemPrice && (
-                              <span className="text-emerald-700 font-semibold ml-1.5">
-                                ({evt.itemPrice.toLocaleString()} Frw)
-                              </span>
-                            )}
+                          <div className="truncate space-y-0.5">
+                            <div className="font-bold text-slate-800 flex items-center gap-1.5">
+                              <span>{evt.itemName || evt.type.replace("_", " ")}</span>
+                              {evt.itemPrice && (
+                                <span className="text-emerald-700 font-black">
+                                  ({evt.itemPrice.toLocaleString()} Frw)
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-[10px] text-slate-400">
+                              Via {evt.channel.replace("_", " ").toLowerCase()} • {evt.type.replace("_", " ")}
+                            </div>
                           </div>
-                          <span className="text-[10px] text-slate-400 shrink-0">
+                          <span className="text-[10px] font-medium text-slate-500 bg-white px-2 py-0.5 rounded-md border border-slate-200 shrink-0">
                             {new Date(evt.createdAt).toLocaleDateString()}
                           </span>
                         </div>
@@ -2021,6 +2120,66 @@ export default function OwnerDashboardPage() {
                   )}
                 </div>
               </div>
+
+              {/* Personalized Improvement Recommendations */}
+              {analyticsData.recommendations && analyticsData.recommendations.length > 0 && (
+                <div className="pt-2 border-t border-slate-100 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="w-4 h-4 text-emerald-600" />
+                      <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">
+                        {lang === "rw" ? "Inama z'Ibikorwa Byakwihutisha Iterambere" : "Personalized Progress Recommendations"}
+                      </h4>
+                    </div>
+                    <span className="text-[10px] font-bold text-slate-400">
+                      {analyticsData.recommendations.length} action items
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {analyticsData.recommendations.map((rec: any) => (
+                      <div
+                        key={rec.id}
+                        className="p-4 rounded-2xl bg-gradient-to-br from-slate-50 to-emerald-50/20 border border-slate-200 flex flex-col justify-between gap-3 text-xs"
+                      >
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-black text-slate-900">
+                              {lang === "rw" && rec.titleRw ? rec.titleRw : rec.title}
+                            </span>
+                            <span
+                              className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full ${
+                                rec.priority === "HIGH"
+                                  ? "bg-rose-100 text-rose-800 border border-rose-200"
+                                  : "bg-amber-100 text-amber-800 border border-amber-200"
+                              }`}
+                            >
+                              {rec.priority}
+                            </span>
+                          </div>
+                          <p className="text-slate-500 text-[11px] leading-relaxed">
+                            {lang === "rw" && rec.descriptionRw ? rec.descriptionRw : rec.description}
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => {
+                            if (rec.actionSection) {
+                              setActiveSection(rec.actionSection as any);
+                            }
+                            if (rec.actionSubtab) {
+                              setContentSubTab(rec.actionSubtab as any);
+                            }
+                          }}
+                          className="self-start px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition-colors shadow-xs cursor-pointer flex items-center gap-1.5"
+                        >
+                          <span>{lang === "rw" && rec.actionLabelRw ? rec.actionLabelRw : rec.actionLabel}</span>
+                          <ArrowRight className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

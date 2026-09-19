@@ -27,8 +27,8 @@ export async function GET(request: Request) {
   try {
     let business;
 
-    if (requestedBizId && auth.user.role === Role.SUPER_ADMIN) {
-      business = await prisma.business.findUnique({
+    if (requestedBizId) {
+      const targetBiz = await prisma.business.findUnique({
         where: { id: requestedBizId },
         include: {
           products: { where: { isArchived: false }, orderBy: { sortOrder: "asc" } },
@@ -40,6 +40,16 @@ export async function GET(request: Request) {
           cellRel: true,
         },
       });
+
+      if (!targetBiz) {
+        return NextResponse.json({ error: "Business not found" }, { status: 404 });
+      }
+
+      if (auth.user.role === Role.BUSINESS_OWNER && targetBiz.ownerId !== auth.user.id) {
+        return NextResponse.json({ error: "Forbidden: You do not own this business" }, { status: 403 });
+      }
+
+      business = targetBiz;
     } else {
       // Find business owned by this user
       business = await prisma.business.findFirst({
@@ -54,7 +64,6 @@ export async function GET(request: Request) {
           cellRel: true,
         },
       });
-
     }
 
     if (!business) {
