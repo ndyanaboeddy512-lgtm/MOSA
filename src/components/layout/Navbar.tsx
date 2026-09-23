@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useLanguage } from "@/lib/i18n";
+import { usePlatformSettings } from "@/lib/platform-context";
 import { useAuth, DEMO_USERS } from "@/lib/auth-context";
 import { useLocation } from "@/lib/location-context";
 import { Role } from "@/types";
@@ -29,6 +30,7 @@ import {
 export function Navbar() {
   const pathname = usePathname();
   const { lang, setLang, t } = useLanguage();
+  const { settings: platformSettings, isLanguageSupported } = usePlatformSettings();
   const { user, switchDemoRole, logout } = useAuth();
   const isDemoEnabled = process.env.NEXT_PUBLIC_ENABLE_DEMO_SWITCH === "true";
   const { displayLabel, openSelector } = useLocation();
@@ -62,15 +64,23 @@ export function Navbar() {
           {/* Logo & Brand Identity */}
           <div className="flex items-center gap-4">
             <Link href="/" className="flex items-center gap-2 group">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-600 via-emerald-700 to-amber-500 flex items-center justify-center text-white font-bold text-xl shadow-md group-hover:scale-105 transition-transform">
-                M
-              </div>
+              {platformSettings.logoUrl ? (
+                <img
+                  src={platformSettings.logoUrl}
+                  alt={platformSettings.platformName}
+                  className="w-10 h-10 rounded-xl object-contain shadow-md group-hover:scale-105 transition-transform bg-white p-0.5 border border-slate-200"
+                />
+              ) : (
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-600 via-emerald-700 to-amber-500 flex items-center justify-center text-white font-bold text-xl shadow-md group-hover:scale-105 transition-transform">
+                  {platformSettings.platformName ? platformSettings.platformName.charAt(0) : "M"}
+                </div>
+              )}
               <div className="flex flex-col">
                 <span className="font-extrabold text-xl tracking-tight text-slate-900 leading-none">
-                  MOSA
+                  {lang === "rw" ? (platformSettings.platformNameRw || platformSettings.platformName) : platformSettings.platformName}
                 </span>
                 <span className="text-[10px] text-slate-700 font-semibold tracking-wide">
-                  RWANDA DISCOVERY
+                  {lang === "rw" ? (platformSettings.taglineRw || "RWANDA DISCOVERY") : (platformSettings.tagline || "RWANDA DISCOVERY")}
                 </span>
               </div>
             </Link>
@@ -139,7 +149,7 @@ export function Navbar() {
               </span>
             </Link>
 
-            {/* 4-Language Switcher (Visible on >= sm screens) */}
+            {/* Dynamic Multi-Language Switcher (Visible on >= sm screens) */}
             <div className="hidden sm:flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200">
               {(
                 [
@@ -148,20 +158,22 @@ export function Navbar() {
                   { code: "fr", label: "FR", flag: "🇫🇷", title: "Français" },
                   { code: "sw", label: "SW", flag: "🇹🇿", title: "Kiswahili" },
                 ] as const
-              ).map((l) => (
-                <button
-                  key={l.code}
-                  onClick={() => setLang(l.code)}
-                  title={l.title}
-                  className={`px-1.5 sm:px-2 py-1 text-[11px] sm:text-xs font-bold rounded-md transition-all ${
-                    lang === l.code
-                      ? "bg-white text-emerald-700 shadow-xs"
-                      : "text-slate-500 hover:text-slate-900"
-                  }`}
-                >
-                  {l.label}
-                </button>
-              ))}
+              )
+                .filter((l) => isLanguageSupported(l.code))
+                .map((l) => (
+                  <button
+                    key={l.code}
+                    onClick={() => setLang(l.code)}
+                    title={l.title}
+                    className={`px-1.5 sm:px-2 py-1 text-[11px] sm:text-xs font-bold rounded-md transition-all ${
+                      lang === l.code
+                        ? "bg-white text-emerald-700 shadow-xs"
+                        : "text-slate-500 hover:text-slate-900"
+                    }`}
+                  >
+                    {l.label}
+                  </button>
+                ))}
             </div>
 
             {/* Demo Persona Switcher / User Profile (Visible on >= sm screens) */}

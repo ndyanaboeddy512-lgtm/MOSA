@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { LanguageProvider } from "@/lib/i18n";
+import { PlatformSettingsProvider } from "@/lib/platform-context";
 import { AuthProvider } from "@/lib/auth-context";
 import { LocationProvider } from "@/lib/location-context";
 import { Navbar } from "@/components/layout/Navbar";
@@ -46,17 +47,19 @@ export default function RootLayout({
   return (
     <html lang="rw">
       <body className="min-h-screen flex flex-col antialiased text-slate-900 bg-slate-50 font-sans selection:bg-emerald-100 selection:text-emerald-900 overflow-x-hidden">
-        <LanguageProvider>
-          <AuthProvider>
-            <LocationProvider>
-              <OfflineBanner />
-              <Navbar />
-              <LocationSelectorModal />
-              <main className="flex-1 w-full overflow-x-hidden">{children}</main>
-              <Footer />
-            </LocationProvider>
-          </AuthProvider>
-        </LanguageProvider>
+        <PlatformSettingsProvider>
+          <LanguageProvider>
+            <AuthProvider>
+              <LocationProvider>
+                <OfflineBanner />
+                <Navbar />
+                <LocationSelectorModal />
+                <main className="flex-1 w-full overflow-x-hidden">{children}</main>
+                <Footer />
+              </LocationProvider>
+            </AuthProvider>
+          </LanguageProvider>
+        </PlatformSettingsProvider>
       </body>
     </html>
   );

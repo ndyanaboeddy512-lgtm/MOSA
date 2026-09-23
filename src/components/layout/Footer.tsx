@@ -3,10 +3,18 @@
 import React from "react";
 import Link from "next/link";
 import { useLanguage } from "@/lib/i18n";
-import { ShieldCheck, HeartHandshake, MapPin, Sparkles } from "lucide-react";
+import { usePlatformSettings } from "@/lib/platform-context";
+import { ShieldCheck, HeartHandshake, MapPin, Mail, Phone, MessageSquare } from "lucide-react";
 
 export function Footer() {
   const { lang, t } = useLanguage();
+  const { settings: platformSettings } = usePlatformSettings();
+
+  const platformName = lang === "rw" ? (platformSettings.platformNameRw || platformSettings.platformName) : platformSettings.platformName;
+  const address = lang === "rw" ? (platformSettings.officialAddressRw || platformSettings.officialAddress) : platformSettings.officialAddress;
+  const description = lang === "rw"
+    ? (platformSettings.shortDescriptionRw || platformSettings.taglineRw || "MOSA igamije gushyira ahagaragara ubukungu buto bwo mu midugudu no mu tugari tw'u Rwanda, ifasha abacuruzi kwiyandikisha no kuboneka ku buryo bworoshye.")
+    : (platformSettings.shortDescription || platformSettings.tagline || "A Community Commerce Discovery Network bridging Rwanda's vibrant physical micro-economies and digital discovery, empowering local merchants to register and grow.");
 
   return (
     <footer className="bg-slate-900 text-slate-300 pt-12 pb-16 border-t border-slate-800">
@@ -16,22 +24,52 @@ export function Footer() {
           {/* Brand & Mission Statement */}
           <div className="md:col-span-2 space-y-3">
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-emerald-500 flex items-center justify-center text-white font-bold text-lg">
-                M
-              </div>
-              <span className="font-extrabold text-xl tracking-tight text-white">MOSA</span>
+              {platformSettings.logoUrl ? (
+                <img
+                  src={platformSettings.logoUrl}
+                  alt={platformName}
+                  className="w-8 h-8 rounded-lg object-contain bg-white p-0.5 border border-slate-700"
+                />
+              ) : (
+                <div className="w-8 h-8 rounded-lg bg-emerald-500 flex items-center justify-center text-white font-bold text-lg">
+                  {platformName ? platformName.charAt(0) : "M"}
+                </div>
+              )}
+              <span className="font-extrabold text-xl tracking-tight text-white">{platformName}</span>
             </div>
             <p className="text-xs text-emerald-400 font-semibold uppercase tracking-wider">
-              {t.common.appFullName}
+              {lang === "rw" ? (platformSettings.taglineRw || t.common.appFullName) : (platformSettings.tagline || t.common.appFullName)}
             </p>
             <p className="text-sm text-slate-400 max-w-md leading-relaxed">
-              {lang === "rw"
-                ? "MOSA igamije gushyira ahagaragara ubukungu buto bwo mu midugudu no mu tugari tw'u Rwanda, ifasha abacuruzi kwiyandikisha no kuboneka ku buryo bworoshye."
-                : "A Community Commerce Discovery Network bridging Rwanda's vibrant physical micro-economies and digital discovery, empowering local merchants to register and grow."}
+              {description}
             </p>
-            <div className="flex items-center gap-2 text-xs text-slate-400 pt-1">
-              <MapPin className="w-4 h-4 text-emerald-400" />
-              <span>Kigali, Rwanda • Nyarugenge • Nyamirambo Pilot Hub</span>
+            
+            {/* Contact details */}
+            <div className="space-y-1.5 pt-2 text-xs text-slate-400">
+              <div className="flex items-center gap-2">
+                <MapPin className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span>{address}</span>
+              </div>
+              <div className="flex flex-wrap items-center gap-4 pt-0.5">
+                {platformSettings.officialEmail && (
+                  <a
+                    href={`mailto:${platformSettings.officialEmail}`}
+                    className="flex items-center gap-1.5 text-slate-400 hover:text-emerald-400 transition-colors"
+                  >
+                    <Mail className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>{platformSettings.officialEmail}</span>
+                  </a>
+                )}
+                {platformSettings.officialPhone && (
+                  <a
+                    href={`tel:${platformSettings.officialPhone.replace(/\s+/g, "")}`}
+                    className="flex items-center gap-1.5 text-slate-400 hover:text-emerald-400 transition-colors"
+                  >
+                    <Phone className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>{platformSettings.officialPhone}</span>
+                  </a>
+                )}
+              </div>
             </div>
           </div>
 
@@ -93,7 +131,7 @@ export function Footer() {
 
         {/* Ethical Governance & Bottom Bar */}
         <div className="pt-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500">
-          <p>© {new Date().getFullYear()} MOSA Network (Rwanda). Built for sustainable, ethical community discovery.</p>
+          <p>© {new Date().getFullYear()} {platformSettings.copyrightText || "MOSA Network (Rwanda). Built for sustainable, ethical community discovery."}</p>
           <div className="flex items-center gap-4">
             <span className="text-emerald-400 font-medium">✓ No Gambling • Zero Extractive Ads</span>
             <span>•</span>

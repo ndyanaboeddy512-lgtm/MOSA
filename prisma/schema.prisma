@@ -997,4 +997,32 @@ model CustomerInquiry {
   @@index([createdAt])
 }
 
+model PlatformSettings {
+  id                 String   @id @default("default")
+  platformName       String   @default("MOSA")
+  platformNameRw     String?  @default("MOSA")
+  tagline            String   @default("Neighborhood Commerce & Authentic Price Intelligence")
+  taglineRw          String?  @default("Urubuga rw'Ubucuruzi bw'Ibiciro by'Ukuri mu Rwanda")
+  shortDescription   String?  @default("Rwanda's Community Commerce Discovery Network")
+  shortDescriptionRw String?  @default("Urusobe rw'Ikoranabuhanga ry'Ubucuruzi n'Ibiciro by'Ukuri mu Rwanda")
+  logoUrl            String?
+  faviconUrl         String?
+  heroBannerUrl      String?
+  officialEmail      String   @default("contact@mosa.rw")
+  officialPhone      String   @default("+250 788 000 000")
+  officialWhatsapp   String?  @default("+250 788 000 000")
+  officialAddress    String   @default("Kigali, Rwanda • Nyarugenge • Nyamirambo Pilot Hub")
+  officialAddressRw  String?  @default("Kigali, u Rwanda • Nyarugenge • Ihuriro rya Nyamirambo")
+  supportedLanguages String   @default("rw,en,fr,sw")
+  operatingHours     String?  @default("Monday - Saturday: 08:00 - 18:00 CAT")
+  operatingHoursRw   String?  @default("Kuwa Mbere - Kuwa Gatandatu: 08:00 - 18:00 CAT")
+  socialLinks        String?  // JSON string
+  brandAssets        String?  // JSON string
+  copyrightText      String?  @default("MOSA Network (Rwanda). Built for sustainable, ethical community discovery.")
+  updatedBy          String?
+  updatedAt          DateTime @updatedAt
+  createdAt          DateTime @default(now())
+}
+
+
 

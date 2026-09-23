@@ -53,8 +53,10 @@ import {
   Archive,
   CheckSquare,
   Square,
-  BellRing
+  BellRing,
+  Sliders
 } from "lucide-react";
+import { PlatformIdentityTab } from "@/components/admin/PlatformIdentityTab";
 import { SmartLocationForm, SmartLocationFormData } from "@/components/location/SmartLocationForm";
 import { calculateLocationCompleteness } from "@/lib/location-quality";
 import { RWANDA_HIERARCHY } from "@/lib/rwanda-geo";
@@ -122,7 +124,7 @@ export default function AdminPanelPage() {
   const { user, switchDemoRole } = useAuth();
 
   const [activeTab, setActiveTab] = useState<
-    "overview" | "verification" | "businesses" | "moderation" | "users" | "ecosystem" | "settings" | "intelligence" | "pending_applications" | "claims" | "sms" | "history" | "captures" | "reports" | "demands" | "audit" | "announcements"
+    "overview" | "verification" | "businesses" | "moderation" | "users" | "ecosystem" | "settings" | "intelligence" | "pending_applications" | "claims" | "sms" | "history" | "captures" | "reports" | "demands" | "audit" | "announcements" | "identity"
   >("overview");
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [claims, setClaims] = useState<any[]>([]);
@@ -1384,6 +1386,7 @@ export default function AdminPanelPage() {
             count: Object.keys(computedLocationBreakdown).length, 
             icon: Globe 
           },
+          { id: "identity", label: "Platform Identity & Controls", count: null, icon: Sliders },
           { id: "settings", label: "Settings & Security", count: null, icon: Lock },
           { id: "claims", label: "Ownership Claims", count: claims.filter((c) => c.status === "PENDING").length, icon: HeartHandshake },
           { id: "sms", label: "SMS Queue", count: smsMessages.length, icon: Smartphone },
@@ -3346,6 +3349,9 @@ export default function AdminPanelPage() {
           )}
         </div>
       )}
+
+      {/* Platform Identity & Controls Tab */}
+      {activeTab === "identity" && <PlatformIdentityTab user={user} />}
 
       {/* Settings & Security Tab */}
       {activeTab === "settings" && (
