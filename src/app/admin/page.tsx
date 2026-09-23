@@ -113,8 +113,8 @@ export default function AdminPanelPage() {
   const { user, switchDemoRole } = useAuth();
 
   const [activeTab, setActiveTab] = useState<
-    "businesses" | "intelligence" | "pending_applications" | "moderation" | "claims" | "sms" | "history" | "captures" | "reports" | "demands" | "audit"
-  >("businesses");
+    "overview" | "verification" | "businesses" | "moderation" | "users" | "ecosystem" | "settings" | "intelligence" | "pending_applications" | "claims" | "sms" | "history" | "captures" | "reports" | "demands" | "audit"
+  >("overview");
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [claims, setClaims] = useState<any[]>([]);
   const [smsMessages, setSmsMessages] = useState<any[]>([]);
@@ -154,6 +154,19 @@ export default function AdminPanelPage() {
     title: string;
   } | null>(null);
   const [moderationActionReason, setModerationActionReason] = useState("");
+
+  // Users & Roles state
+  const [usersList, setUsersList] = useState<any[]>([]);
+  const [isUsersLoading, setIsUsersLoading] = useState(false);
+  const [userSearchTerm, setUserSearchTerm] = useState("");
+  const [userRoleFilter, setUserRoleFilter] = useState("ALL");
+
+  // Settings & Security state
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordChangeLoading, setPasswordChangeLoading] = useState(false);
+  const [passwordChangeMsg, setPasswordChangeMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
   
   const [metrics, setMetrics] = useState<AdminMetrics>({
     totalBusinesses: 0,
@@ -329,7 +342,134 @@ export default function AdminPanelPage() {
       .catch((err) => console.warn("[Admin Geo Load Error]:", err));
 
     fetchAdminData();
+    fetchUsersList();
   }, []);
+
+  const fetchUsersList = async () => {
+    setIsUsersLoading(true);
+    try {
+      const res = await fetch(`/api/admin/users?role=${userRoleFilter}&q=${encodeURIComponent(userSearchTerm)}`);
+      const data = await res.json();
+      if (data.success && data.users) {
+        setUsersList(data.users);
+      }
+    } catch (err) {
+      console.warn("[Admin Users Load Error]:", err);
+    } finally {
+      setIsUsersLoading(false);
+    }
+  };
+
+  const handleUpdateUserRole = async (userId: string, newRole: string) => {
+    try {
+      const res = await fetch("/api/admin/users", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, role: newRole }),
+      });
+      if (res.ok) {
+        fetchUsersList();
+      }
+    } catch (err) {
+      console.warn("Error updating user role:", err);
+    }
+  };
+
+  const handleToggleUserStatus = async (userId: string, currentStatus: string) => {
+    const nextStatus = currentStatus === "ACTIVE" ? "SUSPENDED" : "ACTIVE";
+    try {
+      const res = await fetch("/api/admin/users", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, status: nextStatus }),
+      });
+      if (res.ok) {
+        fetchUsersList();
+      }
+    } catch (err) {
+      console.warn("Error toggling user status:", err);
+    }
+  };
+
+  const handleSuspendBusiness = async (bizId: string) => {
+    if (!confirm("Are you sure you want to suspend this business?")) return;
+    try {
+      const res = await fetch("/api/admin", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "SUSPEND_BUSINESS", businessId: bizId }),
+      });
+      if (res.ok) fetchAdminData();
+    } catch (err) {
+      console.warn("Suspend business error:", err);
+    }
+  };
+
+  const handleUnsuspendBusiness = async (bizId: string) => {
+    try {
+      const res = await fetch("/api/admin", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "UNSUSPEND_BUSINESS", businessId: bizId }),
+      });
+      if (res.ok) fetchAdminData();
+    } catch (err) {
+      console.warn("Unsuspend business error:", err);
+    }
+  };
+
+  const handleDeleteBusiness = async (bizId: string, name: string) => {
+    if (!confirm(`Are you sure you want to permanently delete "${name}"? This cannot be undone.`)) return;
+    try {
+      const res = await fetch("/api/admin", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "DELETE_BUSINESS", businessId: bizId }),
+      });
+      if (res.ok) fetchAdminData();
+    } catch (err) {
+      console.warn("Delete business error:", err);
+    }
+  };
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPasswordChangeMsg(null);
+    if (!currentPassword || !newPassword) {
+      setPasswordChangeMsg({ type: "error", text: "Please enter current and new password." });
+      return;
+    }
+    if (newPassword.length < 8) {
+      setPasswordChangeMsg({ type: "error", text: "New password must be at least 8 characters long." });
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordChangeMsg({ type: "error", text: "New passwords do not match." });
+      return;
+    }
+
+    setPasswordChangeLoading(true);
+    try {
+      const res = await fetch("/api/admin/auth/change-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ currentPassword, newPassword }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setPasswordChangeMsg({ type: "error", text: data.error || "Failed to change password." });
+      } else {
+        setPasswordChangeMsg({ type: "success", text: "Password updated successfully!" });
+        setCurrentPassword("");
+        setNewPassword("");
+        setConfirmPassword("");
+      }
+    } catch (err: any) {
+      setPasswordChangeMsg({ type: "error", text: err.message || "Network error changing password." });
+    } finally {
+      setPasswordChangeLoading(false);
+    }
+  };
 
   const handleToggleVerification = async (bizId: string) => {
     const biz = businesses.find((b) => b.id === bizId);
@@ -798,12 +938,12 @@ export default function AdminPanelPage() {
             </span>
           </div>
 
-          <h1 className="text-2xl sm:text-3xl font-black">
-            {t.admin.title}
+          <h1 className="text-2xl sm:text-3xl font-black tracking-tight">
+            MOSA COMMAND CENTER
           </h1>
 
-          <p className="text-xs sm:text-sm text-slate-400 max-w-xl">
-            {t.admin.subtitle} Manage verified community commerce and sample test dataset across Rwanda.
+          <p className="text-xs sm:text-sm text-slate-300 max-w-xl font-medium">
+            Platform Administration &amp; Business Verification
           </p>
         </div>
 
@@ -928,41 +1068,47 @@ export default function AdminPanelPage() {
       {/* Tabs Navigation */}
       <div className="flex items-center gap-2 border-b border-slate-200 pb-3 mb-6 overflow-x-auto no-scrollbar">
         {[
-          { id: "businesses", label: t.admin.tabs.businesses, count: businesses.length, icon: StoreIcon },
+          { id: "overview", label: "Overview", count: null, icon: Activity },
           { 
-            id: "intelligence", 
-            label: "Location & Category Intelligence", 
-            count: Object.keys(computedLocationBreakdown).length, 
-            icon: Layers 
-          },
-          { 
-            id: "pending_applications", 
-            label: "Pending Verification", 
+            id: "verification", 
+            label: "Business Verification", 
             count: businesses.filter((b: any) => b.status === "PENDING" || b.status === "NEEDS_CORRECTION").length, 
-            icon: ShieldCheck 
+            icon: ShieldCheck,
+            highlight: businesses.filter((b: any) => b.status === "PENDING" || b.status === "NEEDS_CORRECTION").length > 0
           },
+          { id: "businesses", label: "Businesses", count: businesses.length, icon: StoreIcon },
           { 
             id: "moderation", 
             label: "Content Moderation", 
             count: (moderationOpenReports.length + moderationFlaggedMedia.length), 
             icon: Film 
           },
+          { id: "users", label: "Users & Roles", count: usersList.length, icon: Users },
+          { 
+            id: "ecosystem", 
+            label: "Rwanda Ecosystem", 
+            count: Object.keys(computedLocationBreakdown).length, 
+            icon: Globe 
+          },
+          { id: "settings", label: "Settings & Security", count: null, icon: Lock },
           { id: "claims", label: "Ownership Claims", count: claims.filter((c) => c.status === "PENDING").length, icon: HeartHandshake },
-          { id: "sms", label: "SMS Queue & Status", count: smsMessages.length, icon: Smartphone },
-          { id: "history", label: "Price & Change Audits", count: changeHistories.length, icon: Activity },
-          { id: "captures", label: t.admin.tabs.ocrCaptures, count: captures.length, icon: FileText },
-          { id: "reports", label: t.admin.tabs.moderation, count: reports.length, icon: AlertTriangle },
-          { id: "demands", label: t.admin.tabs.demand, count: demands.length, icon: TrendingUp },
+          { id: "sms", label: "SMS Queue", count: smsMessages.length, icon: Smartphone },
+          { id: "history", label: "Price Audits", count: changeHistories.length, icon: Activity },
+          { id: "captures", label: "OCR Captures", count: captures.length, icon: FileText },
+          { id: "reports", label: "Reports", count: reports.length, icon: AlertTriangle },
+          { id: "demands", label: "Demands", count: demands.length, icon: TrendingUp },
           { id: "audit", label: "Audit & Governance", count: auditLogs.length, icon: History },
         ].map((tab) => {
           const Icon = tab.icon;
-          const isActive = activeTab === tab.id;
+          const isActive = activeTab === tab.id || 
+            (tab.id === "verification" && activeTab === "pending_applications") ||
+            (tab.id === "ecosystem" && activeTab === "intelligence");
 
           return (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id as typeof activeTab)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
                 isActive
                   ? "bg-emerald-600 text-white shadow-xs"
                   : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-50"
@@ -970,15 +1116,212 @@ export default function AdminPanelPage() {
             >
               <Icon className="w-4 h-4" />
               <span>{tab.label}</span>
-              <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
-                isActive ? "bg-emerald-700 text-white" : "bg-slate-100 text-slate-500"
-              }`}>
-                {tab.count}
-              </span>
+              {tab.count !== null && (
+                <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
+                  isActive ? "bg-emerald-700 text-white" : tab.highlight ? "bg-amber-100 text-amber-900 font-black" : "bg-slate-100 text-slate-500"
+                }`}>
+                  {tab.count}
+                </span>
+              )}
             </button>
           );
         })}
       </div>
+
+      {/* Overview Tab */}
+      {activeTab === "overview" && (
+        <div className="space-y-6">
+          {/* Executive KPI Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between">
+              <div>
+                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Total Businesses</p>
+                <h3 className="text-2xl font-black text-slate-900 mt-1">{metrics.totalBusinesses}</h3>
+                <p className="text-[11px] text-slate-400 mt-0.5">Across {metrics.totalDistricts} official districts</p>
+              </div>
+              <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+                <StoreIcon className="w-6 h-6" />
+              </div>
+            </div>
+
+            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between">
+              <div>
+                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Ground Verified</p>
+                <h3 className="text-2xl font-black text-emerald-600 mt-1">{metrics.verifiedDataCount}</h3>
+                <p className="text-[11px] text-emerald-600 font-semibold mt-0.5">Physical agent validated</p>
+              </div>
+              <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                <ShieldCheck className="w-6 h-6" />
+              </div>
+            </div>
+
+            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between">
+              <div>
+                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Pending Verification</p>
+                <h3 className="text-2xl font-black text-amber-600 mt-1">
+                  {businesses.filter((b: any) => b.status === "PENDING" || b.status === "NEEDS_CORRECTION").length}
+                </h3>
+                <p className="text-[11px] text-amber-600 font-semibold mt-0.5">Awaiting admin review</p>
+              </div>
+              <div className="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
+                <FileCheck className="w-6 h-6" />
+              </div>
+            </div>
+
+            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between">
+              <div>
+                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Moderation Queue</p>
+                <h3 className="text-2xl font-black text-purple-600 mt-1">
+                  {moderationOpenReports.length + moderationFlaggedMedia.length}
+                </h3>
+                <p className="text-[11px] text-purple-600 font-semibold mt-0.5">Flagged media &amp; reports</p>
+              </div>
+              <div className="w-12 h-12 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
+                <ShieldAlert className="w-6 h-6" />
+              </div>
+            </div>
+          </div>
+
+          {/* Quick Actions Bar */}
+          <div className="bg-slate-900 rounded-2xl p-5 text-white flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <h4 className="font-bold text-sm text-white">Administrator Quick Actions</h4>
+              <p className="text-xs text-slate-400 mt-0.5">Rapidly jump to essential platform governance centers.</p>
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                onClick={() => setActiveTab("verification")}
+                className="px-3 py-2 bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs rounded-xl transition-colors flex items-center gap-1.5 cursor-pointer"
+              >
+                <ShieldCheck className="w-4 h-4" />
+                <span>Verify Businesses ({businesses.filter((b: any) => b.status === "PENDING" || b.status === "NEEDS_CORRECTION").length})</span>
+              </button>
+              <button
+                onClick={() => setActiveTab("moderation")}
+                className="px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs rounded-xl transition-colors flex items-center gap-1.5 cursor-pointer"
+              >
+                <Film className="w-4 h-4" />
+                <span>Moderate Content</span>
+              </button>
+              <button
+                onClick={() => setActiveTab("users")}
+                className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white font-bold text-xs rounded-xl transition-colors flex items-center gap-1.5 cursor-pointer"
+              >
+                <Users className="w-4 h-4" />
+                <span>Manage Users</span>
+              </button>
+              <button
+                onClick={() => setActiveTab("businesses")}
+                className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white font-bold text-xs rounded-xl transition-colors flex items-center gap-1.5 cursor-pointer"
+              >
+                <StoreIcon className="w-4 h-4" />
+                <span>All Businesses ({businesses.length})</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Dual Panel: Verification Spotlight + Governance Audit Feed */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Left: Pending Verification Queue */}
+            <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <div className="flex items-center gap-2">
+                  <ShieldCheck className="w-5 h-5 text-amber-500" />
+                  <h4 className="font-bold text-slate-900 text-sm">Applications Requiring Verification</h4>
+                </div>
+                <button
+                  onClick={() => setActiveTab("verification")}
+                  className="text-xs font-bold text-emerald-600 hover:text-emerald-700 flex items-center gap-1 cursor-pointer"
+                >
+                  View All ({businesses.filter((b: any) => b.status === "PENDING" || b.status === "NEEDS_CORRECTION").length})
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+
+              {businesses.filter((b: any) => b.status === "PENDING" || b.status === "NEEDS_CORRECTION").length === 0 ? (
+                <div className="p-8 text-center bg-slate-50 rounded-xl border border-dashed border-slate-200 text-xs text-slate-500">
+                  🎉 No pending verifications. All registered businesses are up to date!
+                </div>
+              ) : (
+                <div className="space-y-2.5">
+                  {businesses
+                    .filter((b: any) => b.status === "PENDING" || b.status === "NEEDS_CORRECTION")
+                    .slice(0, 4)
+                    .map((biz: any) => (
+                      <div key={biz.id} className="p-3 bg-slate-50 hover:bg-slate-100/80 rounded-xl border border-slate-200 transition-colors flex items-center justify-between gap-3">
+                        <div className="space-y-0.5 min-w-0">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-black text-xs text-slate-900 truncate">{biz.name}</span>
+                            <span className="text-[10px] px-1.5 py-0.2 rounded font-bold bg-amber-100 text-amber-800">
+                              {biz.status === "PENDING" ? "PENDING" : "CORRECTIONS"}
+                            </span>
+                          </div>
+                          <div className="text-[11px] text-slate-500 truncate">
+                            {biz.location?.district} • {biz.phone} • {biz.categoryDisplay || biz.category}
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => {
+                            setReviewingBiz(biz);
+                            setReviewAction(null);
+                            setAdminNotes("");
+                          }}
+                          className="px-2.5 py-1 bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs rounded-lg shrink-0 cursor-pointer"
+                        >
+                          Review
+                        </button>
+                      </div>
+                    ))}
+                </div>
+              )}
+            </div>
+
+            {/* Right: Recent Audit & Activity Trail */}
+            <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <div className="flex items-center gap-2">
+                  <History className="w-5 h-5 text-slate-700" />
+                  <h4 className="font-bold text-slate-900 text-sm">Recent Administrative Activity</h4>
+                </div>
+                <button
+                  onClick={() => setActiveTab("audit")}
+                  className="text-xs font-bold text-emerald-600 hover:text-emerald-700 flex items-center gap-1 cursor-pointer"
+                >
+                  Full Audit Log
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+
+              {auditLogs.length === 0 ? (
+                <div className="p-8 text-center bg-slate-50 rounded-xl border border-dashed border-slate-200 text-xs text-slate-500">
+                  No administrative events recorded recently.
+                </div>
+              ) : (
+                <div className="divide-y divide-slate-100">
+                  {auditLogs.slice(0, 5).map((log) => (
+                    <div key={log.id} className="py-2.5 flex items-start justify-between gap-3 text-xs">
+                      <div className="space-y-0.5 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-slate-900">{log.action.replace("ADMIN_", "").replace(/_/g, " ")}</span>
+                          <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-100 font-mono text-slate-600">
+                            {log.entityType}
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-slate-500 truncate">
+                          Actor: {log.actor?.name || "System Administrator"} ({log.actor?.role || "SUPER_ADMIN"})
+                        </div>
+                      </div>
+                      <div className="text-[10px] text-slate-400 font-mono shrink-0">
+                        {new Date(log.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Businesses Tab */}
       {activeTab === "businesses" && (
@@ -1441,10 +1784,28 @@ export default function AdminPanelPage() {
                         <Edit2 className="w-3.5 h-3.5" />
                       </button>
 
+                      {biz.status === "SUSPENDED" ? (
+                        <button
+                          onClick={() => handleUnsuspendBusiness(biz.id)}
+                          className="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-xs font-bold transition-colors cursor-pointer"
+                          title="Restore / Unsuspend Business"
+                        >
+                          Unsuspend
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => handleSuspendBusiness(biz.id)}
+                          className="px-2.5 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 text-xs font-bold transition-colors cursor-pointer"
+                          title="Suspend Business"
+                        >
+                          Suspend
+                        </button>
+                      )}
+
                       <button
-                        onClick={() => handleArchiveBusiness(biz.id)}
-                        className="p-1.5 rounded-lg border border-red-200 hover:bg-red-50 text-red-600 transition-colors"
-                        title="Archive Business"
+                        onClick={() => handleDeleteBusiness(biz.id, biz.name)}
+                        className="p-1.5 rounded-lg border border-red-200 hover:bg-red-50 text-red-600 transition-colors cursor-pointer"
+                        title="Permanently Delete Business"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
@@ -1466,7 +1827,7 @@ export default function AdminPanelPage() {
       )}
 
       {/* Location & Category Intelligence Tab */}
-      {activeTab === "intelligence" && (
+      {(activeTab === "ecosystem" || activeTab === "intelligence") && (
         <div className="space-y-6">
           {/* Header Card */}
           <div className="bg-white rounded-3xl border border-slate-200 shadow-card p-6">
@@ -1649,7 +2010,7 @@ export default function AdminPanelPage() {
       )}
 
       {/* Pending Applications Tab */}
-      {activeTab === "pending_applications" && (
+      {(activeTab === "verification" || activeTab === "pending_applications") && (
         <div className="bg-white rounded-3xl border border-slate-200 shadow-card p-6 space-y-4">
           <div className="flex items-center justify-between border-b border-slate-100 pb-4">
             <div>
@@ -2529,6 +2890,318 @@ export default function AdminPanelPage() {
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Users & Roles Management Tab */}
+      {activeTab === "users" && (
+        <div className="bg-white rounded-3xl border border-slate-200 shadow-card p-6 space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+            <div>
+              <h3 className="font-extrabold text-slate-900 text-lg flex items-center gap-2">
+                <Users className="w-5 h-5 text-indigo-600" />
+                <span>Users &amp; Roles Management</span>
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Manage platform access, assign administrator or agent privileges, and supervise user accounts.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={fetchUsersList}
+                disabled={isUsersLoading}
+                className="px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isUsersLoading ? "animate-spin" : ""}`} />
+                <span>Refresh Users</span>
+              </button>
+              <span className="px-3 py-1.5 rounded-xl bg-indigo-50 text-indigo-700 text-xs font-bold border border-indigo-100">
+                {usersList.length} Accounts
+              </span>
+            </div>
+          </div>
+
+          {/* Filter Bar */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Search by name, email, or phone number..."
+                value={userSearchTerm}
+                onChange={(e) => setUserSearchTerm(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") fetchUsersList(); }}
+                className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <select
+                value={userRoleFilter}
+                onChange={(e) => setUserRoleFilter(e.target.value)}
+                className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-hidden"
+              >
+                <option value="ALL">All Roles</option>
+                <option value="SUPER_ADMIN">SUPER_ADMIN</option>
+                <option value="COMMUNITY_ADMIN">COMMUNITY_ADMIN</option>
+                <option value="COMMUNITY_AGENT">COMMUNITY_AGENT</option>
+                <option value="BUSINESS_OWNER">BUSINESS_OWNER</option>
+                <option value="CUSTOMER">CUSTOMER</option>
+              </select>
+              <button
+                onClick={fetchUsersList}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition-colors cursor-pointer"
+              >
+                Search
+              </button>
+            </div>
+          </div>
+
+          {/* Users Table */}
+          {isUsersLoading ? (
+            <div className="p-12 text-center text-slate-400 text-xs font-medium">
+              Loading platform accounts...
+            </div>
+          ) : usersList.length === 0 ? (
+            <div className="p-12 text-center text-slate-400 text-xs font-medium bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+              No users matching your filters.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-200 text-slate-400 font-bold uppercase tracking-wider text-[10px]">
+                    <th className="py-3 px-3">User &amp; Identity</th>
+                    <th className="py-3 px-3">Contact Details</th>
+                    <th className="py-3 px-3">Assigned Role</th>
+                    <th className="py-3 px-3">Status</th>
+                    <th className="py-3 px-3">Platform Activity</th>
+                    <th className="py-3 px-3">Joined</th>
+                    <th className="py-3 px-3 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 font-medium">
+                  {usersList.map((u) => (
+                    <tr key={u.id} className="hover:bg-slate-50/80 transition-colors">
+                      <td className="py-3 px-3">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 font-bold flex items-center justify-center shrink-0">
+                            {u.name?.charAt(0) || "U"}
+                          </div>
+                          <div>
+                            <div className="font-bold text-slate-900">{u.name}</div>
+                            {u.mustChangePassword && (
+                              <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-1.5 py-0.2 rounded">
+                                Temp Password
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="py-3 px-3">
+                        <div className="space-y-0.5">
+                          {u.email && <div className="text-slate-800 font-mono text-[11px]">{u.email}</div>}
+                          {u.phone && <div className="text-slate-500 font-mono text-[11px]">{u.phone}</div>}
+                        </div>
+                      </td>
+                      <td className="py-3 px-3">
+                        <select
+                          value={u.role}
+                          onChange={(e) => handleUpdateUserRole(u.id, e.target.value)}
+                          className="px-2 py-1 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-800 focus:ring-2 focus:ring-indigo-500/20 cursor-pointer"
+                        >
+                          <option value="SUPER_ADMIN">SUPER_ADMIN</option>
+                          <option value="COMMUNITY_ADMIN">COMMUNITY_ADMIN</option>
+                          <option value="COMMUNITY_AGENT">COMMUNITY_AGENT</option>
+                          <option value="BUSINESS_OWNER">BUSINESS_OWNER</option>
+                          <option value="CUSTOMER">CUSTOMER</option>
+                        </select>
+                      </td>
+                      <td className="py-3 px-3">
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                          u.status === "ACTIVE" 
+                            ? "bg-emerald-100 text-emerald-800" 
+                            : "bg-red-100 text-red-800"
+                        }`}>
+                          {u.status || "ACTIVE"}
+                        </span>
+                      </td>
+                      <td className="py-3 px-3 text-slate-500 text-[11px]">
+                        {u._count?.businessesOwned ? `${u._count.businessesOwned} businesses` : "0 businesses"}
+                        {u._count?.captures ? ` • ${u._count.captures} captures` : ""}
+                      </td>
+                      <td className="py-3 px-3 text-slate-400 text-[11px]">
+                        {new Date(u.createdAt).toLocaleDateString()}
+                      </td>
+                      <td className="py-3 px-3 text-right">
+                        <button
+                          onClick={() => handleToggleUserStatus(u.id, u.status || "ACTIVE")}
+                          className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
+                            u.status === "SUSPENDED"
+                              ? "bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200"
+                              : "bg-red-50 text-red-700 hover:bg-red-100 border border-red-200"
+                          }`}
+                        >
+                          {u.status === "SUSPENDED" ? "Activate" : "Suspend"}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Settings & Security Tab */}
+      {activeTab === "settings" && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Card 1: Change Administrator Password */}
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-card p-6 space-y-4">
+            <div className="border-b border-slate-100 pb-4">
+              <h3 className="font-extrabold text-slate-900 text-lg flex items-center gap-2">
+                <Lock className="w-5 h-5 text-emerald-600" />
+                <span>Change Administrator Password</span>
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Update your administrative credentials. Enforces bcrypt 12-round salted hashing.
+              </p>
+            </div>
+
+            {passwordChangeMsg && (
+              <div className={`p-3 rounded-xl text-xs font-semibold flex items-center gap-2 ${
+                passwordChangeMsg.type === "success"
+                  ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                  : "bg-red-50 text-red-800 border border-red-200"
+              }`}>
+                {passwordChangeMsg.type === "success" ? (
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                ) : (
+                  <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
+                )}
+                <span>{passwordChangeMsg.text}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleChangePassword} className="space-y-4 text-xs">
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Current Password</label>
+                <input
+                  type="password"
+                  required
+                  placeholder="Enter current password"
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">New Password (min 8 characters)</label>
+                <input
+                  type="password"
+                  required
+                  placeholder="Enter strong new password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Confirm New Password</label>
+                <input
+                  type="password"
+                  required
+                  placeholder="Confirm new password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={passwordChangeLoading}
+                className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl transition-colors shadow-xs flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+              >
+                {passwordChangeLoading && <RefreshCw className="w-4 h-4 animate-spin" />}
+                <span>Update Password</span>
+              </button>
+            </form>
+          </div>
+
+          {/* Card 2: Current Administrator Session & Security Architecture */}
+          <div className="space-y-6">
+            <div className="bg-white rounded-3xl border border-slate-200 shadow-card p-6 space-y-4">
+              <div className="border-b border-slate-100 pb-3 flex items-center justify-between">
+                <div>
+                  <h4 className="font-bold text-slate-900 text-sm">Active Administrator Session</h4>
+                  <p className="text-xs text-slate-500">Currently authenticated staff profile</p>
+                </div>
+                <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-black uppercase">
+                  ACTIVE
+                </span>
+              </div>
+
+              <div className="space-y-2 text-xs">
+                <div className="flex justify-between py-1.5 border-b border-slate-100">
+                  <span className="text-slate-500">Account Name:</span>
+                  <span className="font-bold text-slate-900">{user?.name || "System Administrator"}</span>
+                </div>
+                <div className="flex justify-between py-1.5 border-b border-slate-100">
+                  <span className="text-slate-500">Staff Email / Phone:</span>
+                  <span className="font-mono font-bold text-slate-800">
+                    {user?.phone?.includes("@") ? user.phone : "admin@mosa.rw"}
+                  </span>
+                </div>
+                <div className="flex justify-between py-1.5 border-b border-slate-100">
+                  <span className="text-slate-500">Authority Role:</span>
+                  <span className="font-mono font-bold text-emerald-700">{user?.role || "SUPER_ADMIN"}</span>
+                </div>
+                <div className="flex justify-between py-1.5 border-b border-slate-100">
+                  <span className="text-slate-500">Environment:</span>
+                  <span className="font-bold text-slate-700">Neon PostgreSQL (Production)</span>
+                </div>
+              </div>
+
+              <div className="pt-2">
+                <button
+                  onClick={async () => {
+                    if (confirm("Are you sure you want to sign out of the MOSA Command Center?")) {
+                      await fetch("/api/auth/logout", { method: "POST" });
+                      window.location.href = "/admin/login";
+                    }
+                  }}
+                  className="w-full py-2 bg-slate-100 hover:bg-red-50 text-slate-700 hover:text-red-700 border border-slate-200 hover:border-red-200 text-xs font-bold rounded-xl transition-colors cursor-pointer"
+                >
+                  Sign Out of Command Center
+                </button>
+              </div>
+            </div>
+
+            {/* Platform Safeguards */}
+            <div className="bg-slate-900 rounded-3xl p-6 text-white space-y-3">
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="w-5 h-5 text-emerald-400" />
+                <h4 className="font-bold text-sm text-white">Platform Safeguards Active</h4>
+              </div>
+              <ul className="text-xs text-slate-300 space-y-2">
+                <li className="flex items-start gap-2">
+                  <Check className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                  <span>Strict Server-Side RBAC: Customer and Business Owner roles are completely denied access to /admin.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <Check className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                  <span>Tenant Isolation: Business owners only see their own metrics and can never manipulate other records.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <Check className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                  <span>Mandatory First-Login Password Change enforced for all newly provisioned administrators.</span>
+                </li>
+              </ul>
+            </div>
+          </div>
         </div>
       )}
 

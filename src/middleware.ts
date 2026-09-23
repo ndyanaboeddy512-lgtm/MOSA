@@ -11,6 +11,17 @@ const SESSION_COOKIE_NAME = "mosa_session";
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
+  // Public admin auth and access routes that bypass middleware protection
+  const isPublicAdminRoute =
+    pathname.startsWith("/admin/login") ||
+    pathname.startsWith("/admin/forgot-password") ||
+    pathname.startsWith("/admin/access-denied") ||
+    pathname.startsWith("/api/admin/auth");
+
+  if (isPublicAdminRoute) {
+    return NextResponse.next();
+  }
+
   // Define protected route segments
   const isAdminRoute = pathname.startsWith("/admin") || pathname.startsWith("/api/admin");
   const isAgentRoute = pathname.startsWith("/agent");
@@ -27,6 +38,12 @@ export async function middleware(request: NextRequest) {
     if (pathname.startsWith("/api/")) {
       return NextResponse.json({ error: "Unauthorized: authentication required" }, { status: 401 });
     }
+    // Dedicated Command Center login for /admin
+    if (isAdminRoute) {
+      const adminLoginUrl = new URL("/admin/login", request.url);
+      adminLoginUrl.searchParams.set("redirect", pathname);
+      return NextResponse.redirect(adminLoginUrl);
+    }
     const loginUrl = new URL("/auth/login", request.url);
     loginUrl.searchParams.set("redirect", pathname);
     return NextResponse.redirect(loginUrl);
@@ -40,12 +57,11 @@ export async function middleware(request: NextRequest) {
     if (isAdminRoute) {
       if (role !== "SUPER_ADMIN" && role !== "COMMUNITY_ADMIN" && role !== "MODERATOR") {
         if (pathname.startsWith("/api/")) {
-          return NextResponse.json({ error: "Forbidden: administrator privileges required" }, { status: 403 });
+          return NextResponse.json({ error: "Forbidden: administrator clearance required" }, { status: 403 });
         }
-        const loginUrl = new URL("/auth/login", request.url);
-        loginUrl.searchParams.set("redirect", pathname);
-        loginUrl.searchParams.set("reason", "admin_required");
-        return NextResponse.redirect(loginUrl);
+        // Redirect unauthorized roles (e.g. CUSTOMER, BUSINESS_OWNER) to Access Denied screen
+        const deniedUrl = new URL("/admin/access-denied", request.url);
+        return NextResponse.redirect(deniedUrl);
       }
     }
 

@@ -702,6 +702,50 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ success: true, status: "ARCHIVED" });
     }
 
+    if (action === "SUSPEND_BUSINESS" && businessId) {
+      const updated = await prisma.$transaction(async (tx) => {
+        const b = await tx.business.update({
+          where: { id: businessId },
+          data: { status: "SUSPENDED" },
+        });
+
+        await tx.auditLog.create({
+          data: {
+            actorId: adminUser.id,
+            action: "ADMIN_BUSINESS_SUSPENDED",
+            entityType: "BUSINESS",
+            entityId: businessId,
+          },
+        });
+
+        return b;
+      });
+
+      return NextResponse.json({ success: true, status: "SUSPENDED" });
+    }
+
+    if (action === "UNSUSPEND_BUSINESS" && businessId) {
+      const updated = await prisma.$transaction(async (tx) => {
+        const b = await tx.business.update({
+          where: { id: businessId },
+          data: { status: "ACTIVE" },
+        });
+
+        await tx.auditLog.create({
+          data: {
+            actorId: adminUser.id,
+            action: "ADMIN_BUSINESS_UNSUSPENDED",
+            entityType: "BUSINESS",
+            entityId: businessId,
+          },
+        });
+
+        return b;
+      });
+
+      return NextResponse.json({ success: true, status: "ACTIVE" });
+    }
+
     if (action === "APPROVE_CLAIM" && body.claimId) {
       const adminUser = auth.user!;
       const claim = await prisma.$transaction(async (tx) => {
@@ -792,6 +836,30 @@ export async function PATCH(request: Request) {
       });
 
       return NextResponse.json({ success: true, claim });
+    }
+
+    if (action === "DELETE_BUSINESS" && businessId) {
+      await prisma.$transaction(async (tx) => {
+        await tx.product.deleteMany({ where: { businessId } });
+        await tx.businessMedia.deleteMany({ where: { businessId } });
+        await tx.verificationRecord.deleteMany({ where: { businessId } });
+        await tx.businessClaim.deleteMany({ where: { businessId } });
+        await tx.business.delete({ where: { id: businessId } });
+
+        await tx.auditLog.create({
+          data: {
+            actorId: adminUser.id,
+            action: "ADMIN_BUSINESS_DELETED",
+            entityType: "BUSINESS",
+            entityId: businessId,
+            metadata: JSON.stringify({ deletedBy: adminUser.name }),
+          },
+        });
+      });
+
+      revalidatePath("/admin");
+      revalidatePath("/explore");
+      return NextResponse.json({ success: true, deletedId: businessId });
     }
 
     return NextResponse.json({ error: "Invalid action or parameters" }, { status: 400 });

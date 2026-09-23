@@ -25,7 +25,8 @@ const SESSION_COOKIE_NAME = "mosa_session";
 
 export interface SessionPayload {
   userId: string;
-  phone: string;
+  phone?: string | null;
+  email?: string | null;
   role: Role;
   name: string;
 }
