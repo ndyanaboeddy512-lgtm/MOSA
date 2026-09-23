@@ -158,6 +158,7 @@ export async function POST(request: Request) {
 
     revalidatePath(`/business/${businessId}`);
     revalidatePath("/explore");
+    revalidatePath("/admin");
 
     return NextResponse.json({ success: true, update }, { status: 201 });
   } catch (error) {
@@ -217,6 +218,7 @@ export async function PATCH(request: Request) {
     });
 
     revalidatePath(`/business/${businessId}`);
+    revalidatePath("/admin");
     return NextResponse.json({ success: true, update: updated });
   } catch (error) {
     console.error("[Owner Updates PATCH Error]:", error);
@@ -266,6 +268,7 @@ export async function DELETE(request: Request) {
     });
 
     revalidatePath(`/business/${businessId}`);
+    revalidatePath("/admin");
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("[Owner Updates DELETE Error]:", error);

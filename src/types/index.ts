@@ -272,6 +272,7 @@ export interface Business {
   };
   updates?: BusinessUpdateRecord[];
   opportunities?: BusinessOpportunityRecord[];
+  media?: BusinessMedia[];
   createdAt: string;
   updatedAt: string;
 }

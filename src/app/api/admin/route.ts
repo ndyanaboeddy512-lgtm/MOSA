@@ -81,6 +81,8 @@ export async function GET() {
         orderBy: { updatedAt: "desc" },
         include: {
           products: true,
+          media: true,
+          updates: { take: 10, orderBy: { createdAt: "desc" } },
           verifications: true,
           localArea: true,
           districtRel: true,
@@ -248,6 +250,8 @@ export async function GET() {
         isPotentialDuplicate: duplicateIds.has(b.id),
         owner: b.owner,
         verifications: b.verifications,
+        media: b.media,
+        updates: b.updates,
       })),
       captures,
       reports,

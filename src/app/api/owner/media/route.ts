@@ -203,6 +203,7 @@ export async function POST(request: Request) {
     // Revalidate Public Mini-Website Cache
     revalidatePath(`/business/${businessId}`);
     revalidatePath("/explore");
+    revalidatePath("/admin");
 
     // Recalculate health score
     calculateAndPersistBusinessHealth(businessId).catch(() => {});
@@ -268,6 +269,7 @@ export async function DELETE(request: Request) {
 
     revalidatePath(`/business/${businessId}`);
     revalidatePath("/explore");
+    revalidatePath("/admin");
 
     calculateAndPersistBusinessHealth(businessId).catch(() => {});
 

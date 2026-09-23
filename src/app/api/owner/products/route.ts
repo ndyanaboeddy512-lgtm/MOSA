@@ -116,6 +116,7 @@ export async function POST(request: Request) {
     // Revalidate Public Website Cache
     revalidatePath(`/business/${businessId}`);
     revalidatePath("/explore");
+    revalidatePath("/admin");
 
     // Recalculate health score
     const health = await calculateAndPersistBusinessHealth(businessId);
@@ -287,6 +288,7 @@ export async function PATCH(request: Request) {
     // Revalidate Public Website Cache
     revalidatePath(`/business/${businessId}`);
     revalidatePath("/explore");
+    revalidatePath("/admin");
 
     const health = await calculateAndPersistBusinessHealth(businessId);
 
@@ -376,6 +378,7 @@ export async function DELETE(request: Request) {
 
     revalidatePath(`/business/${businessId}`);
     revalidatePath("/explore");
+    revalidatePath("/admin");
 
     const health = await calculateAndPersistBusinessHealth(businessId);
 

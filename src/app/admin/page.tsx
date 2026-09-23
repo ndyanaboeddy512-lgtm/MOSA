@@ -288,6 +288,8 @@ export default function AdminPanelPage() {
             owner: b.owner || null,
             createdAt: b.createdAt,
             verifications: b.verifications || [],
+            media: b.media || [],
+            updates: b.updates || [],
           })));
         }
         if (data.captures && data.captures.length > 0) setCaptures(data.captures);
@@ -3593,6 +3595,32 @@ export default function AdminPanelPage() {
                       alt={reviewingBiz.name}
                       className="w-full h-36 object-cover rounded-xl border border-slate-200"
                     />
+                  </div>
+                )}
+
+                {/* Media & Showcase Assets (Photos & Videos) */}
+                {reviewingBiz.media && reviewingBiz.media.length > 0 && (
+                  <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-2">
+                    <h4 className="font-bold text-slate-900 text-sm flex items-center gap-1.5">
+                      <Film className="w-4 h-4 text-purple-600" />
+                      Submitted Media &amp; Showcase ({reviewingBiz.media.length})
+                    </h4>
+                    <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1">
+                      {reviewingBiz.media.map((m: any, idx: number) => (
+                        <div key={idx} className="relative rounded-xl overflow-hidden border border-slate-200 bg-black aspect-video">
+                          {m.mediaType === "VIDEO" ? (
+                            <div className="relative w-full h-full flex items-center justify-center">
+                              <video src={m.url} className="w-full h-full object-cover" controls preload="metadata" />
+                              <span className="absolute top-1 right-1 bg-black/70 text-white text-[9px] px-1 rounded font-bold">
+                                VIDEO
+                              </span>
+                            </div>
+                          ) : (
+                            <img src={m.url} alt={m.caption || "Business media"} className="w-full h-full object-cover" />
+                          )}
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
