@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
 import { Role } from "@prisma/client";
+import { dispatchScheduledAnnouncements } from "@/app/api/admin/announcements/route";
 
 /**
  * GET /api/owner/notifications
@@ -14,6 +15,9 @@ export async function GET(request: Request) {
   }
 
   try {
+    // Check and dispatch any due scheduled announcements
+    await dispatchScheduledAnnouncements().catch(() => {});
+
     const notifications = await prisma.notification.findMany({
       where: { userId: auth.user.id },
       orderBy: { createdAt: "desc" },

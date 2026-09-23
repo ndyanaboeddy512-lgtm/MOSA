@@ -45,10 +45,19 @@ import {
   Eye,
   Video,
   Film,
-  Play
+  Play,
+  Megaphone,
+  Send,
+  Calendar,
+  Clock,
+  Archive,
+  CheckSquare,
+  Square,
+  BellRing
 } from "lucide-react";
 import { SmartLocationForm, SmartLocationFormData } from "@/components/location/SmartLocationForm";
 import { calculateLocationCompleteness } from "@/lib/location-quality";
+import { RWANDA_HIERARCHY } from "@/lib/rwanda-geo";
 import {
   CANONICAL_TAXONOMY,
   ALL_MAIN_CATEGORIES,
@@ -113,7 +122,7 @@ export default function AdminPanelPage() {
   const { user, switchDemoRole } = useAuth();
 
   const [activeTab, setActiveTab] = useState<
-    "overview" | "verification" | "businesses" | "moderation" | "users" | "ecosystem" | "settings" | "intelligence" | "pending_applications" | "claims" | "sms" | "history" | "captures" | "reports" | "demands" | "audit"
+    "overview" | "verification" | "businesses" | "moderation" | "users" | "ecosystem" | "settings" | "intelligence" | "pending_applications" | "claims" | "sms" | "history" | "captures" | "reports" | "demands" | "audit" | "announcements"
   >("overview");
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [claims, setClaims] = useState<any[]>([]);
@@ -123,6 +132,55 @@ export default function AdminPanelPage() {
   const [reports, setReports] = useState<ModerationReport[]>([]);
   const [demands, setDemands] = useState<CommunityDemandSignal[]>([]);
   const [auditLogs, setAuditLogs] = useState<AdminAuditLog[]>([]);
+
+  // Partner Announcements Automation state
+  const [announcements, setAnnouncements] = useState<any[]>([]);
+  const [announcementStats, setAnnouncementStats] = useState<{
+    total: number;
+    sent: number;
+    scheduled: number;
+    drafts: number;
+    archived: number;
+    totalReach: number;
+  }>({
+    total: 0,
+    sent: 0,
+    scheduled: 0,
+    drafts: 0,
+    archived: 0,
+    totalReach: 0,
+  });
+  const [announcementEstimates, setAnnouncementEstimates] = useState<{
+    allOwnersCount: number;
+    byCategory: Record<string, number>;
+    byDistrict: Record<string, number>;
+  }>({
+    allOwnersCount: 0,
+    byCategory: {},
+    byDistrict: {},
+  });
+  const [isAnnouncementsLoading, setIsAnnouncementsLoading] = useState(false);
+  const [announcementFilter, setAnnouncementFilter] = useState<"ALL" | "SENT" | "SCHEDULED" | "DRAFT" | "ARCHIVED">("ALL");
+  const [announcementSearch, setAnnouncementSearch] = useState("");
+
+  // Announcement Modal State
+  const [announcementModalOpen, setAnnouncementModalOpen] = useState(false);
+  const [editingAnnouncementId, setEditingAnnouncementId] = useState<string | null>(null);
+  const [announcementForm, setAnnouncementForm] = useState({
+    title: "",
+    titleRw: "",
+    message: "",
+    messageRw: "",
+    targetType: "ALL" as "ALL" | "CATEGORY" | "LOCATION" | "SELECTED_BUSINESSES",
+    targetCategory: "",
+    targetDistrict: "",
+    targetBusinessIds: [] as string[],
+    action: "SEND_NOW" as "SEND_NOW" | "SCHEDULE" | "DRAFT",
+    scheduledAt: "",
+  });
+  const [announcementSubmitting, setAnnouncementSubmitting] = useState(false);
+  const [announcementActionMsg, setAnnouncementActionMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [businessSearchInModal, setBusinessSearchInModal] = useState("");
 
   // 3-Tier Category & Intelligence Filter State
   const [selectedMainCategory, setSelectedMainCategory] = useState<string>("all");
@@ -167,6 +225,45 @@ export default function AdminPanelPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [passwordChangeLoading, setPasswordChangeLoading] = useState(false);
   const [passwordChangeMsg, setPasswordChangeMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  // Rwanda districts list for announcement targeting
+  const rwandaDistricts = useMemo(() => {
+    try {
+      return Object.values(RWANDA_HIERARCHY).flatMap((p) =>
+        Object.values(p.districts).map((d) => ({
+          name: d.name,
+          nameRw: d.nameRw,
+          province: p.name,
+        }))
+      ).sort((a, b) => a.name.localeCompare(b.name));
+    } catch {
+      return [];
+    }
+  }, []);
+
+  // Category list for announcement targeting
+  const categoryList = useMemo(() => {
+    return Object.values(ALL_MAIN_CATEGORIES);
+  }, []);
+
+  // Estimated reach calculation for announcement modal
+  const estimatedReachCount = useMemo(() => {
+    if (announcementForm.targetType === "ALL") {
+      return announcementEstimates.allOwnersCount || businesses.filter((b) => (b as any).owner).length;
+    }
+    if (announcementForm.targetType === "CATEGORY") {
+      if (!announcementForm.targetCategory) return 0;
+      return announcementEstimates.byCategory?.[announcementForm.targetCategory] || businesses.filter((b) => (b.category === announcementForm.targetCategory || b.mainCategory === announcementForm.targetCategory) && (b as any).owner).length;
+    }
+    if (announcementForm.targetType === "LOCATION") {
+      if (!announcementForm.targetDistrict) return 0;
+      return announcementEstimates.byDistrict?.[announcementForm.targetDistrict] || businesses.filter((b) => b.location?.district === announcementForm.targetDistrict && (b as any).owner).length;
+    }
+    if (announcementForm.targetType === "SELECTED_BUSINESSES") {
+      return announcementForm.targetBusinessIds.length;
+    }
+    return 0;
+  }, [announcementForm.targetType, announcementForm.targetCategory, announcementForm.targetDistrict, announcementForm.targetBusinessIds, announcementEstimates, businesses]);
   
   const [metrics, setMetrics] = useState<AdminMetrics>({
     totalBusinesses: 0,
@@ -298,6 +395,7 @@ export default function AdminPanelPage() {
         if (data.claims) setClaims(data.claims);
         if (data.smsMessages) setSmsMessages(data.smsMessages);
         if (data.changeHistories) setChangeHistories(data.changeHistories);
+        fetchAnnouncements().catch(() => {});
       }
     } catch (err) {
       console.warn("[Admin Fetch Fallback]:", err);
@@ -345,7 +443,194 @@ export default function AdminPanelPage() {
 
     fetchAdminData();
     fetchUsersList();
+    fetchAnnouncements();
   }, []);
+
+  const fetchAnnouncements = async () => {
+    setIsAnnouncementsLoading(true);
+    try {
+      const res = await fetch("/api/admin/announcements");
+      if (res.ok) {
+        const data = await res.json();
+        setAnnouncements(data.announcements || []);
+        if (data.stats) setAnnouncementStats(data.stats);
+        if (data.estimates) setAnnouncementEstimates(data.estimates);
+      }
+    } catch (err) {
+      console.warn("[Admin Announcements Load Error]:", err);
+    } finally {
+      setIsAnnouncementsLoading(false);
+    }
+  };
+
+  const handleOpenCreateAnnouncementModal = () => {
+    setEditingAnnouncementId(null);
+    setAnnouncementForm({
+      title: "",
+      titleRw: "",
+      message: "",
+      messageRw: "",
+      targetType: "ALL",
+      targetCategory: "",
+      targetDistrict: "",
+      targetBusinessIds: [],
+      action: "SEND_NOW",
+      scheduledAt: "",
+    });
+    setAnnouncementActionMsg(null);
+    setAnnouncementModalOpen(true);
+  };
+
+  const handleOpenEditAnnouncementModal = (ann: any) => {
+    setEditingAnnouncementId(ann.id);
+    let bizIds: string[] = [];
+    if (ann.targetBusinessIds) {
+      try {
+        bizIds = typeof ann.targetBusinessIds === "string" ? JSON.parse(ann.targetBusinessIds) : ann.targetBusinessIds;
+      } catch {
+        bizIds = ann.targetBusinessIds.split(",").map((s: string) => s.trim()).filter(Boolean);
+      }
+    }
+    setAnnouncementForm({
+      title: ann.title || "",
+      titleRw: ann.titleRw || "",
+      message: ann.message || "",
+      messageRw: ann.messageRw || "",
+      targetType: ann.targetType || "ALL",
+      targetCategory: ann.targetCategory || "",
+      targetDistrict: ann.targetDistrict || "",
+      targetBusinessIds: bizIds,
+      action: ann.status === "SCHEDULED" ? "SCHEDULE" : "DRAFT",
+      scheduledAt: ann.scheduledAt ? new Date(ann.scheduledAt).toISOString().slice(0, 16) : "",
+    });
+    setAnnouncementActionMsg(null);
+    setAnnouncementModalOpen(true);
+  };
+
+  const handleSubmitAnnouncement = async (actionOverride?: "SEND_NOW" | "SCHEDULE" | "DRAFT") => {
+    const finalAction = actionOverride || announcementForm.action;
+    if (!announcementForm.title.trim()) {
+      setAnnouncementActionMsg({ type: "error", text: "Please provide an announcement title." });
+      return;
+    }
+    if (!announcementForm.message.trim()) {
+      setAnnouncementActionMsg({ type: "error", text: "Please provide an announcement message." });
+      return;
+    }
+    if (finalAction === "SCHEDULE" && !announcementForm.scheduledAt) {
+      setAnnouncementActionMsg({ type: "error", text: "Please specify a scheduled date and time." });
+      return;
+    }
+    if (announcementForm.targetType === "CATEGORY" && !announcementForm.targetCategory) {
+      setAnnouncementActionMsg({ type: "error", text: "Please select a target business category." });
+      return;
+    }
+    if (announcementForm.targetType === "LOCATION" && !announcementForm.targetDistrict) {
+      setAnnouncementActionMsg({ type: "error", text: "Please select a target district." });
+      return;
+    }
+    if (announcementForm.targetType === "SELECTED_BUSINESSES" && announcementForm.targetBusinessIds.length === 0) {
+      setAnnouncementActionMsg({ type: "error", text: "Please select at least one business." });
+      return;
+    }
+
+    setAnnouncementSubmitting(true);
+    setAnnouncementActionMsg(null);
+    try {
+      if (editingAnnouncementId) {
+        const res = await fetch("/api/admin/announcements", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            announcementId: editingAnnouncementId,
+            action: finalAction === "SEND_NOW" ? "SEND_NOW" : "UPDATE",
+            title: announcementForm.title,
+            titleRw: announcementForm.titleRw,
+            message: announcementForm.message,
+            messageRw: announcementForm.messageRw,
+            targetType: announcementForm.targetType,
+            targetCategory: announcementForm.targetCategory,
+            targetDistrict: announcementForm.targetDistrict,
+            targetBusinessIds: announcementForm.targetBusinessIds,
+            scheduledAt: announcementForm.scheduledAt || null,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Failed to update announcement");
+        setAnnouncementActionMsg({ type: "success", text: data.message || "Announcement updated successfully" });
+        setTimeout(() => {
+          setAnnouncementModalOpen(false);
+          fetchAnnouncements();
+        }, 1200);
+      } else {
+        const res = await fetch("/api/admin/announcements", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ...announcementForm,
+            action: finalAction,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Failed to create announcement");
+        setAnnouncementActionMsg({ type: "success", text: data.message || "Announcement saved successfully" });
+        setTimeout(() => {
+          setAnnouncementModalOpen(false);
+          fetchAnnouncements();
+        }, 1200);
+      }
+    } catch (err: any) {
+      setAnnouncementActionMsg({ type: "error", text: err.message || "Error processing announcement" });
+    } finally {
+      setAnnouncementSubmitting(false);
+    }
+  };
+
+  const handleSendNowDirect = async (ann: any) => {
+    if (!confirm(`Are you sure you want to dispatch "${ann.title}" immediately to all targeted business owners?`)) {
+      return;
+    }
+    try {
+      const res = await fetch("/api/admin/announcements", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ announcementId: ann.id, action: "SEND_NOW" }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        alert(data.message || "Announcement dispatched successfully!");
+        fetchAnnouncements();
+      } else {
+        alert(data.error || "Failed to dispatch announcement");
+      }
+    } catch (err) {
+      alert("Error dispatching announcement");
+    }
+  };
+
+  const handleArchiveDirect = async (ann: any) => {
+    if (!confirm(`Archive announcement "${ann.title}"?`)) return;
+    try {
+      const res = await fetch("/api/admin/announcements", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ announcementId: ann.id, action: "ARCHIVE" }),
+      });
+      if (res.ok) fetchAnnouncements();
+    } catch (err) {
+      console.warn("Archive error:", err);
+    }
+  };
+
+  const handleDeleteAnnouncementDirect = async (ann: any) => {
+    if (!confirm(`Delete announcement "${ann.title}"? This cannot be undone.`)) return;
+    try {
+      const res = await fetch(`/api/admin/announcements?id=${ann.id}`, { method: "DELETE" });
+      if (res.ok) fetchAnnouncements();
+    } catch (err) {
+      console.warn("Delete error:", err);
+    }
+  };
 
   const fetchUsersList = async () => {
     setIsUsersLoading(true);
@@ -1079,6 +1364,13 @@ export default function AdminPanelPage() {
             highlight: businesses.filter((b: any) => b.status === "PENDING" || b.status === "NEEDS_CORRECTION").length > 0
           },
           { id: "businesses", label: "Businesses", count: businesses.length, icon: StoreIcon },
+          { 
+            id: "announcements", 
+            label: "Partner Announcements", 
+            count: announcements.filter((a) => a.status === "SENT" || a.status === "SCHEDULED").length, 
+            icon: Megaphone,
+            highlight: announcements.filter((a) => a.status === "SCHEDULED").length > 0
+          },
           { 
             id: "moderation", 
             label: "Content Moderation", 
@@ -3202,6 +3494,669 @@ export default function AdminPanelPage() {
                   <span>Mandatory First-Login Password Change enforced for all newly provisioned administrators.</span>
                 </li>
               </ul>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Partner Announcements Automation Tab */}
+      {activeTab === "announcements" && (
+        <div className="space-y-6">
+          {/* Header & Controls */}
+          <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-card flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-3">
+                <span className="p-2.5 rounded-2xl bg-amber-50 text-amber-600 border border-amber-200">
+                  <Megaphone className="w-6 h-6" />
+                </span>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-xl font-black text-slate-900">Partner Announcements Automation</h3>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-900 border border-amber-200 uppercase tracking-wider">
+                      Live Broadcast
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Broadcast official announcements, governance directives, and operational notices to business owners across Rwanda.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2.5">
+              <button
+                onClick={fetchAnnouncements}
+                disabled={isAnnouncementsLoading}
+                className="px-3.5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center gap-1.5 transition cursor-pointer"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isAnnouncementsLoading ? "animate-spin" : ""}`} />
+                <span>Refresh</span>
+              </button>
+              <button
+                onClick={handleOpenCreateAnnouncementModal}
+                className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-xs transition cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                <span>New Announcement</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Metric KPIs */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-card">
+              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total</div>
+              <div className="text-2xl font-black text-slate-900 mt-1">{announcementStats.total}</div>
+              <div className="text-[10px] text-slate-400 mt-0.5">All announcements</div>
+            </div>
+            <div className="bg-white p-4 rounded-2xl border border-emerald-200/80 bg-emerald-50/20 shadow-card">
+              <div className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider">Dispatched</div>
+              <div className="text-2xl font-black text-emerald-700 mt-1">{announcementStats.sent}</div>
+              <div className="text-[10px] text-emerald-600 mt-0.5">Delivered to inboxes</div>
+            </div>
+            <div className="bg-white p-4 rounded-2xl border border-blue-200/80 bg-blue-50/20 shadow-card">
+              <div className="text-[10px] font-bold text-blue-700 uppercase tracking-wider">Scheduled</div>
+              <div className="text-2xl font-black text-blue-700 mt-1">{announcementStats.scheduled}</div>
+              <div className="text-[10px] text-blue-600 mt-0.5">Pending auto-dispatch</div>
+            </div>
+            <div className="bg-white p-4 rounded-2xl border border-amber-200/80 bg-amber-50/20 shadow-card">
+              <div className="text-[10px] font-bold text-amber-700 uppercase tracking-wider">Drafts</div>
+              <div className="text-2xl font-black text-amber-700 mt-1">{announcementStats.drafts}</div>
+              <div className="text-[10px] text-amber-600 mt-0.5">Unsent compositions</div>
+            </div>
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-card">
+              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Archived</div>
+              <div className="text-2xl font-black text-slate-600 mt-1">{announcementStats.archived}</div>
+              <div className="text-[10px] text-slate-400 mt-0.5">Past communications</div>
+            </div>
+            <div className="bg-white p-4 rounded-2xl border border-purple-200/80 bg-purple-50/20 shadow-card">
+              <div className="text-[10px] font-bold text-purple-700 uppercase tracking-wider">Total Reach</div>
+              <div className="text-2xl font-black text-purple-700 mt-1">{announcementStats.totalReach}</div>
+              <div className="text-[10px] text-purple-600 mt-0.5">Owner deliveries</div>
+            </div>
+          </div>
+
+          {/* Filter Bar & Search */}
+          <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-card flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div className="flex items-center gap-1.5 overflow-x-auto w-full sm:w-auto no-scrollbar">
+              {(["ALL", "SENT", "SCHEDULED", "DRAFT", "ARCHIVED"] as const).map((filter) => {
+                const count = filter === "ALL" ? announcements.length : announcements.filter((a) => a.status === filter).length;
+                const isActive = announcementFilter === filter;
+                return (
+                  <button
+                    key={filter}
+                    onClick={() => setAnnouncementFilter(filter)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
+                      isActive
+                        ? "bg-slate-900 text-white"
+                        : "bg-slate-100 hover:bg-slate-200 text-slate-600"
+                    }`}
+                  >
+                    <span>{filter === "ALL" ? "All Announcements" : filter.charAt(0) + filter.slice(1).toLowerCase()}</span>
+                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${isActive ? "bg-slate-700 text-white" : "bg-white text-slate-600 border border-slate-200"}`}>
+                      {count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="relative w-full sm:w-64">
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-3" />
+              <input
+                type="text"
+                value={announcementSearch}
+                onChange={(e) => setAnnouncementSearch(e.target.value)}
+                placeholder="Search announcements..."
+                className="w-full pl-8 pr-3 py-1.5 rounded-xl border border-slate-200 bg-slate-50 text-xs focus:bg-white focus:outline-emerald-500"
+              />
+            </div>
+          </div>
+
+          {/* Announcements List */}
+          <div className="space-y-3">
+            {announcements
+              .filter((a) => {
+                if (announcementFilter !== "ALL" && a.status !== announcementFilter) return false;
+                if (!announcementSearch.trim()) return true;
+                const q = announcementSearch.toLowerCase();
+                return (
+                  a.title?.toLowerCase().includes(q) ||
+                  a.titleRw?.toLowerCase().includes(q) ||
+                  a.message?.toLowerCase().includes(q) ||
+                  a.targetType?.toLowerCase().includes(q) ||
+                  a.targetCategory?.toLowerCase().includes(q) ||
+                  a.targetDistrict?.toLowerCase().includes(q)
+                );
+              })
+              .length === 0 ? (
+              <div className="bg-white p-12 rounded-3xl border border-slate-200 text-center space-y-3">
+                <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 border border-amber-200 flex items-center justify-center mx-auto">
+                  <Megaphone className="w-6 h-6" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-slate-900 text-sm">No announcements found</h4>
+                  <p className="text-xs text-slate-500 mt-1 max-w-md mx-auto">
+                    {announcementFilter === "ALL"
+                      ? "Create your first partner announcement to communicate directly with business owners."
+                      : `No announcements matching filter "${announcementFilter}".`}
+                  </p>
+                </div>
+                <button
+                  onClick={handleOpenCreateAnnouncementModal}
+                  className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs inline-flex items-center gap-1.5 shadow-xs transition cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Create Announcement</span>
+                </button>
+              </div>
+            ) : (
+              announcements
+                .filter((a) => {
+                  if (announcementFilter !== "ALL" && a.status !== announcementFilter) return false;
+                  if (!announcementSearch.trim()) return true;
+                  const q = announcementSearch.toLowerCase();
+                  return (
+                    a.title?.toLowerCase().includes(q) ||
+                    a.titleRw?.toLowerCase().includes(q) ||
+                    a.message?.toLowerCase().includes(q) ||
+                    a.targetType?.toLowerCase().includes(q) ||
+                    a.targetCategory?.toLowerCase().includes(q) ||
+                    a.targetDistrict?.toLowerCase().includes(q)
+                  );
+                })
+                .map((ann) => {
+                  const isSent = ann.status === "SENT";
+                  const isScheduled = ann.status === "SCHEDULED";
+                  const isDraft = ann.status === "DRAFT";
+                  const isArchived = ann.status === "ARCHIVED";
+
+                  let targetLabel = "All Business Owners";
+                  if (ann.targetType === "CATEGORY") {
+                    targetLabel = `Category: ${ALL_MAIN_CATEGORIES[ann.targetCategory]?.name || ann.targetCategory || "Selected Category"}`;
+                  } else if (ann.targetType === "LOCATION") {
+                    targetLabel = `District: ${ann.targetDistrict || "Selected District"}`;
+                  } else if (ann.targetType === "SELECTED_BUSINESSES") {
+                    let count = 0;
+                    try {
+                      count = JSON.parse(ann.targetBusinessIds || "[]").length;
+                    } catch {
+                      count = (ann.targetBusinessIds || "").split(",").filter(Boolean).length;
+                    }
+                    targetLabel = `Specific: ${count} Selected Businesses`;
+                  }
+
+                  return (
+                    <div
+                      key={ann.id}
+                      className="bg-white p-5 rounded-2xl border border-slate-200 shadow-card hover:border-slate-300 transition-all space-y-3"
+                    >
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {isSent && (
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-200 inline-flex items-center gap-1">
+                              <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                              DISPATCHED
+                            </span>
+                          )}
+                          {isScheduled && (
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-blue-100 text-blue-800 border border-blue-200 inline-flex items-center gap-1">
+                              <Clock className="w-3 h-3 text-blue-600" />
+                              SCHEDULED
+                            </span>
+                          )}
+                          {isDraft && (
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-800 border border-amber-200 inline-flex items-center gap-1">
+                              <Edit3 className="w-3 h-3 text-amber-600" />
+                              DRAFT
+                            </span>
+                          )}
+                          {isArchived && (
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-slate-100 text-slate-700 border border-slate-200 inline-flex items-center gap-1">
+                              <Archive className="w-3 h-3 text-slate-500" />
+                              ARCHIVED
+                            </span>
+                          )}
+
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200 flex items-center gap-1">
+                            <Tag className="w-2.5 h-2.5 text-slate-500" />
+                            {targetLabel}
+                          </span>
+
+                          <span className="text-[10px] text-slate-400 font-mono">
+                            Created {new Date(ann.createdAt).toLocaleDateString()} {new Date(ann.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-2 shrink-0">
+                          {(isDraft || isScheduled) && (
+                            <button
+                              onClick={() => handleSendNowDirect(ann)}
+                              className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1 shadow-xs transition cursor-pointer"
+                            >
+                              <Send className="w-3 h-3" />
+                              <span>Send Now</span>
+                            </button>
+                          )}
+                          {(isDraft || isScheduled) && (
+                            <button
+                              onClick={() => handleOpenEditAnnouncementModal(ann)}
+                              className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center gap-1 transition cursor-pointer"
+                            >
+                              <Edit2 className="w-3 h-3" />
+                              <span>Edit</span>
+                            </button>
+                          )}
+                          {!isArchived && (
+                            <button
+                              onClick={() => handleArchiveDirect(ann)}
+                              className="px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 font-bold text-xs flex items-center gap-1 transition cursor-pointer"
+                              title="Archive"
+                            >
+                              <Archive className="w-3 h-3" />
+                            </button>
+                          )}
+                          {(isDraft || isArchived) && (
+                            <button
+                              onClick={() => handleDeleteAnnouncementDirect(ann)}
+                              className="px-2.5 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold text-xs flex items-center gap-1 transition cursor-pointer"
+                              title="Delete"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      <div>
+                        <h4 className="font-black text-slate-900 text-base">{ann.title}</h4>
+                        {ann.titleRw && (
+                          <div className="text-xs font-semibold text-slate-500 italic mt-0.5">
+                            {ann.titleRw}
+                          </div>
+                        )}
+                        <p className="text-xs text-slate-700 mt-2 leading-relaxed whitespace-pre-wrap bg-slate-50 p-3 rounded-xl border border-slate-100">
+                          {ann.message}
+                        </p>
+                        {ann.messageRw && (
+                          <p className="text-xs text-slate-600 italic mt-1 leading-relaxed whitespace-pre-wrap bg-slate-50/50 p-3 rounded-xl border border-slate-100">
+                            {ann.messageRw}
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100 text-[11px] text-slate-500">
+                        <div className="flex items-center gap-3">
+                          {ann.author && (
+                            <span>Author: <strong className="text-slate-700">{ann.author.name}</strong> ({ann.author.role})</span>
+                          )}
+                          {isSent && (
+                            <span className="text-emerald-700 font-bold">
+                              ✓ Dispatched to {ann.totalRecipients} business owner(s) on {ann.sentAt ? new Date(ann.sentAt).toLocaleString() : "N/A"}
+                            </span>
+                          )}
+                          {isScheduled && ann.scheduledAt && (
+                            <span className="text-blue-700 font-bold flex items-center gap-1">
+                              <Clock className="w-3 h-3" />
+                              Auto-dispatch scheduled for {new Date(ann.scheduledAt).toLocaleString()}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Partner Announcement Creation & Editing */}
+      {announcementModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-2xl w-full p-6 shadow-2xl border border-slate-200 max-h-[92vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <span className="p-2 rounded-xl bg-amber-50 text-amber-600 border border-amber-200">
+                  <Megaphone className="w-5 h-5" />
+                </span>
+                <div>
+                  <h3 className="font-black text-lg text-slate-900">
+                    {editingAnnouncementId ? "Edit Partner Announcement" : "Create Partner Announcement"}
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Broadcast official notifications to targeted business owner dashboards in PostgreSQL.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setAnnouncementModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {announcementActionMsg && (
+              <div
+                className={`p-3 rounded-xl text-xs font-bold mt-4 ${
+                  announcementActionMsg.type === "success"
+                    ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                    : "bg-rose-50 text-rose-800 border border-rose-200"
+                }`}
+              >
+                {announcementActionMsg.text}
+              </div>
+            )}
+
+            <div className="space-y-4 pt-4 text-xs">
+              {/* Title Fields */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">
+                    Announcement Title (English) <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={announcementForm.title}
+                    onChange={(e) => setAnnouncementForm({ ...announcementForm, title: e.target.value })}
+                    placeholder="e.g. Critical Platform Verification Update"
+                    className="w-full p-2.5 rounded-xl border border-slate-200 bg-white font-medium text-xs focus:outline-emerald-500"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">
+                    Title (Kinyarwanda) <span className="text-slate-400 font-normal">(Optional)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={announcementForm.titleRw}
+                    onChange={(e) => setAnnouncementForm({ ...announcementForm, titleRw: e.target.value })}
+                    placeholder="e.g. Iteganyamikorere rishya rya MOSA"
+                    className="w-full p-2.5 rounded-xl border border-slate-200 bg-white font-medium text-xs focus:outline-emerald-500"
+                  />
+                </div>
+              </div>
+
+              {/* Message Fields */}
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">
+                  Announcement Message (English) <span className="text-rose-500">*</span>
+                </label>
+                <textarea
+                  required
+                  rows={4}
+                  value={announcementForm.message}
+                  onChange={(e) => setAnnouncementForm({ ...announcementForm, message: e.target.value })}
+                  placeholder="Type the full official announcement message that business owners will see in their dashboard..."
+                  className="w-full p-2.5 rounded-xl border border-slate-200 bg-white font-medium text-xs focus:outline-emerald-500 leading-relaxed"
+                />
+              </div>
+
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">
+                  Message (Kinyarwanda) <span className="text-slate-400 font-normal">(Optional)</span>
+                </label>
+                <textarea
+                  rows={3}
+                  value={announcementForm.messageRw}
+                  onChange={(e) => setAnnouncementForm({ ...announcementForm, messageRw: e.target.value })}
+                  placeholder="Andika ubutumwa mu Kinyarwanda (niba bibonetse)..."
+                  className="w-full p-2.5 rounded-xl border border-slate-200 bg-white font-medium text-xs focus:outline-emerald-500 leading-relaxed"
+                />
+              </div>
+
+              {/* Targeting Options */}
+              <div className="space-y-2 pt-2 border-t border-slate-100">
+                <label className="font-black text-slate-900 block text-xs">
+                  Target Audience / Abagenerwa
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {[
+                    { id: "ALL", label: "All Business Owners", desc: "Broadcast across all registered businesses" },
+                    { id: "CATEGORY", label: "By Business Category", desc: "Filter by sector (e.g. Retail, Food, Services)" },
+                    { id: "LOCATION", label: "By Rwanda District", desc: "Target specific geographic district" },
+                    { id: "SELECTED_BUSINESSES", label: "Selected Businesses", desc: "Pick individual businesses manually" },
+                  ].map((target) => {
+                    const isSelected = announcementForm.targetType === target.id;
+                    return (
+                      <button
+                        type="button"
+                        key={target.id}
+                        onClick={() => setAnnouncementForm({ ...announcementForm, targetType: target.id as any })}
+                        className={`p-3 rounded-xl border text-left transition cursor-pointer ${
+                          isSelected
+                            ? "border-emerald-500 bg-emerald-50/60 ring-1 ring-emerald-500"
+                            : "border-slate-200 hover:border-slate-300 bg-white"
+                        }`}
+                      >
+                        <div className="font-bold text-slate-900 text-xs flex items-center justify-between">
+                          <span>{target.label}</span>
+                          <span className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center ${isSelected ? "border-emerald-600 bg-emerald-600 text-white" : "border-slate-300"}`}>
+                            {isSelected && <span className="w-1.5 h-1.5 bg-white rounded-full" />}
+                          </span>
+                        </div>
+                        <div className="text-[10px] text-slate-500 mt-0.5">{target.desc}</div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Sub-selectors depending on targetType */}
+                {announcementForm.targetType === "CATEGORY" && (
+                  <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1.5 mt-2">
+                    <label className="font-bold text-slate-700 block text-xs">Select Category</label>
+                    <select
+                      value={announcementForm.targetCategory}
+                      onChange={(e) => setAnnouncementForm({ ...announcementForm, targetCategory: e.target.value })}
+                      className="w-full p-2.5 rounded-xl border border-slate-200 bg-white font-medium text-xs focus:outline-emerald-500"
+                    >
+                      <option value="">-- Choose Category --</option>
+                      {categoryList.map((cat) => (
+                        <option key={cat.id} value={cat.id}>
+                          {cat.name} ({cat.nameRw})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {announcementForm.targetType === "LOCATION" && (
+                  <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1.5 mt-2">
+                    <label className="font-bold text-slate-700 block text-xs">Select Rwanda District</label>
+                    <select
+                      value={announcementForm.targetDistrict}
+                      onChange={(e) => setAnnouncementForm({ ...announcementForm, targetDistrict: e.target.value })}
+                      className="w-full p-2.5 rounded-xl border border-slate-200 bg-white font-medium text-xs focus:outline-emerald-500"
+                    >
+                      <option value="">-- Choose District --</option>
+                      {rwandaDistricts.map((d) => (
+                        <option key={d.name} value={d.name}>
+                          {d.name} District ({d.province})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {announcementForm.targetType === "SELECTED_BUSINESSES" && (
+                  <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2 mt-2">
+                    <div className="flex items-center justify-between">
+                      <label className="font-bold text-slate-700 block text-xs">
+                        Select Businesses ({announcementForm.targetBusinessIds.length} selected)
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (announcementForm.targetBusinessIds.length === businesses.length) {
+                            setAnnouncementForm({ ...announcementForm, targetBusinessIds: [] });
+                          } else {
+                            setAnnouncementForm({ ...announcementForm, targetBusinessIds: businesses.map((b) => b.id) });
+                          }
+                        }}
+                        className="text-[10px] font-bold text-emerald-700 hover:underline"
+                      >
+                        {announcementForm.targetBusinessIds.length === businesses.length ? "Deselect All" : "Select All"}
+                      </button>
+                    </div>
+                    <input
+                      type="text"
+                      value={businessSearchInModal}
+                      onChange={(e) => setBusinessSearchInModal(e.target.value)}
+                      placeholder="Search businesses by name, sector, or category..."
+                      className="w-full p-2 rounded-lg border border-slate-200 bg-white text-xs"
+                    />
+                    <div className="max-h-40 overflow-y-auto space-y-1 border border-slate-200 rounded-xl bg-white p-2">
+                      {businesses
+                        .filter((b) => {
+                          if (!businessSearchInModal.trim()) return true;
+                          const q = businessSearchInModal.toLowerCase();
+                          return b.name.toLowerCase().includes(q) || (b.category || "").toLowerCase().includes(q) || (b.location?.district || "").toLowerCase().includes(q);
+                        })
+                        .map((b) => {
+                          const isChecked = announcementForm.targetBusinessIds.includes(b.id);
+                          return (
+                            <label
+                              key={b.id}
+                              className="flex items-center justify-between p-1.5 hover:bg-slate-50 rounded-lg cursor-pointer text-xs"
+                            >
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      setAnnouncementForm({
+                                        ...announcementForm,
+                                        targetBusinessIds: [...announcementForm.targetBusinessIds, b.id],
+                                      });
+                                    } else {
+                                      setAnnouncementForm({
+                                        ...announcementForm,
+                                        targetBusinessIds: announcementForm.targetBusinessIds.filter((id) => id !== b.id),
+                                      });
+                                    }
+                                  }}
+                                  className="rounded text-emerald-600 focus:ring-emerald-500"
+                                />
+                                <span className="font-semibold text-slate-800">{b.name}</span>
+                              </div>
+                              <span className="text-[10px] text-slate-400">
+                                {b.categoryDisplay || b.category} • {b.location?.district || "Rwanda"}
+                              </span>
+                            </label>
+                          );
+                        })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Live Estimated Audience Banner */}
+                <div className="p-3 rounded-xl bg-purple-50/70 border border-purple-200 flex items-center justify-between gap-3 text-xs">
+                  <div className="flex items-center gap-2 text-purple-900 font-bold">
+                    <Users className="w-4 h-4 text-purple-600 shrink-0" />
+                    <span>Estimated Audience Reach:</span>
+                  </div>
+                  <div className="text-sm font-black text-purple-700 bg-white px-2.5 py-0.5 rounded-lg border border-purple-200 shadow-xs">
+                    ~{estimatedReachCount} business owner(s)
+                  </div>
+                </div>
+              </div>
+
+              {/* Delivery Timing */}
+              <div className="space-y-2 pt-2 border-t border-slate-100">
+                <label className="font-black text-slate-900 block text-xs">
+                  Delivery Action / Igikorwa
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  {[
+                    { id: "SEND_NOW", label: "Send Now", desc: "Dispatch immediately to inboxes" },
+                    { id: "SCHEDULE", label: "Schedule", desc: "Automatic delivery at future date" },
+                    { id: "DRAFT", label: "Save Draft", desc: "Keep draft without sending" },
+                  ].map((act) => {
+                    const isSelected = announcementForm.action === act.id;
+                    return (
+                      <button
+                        type="button"
+                        key={act.id}
+                        onClick={() => setAnnouncementForm({ ...announcementForm, action: act.id as any })}
+                        className={`p-2.5 rounded-xl border text-left transition cursor-pointer ${
+                          isSelected
+                            ? "border-emerald-500 bg-emerald-50/60 ring-1 ring-emerald-500"
+                            : "border-slate-200 hover:border-slate-300 bg-white"
+                        }`}
+                      >
+                        <div className="font-bold text-slate-900 text-xs flex items-center justify-between">
+                          <span>{act.label}</span>
+                          <span className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center ${isSelected ? "border-emerald-600 bg-emerald-600 text-white" : "border-slate-300"}`}>
+                            {isSelected && <span className="w-1.5 h-1.5 bg-white rounded-full" />}
+                          </span>
+                        </div>
+                        <div className="text-[10px] text-slate-500 mt-0.5">{act.desc}</div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {announcementForm.action === "SCHEDULE" && (
+                  <div className="p-3 bg-blue-50/60 rounded-xl border border-blue-200 space-y-1.5 mt-2">
+                    <label className="font-bold text-blue-900 block text-xs flex items-center gap-1.5">
+                      <Clock className="w-3.5 h-3.5 text-blue-600" />
+                      <span>Select Dispatch Date & Time</span>
+                    </label>
+                    <input
+                      type="datetime-local"
+                      required
+                      value={announcementForm.scheduledAt}
+                      min={new Date().toISOString().slice(0, 16)}
+                      onChange={(e) => setAnnouncementForm({ ...announcementForm, scheduledAt: e.target.value })}
+                      className="w-full p-2.5 rounded-xl border border-slate-200 bg-white font-medium text-xs focus:outline-blue-500"
+                    />
+                    <p className="text-[10px] text-blue-600">
+                      MOSA will automatically deliver notifications to targeted business owners as soon as this time is reached.
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setAnnouncementModalOpen(false)}
+                  disabled={announcementSubmitting}
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSubmitAnnouncement()}
+                  disabled={announcementSubmitting}
+                  className={`px-5 py-2.5 rounded-xl text-xs font-bold text-white flex items-center gap-2 shadow-xs transition cursor-pointer ${
+                    announcementForm.action === "SEND_NOW"
+                      ? "bg-emerald-600 hover:bg-emerald-700"
+                      : announcementForm.action === "SCHEDULE"
+                      ? "bg-blue-600 hover:bg-blue-700"
+                      : "bg-amber-600 hover:bg-amber-700"
+                  } ${announcementSubmitting ? "opacity-60 cursor-not-allowed" : ""}`}
+                >
+                  {announcementSubmitting && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
+                  {announcementForm.action === "SEND_NOW" && <Send className="w-3.5 h-3.5" />}
+                  {announcementForm.action === "SCHEDULE" && <Clock className="w-3.5 h-3.5" />}
+                  {announcementForm.action === "DRAFT" && <Edit3 className="w-3.5 h-3.5" />}
+                  <span>
+                    {announcementSubmitting
+                      ? "Processing..."
+                      : announcementForm.action === "SEND_NOW"
+                      ? "Send Announcement Now"
+                      : announcementForm.action === "SCHEDULE"
+                      ? "Schedule Announcement"
+                      : "Save Announcement Draft"}
+                  </span>
+                </button>
+              </div>
             </div>
           </div>
         </div>

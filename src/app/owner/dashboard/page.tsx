@@ -4342,35 +4342,51 @@ export default function OwnerDashboardPage() {
               </div>
             ) : (
               <div className="space-y-2.5">
-                {notifications.map((n: any) => (
-                  <div
-                    key={n.id}
-                    className={`p-4 rounded-2xl border flex items-start justify-between gap-3 text-xs transition ${
-                      !n.isRead ? "bg-emerald-50/50 border-emerald-200 shadow-xs" : "bg-white border-slate-200"
-                    }`}
-                  >
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        {!n.isRead && (
-                          <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block shrink-0" />
-                        )}
-                        <span className="font-black text-slate-900 text-sm">{n.title}</span>
-                        <span className="text-[10px] text-slate-400 font-mono">
-                          {new Date(n.createdAt).toLocaleDateString()} {new Date(n.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                        </span>
+                {notifications.map((n: any) => {
+                  const isAnnouncement = n.type === "ANNOUNCEMENT" || Boolean(n.announcementId);
+                  return (
+                    <div
+                      key={n.id}
+                      className={`p-4 rounded-2xl border flex items-start justify-between gap-3 text-xs transition ${
+                        !n.isRead
+                          ? isAnnouncement
+                            ? "bg-amber-50/60 border-amber-200 shadow-xs"
+                            : "bg-emerald-50/50 border-emerald-200 shadow-xs"
+                          : "bg-white border-slate-200"
+                      }`}
+                    >
+                      <div className="space-y-1.5 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          {!n.isRead && (
+                            <span className={`w-2 h-2 rounded-full inline-block shrink-0 ${isAnnouncement ? "bg-amber-500" : "bg-emerald-500"}`} />
+                          )}
+                          <span className="font-black text-slate-900 text-sm">{n.title}</span>
+                          {isAnnouncement && (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-100 text-amber-900 border border-amber-200 inline-flex items-center gap-1">
+                              📢 {lang === "rw" ? "Itangazo ry'Ubuyobozi" : "Partner Announcement"}
+                            </span>
+                          )}
+                          <span className="text-[10px] text-slate-400 font-mono">
+                            {new Date(n.createdAt).toLocaleDateString()} {new Date(n.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        </div>
+                        <p className="text-slate-700 leading-relaxed whitespace-pre-wrap">{n.message}</p>
                       </div>
-                      <p className="text-slate-700 leading-relaxed whitespace-pre-wrap">{n.message}</p>
+                      {!n.isRead && (
+                        <button
+                          onClick={() => handleMarkNotificationRead(n.id)}
+                          className={`px-3 py-1.5 rounded-xl text-[11px] font-bold border shrink-0 cursor-pointer transition ${
+                            isAnnouncement
+                              ? "bg-amber-100 hover:bg-amber-200 text-amber-900 border-amber-300"
+                              : "text-slate-600 hover:text-slate-900 hover:bg-slate-100 border-slate-200"
+                          }`}
+                        >
+                          {lang === "rw" ? "Bimenye" : "Mark as read"}
+                        </button>
+                      )}
                     </div>
-                    {!n.isRead && (
-                      <button
-                        onClick={() => handleMarkNotificationRead(n.id)}
-                        className="px-3 py-1.5 rounded-xl text-[11px] font-bold text-slate-600 hover:text-slate-900 hover:bg-slate-100 border border-slate-200 shrink-0 cursor-pointer"
-                      >
-                        {lang === "rw" ? "Bimenye" : "Mark as read"}
-                      </button>
-                    )}
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>

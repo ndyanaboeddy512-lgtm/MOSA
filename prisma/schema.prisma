@@ -113,6 +113,7 @@ model User {
   reports          Report[]
   auditLogs        AuditLog[]
   notifications    Notification[]
+  announcements    PartnerAnnouncement[] @relation("AuthorAnnouncements")
   sessions         Session[]
   claims           BusinessClaim[]
   agentAssignments AgentAssignment[]
@@ -681,15 +682,44 @@ model BusinessViewEvent {
 }
 
 model Notification {
-  id        String    @id @default(cuid())
-  userId    String
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  title     String
-  message   String
-  isRead    Boolean   @default(false)
-  createdAt DateTime  @default(now())
+  id             String               @id @default(cuid())
+  userId         String
+  user           User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title          String
+  message        String
+  isRead         Boolean              @default(false)
+  type           String?              @default("SYSTEM") // "SYSTEM", "ANNOUNCEMENT", "VERIFICATION", "SECURITY"
+  announcementId String?
+  announcement   PartnerAnnouncement? @relation(fields: [announcementId], references: [id], onDelete: SetNull)
+  createdAt      DateTime             @default(now())
 
   @@index([userId])
+  @@index([announcementId])
+}
+
+model PartnerAnnouncement {
+  id                String         @id @default(cuid())
+  title             String
+  titleRw           String?
+  message           String
+  messageRw         String?
+  targetType        String         @default("ALL") // "ALL", "CATEGORY", "LOCATION", "SELECTED_BUSINESSES"
+  targetCategory    String?
+  targetDistrict    String?
+  targetBusinessIds String?        // JSON array of business IDs
+  status            String         @default("DRAFT") // "DRAFT", "SCHEDULED", "SENT", "ARCHIVED"
+  scheduledAt       DateTime?
+  sentAt            DateTime?
+  totalRecipients   Int            @default(0)
+  authorId          String?
+  author            User?          @relation("AuthorAnnouncements", fields: [authorId], references: [id], onDelete: SetNull)
+  notifications     Notification[]
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  @@index([status])
+  @@index([targetType])
+  @@index([createdAt])
 }
 
 model AuditLog {
