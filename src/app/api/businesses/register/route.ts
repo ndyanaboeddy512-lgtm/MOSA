@@ -224,22 +224,36 @@ export async function POST(request: Request) {
       if (products && Array.isArray(products) && products.length > 0) {
         for (const p of products) {
           if (p.name && p.name.trim()) {
+            const hasMedia = Boolean(p.mediaUrl && p.mediaUrl.trim());
+            if (hasMedia && (!p.mediaCaption || !p.mediaCaption.trim())) {
+              throw new Error(`Media caption is required for item "${p.name.trim()}". Every uploaded image, file, or video must have an associated caption.`);
+            }
+
             const itemPrice = Number(p.price) || 0;
-            const minP = p.priceMin !== undefined ? Number(p.priceMin) : itemPrice;
-            const maxP = p.priceMax !== undefined ? Number(p.priceMax) : itemPrice;
+            const minP = p.priceMin !== undefined && p.priceMin !== null && p.priceMin !== "" ? Number(p.priceMin) : itemPrice;
+            const maxP = p.priceMax !== undefined && p.priceMax !== null && p.priceMax !== "" ? Number(p.priceMax) : itemPrice;
+            const isService = Boolean(p.isService);
+            const isContactForPrice = Boolean(p.contactForPrice || (isService && itemPrice === 0));
+            const normPriceType = p.priceType || (isContactForPrice ? "ESTIMATED" : (minP !== maxP ? "RANGE" : "FIXED"));
+
             await tx.product.create({
               data: {
                 businessId: b.id,
                 name: p.name.trim(),
                 nameRw: p.nameRw?.trim() || p.name.trim(),
                 description: p.description?.trim() || null,
-                unit: p.unit || "item",
+                unit: p.unit || (isService ? "service" : "item"),
                 price: itemPrice,
                 priceMin: minP,
                 priceMax: maxP,
-                priceType: p.priceType || (minP !== maxP ? "RANGE" : "FIXED"),
+                priceType: normPriceType,
+                isService: isService,
+                isEstimated: Boolean(p.isEstimated || isContactForPrice),
                 category: p.category || b.category,
                 isAvailable: true,
+                mediaUrl: hasMedia ? p.mediaUrl.trim() : null,
+                mediaType: hasMedia ? (p.mediaType || "IMAGE") : "IMAGE",
+                mediaCaption: hasMedia ? p.mediaCaption.trim() : null,
               },
             });
           }

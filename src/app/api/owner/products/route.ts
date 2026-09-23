@@ -62,8 +62,21 @@ export async function POST(request: Request) {
 
     const actorId = auth.user.id;
 
+    // Validate media caption if media is attached
+    const hasMedia = Boolean(body.mediaUrl && body.mediaUrl.trim());
+    if (hasMedia && (!body.mediaCaption || !body.mediaCaption.trim())) {
+      return NextResponse.json(
+        { error: "Media caption is required when uploading or attaching an image, file, or video." },
+        { status: 400 }
+      );
+    }
+
+    const isService = Boolean(body.isService);
+    const rawPrice = Number(price) || (Number(priceMin) || 0);
+    const isContactForPrice = Boolean(body.contactForPrice || (isService && rawPrice === 0));
+
     // Determine normalized priceType
-    const normPriceType = (priceType as PriceType) || (priceMin && priceMax ? "RANGE" : (isEstimated ? "ESTIMATED" : "FIXED"));
+    const normPriceType = (priceType as PriceType) || (isContactForPrice ? "ESTIMATED" : (priceMin && priceMax ? "RANGE" : (isEstimated ? "ESTIMATED" : "FIXED")));
 
     // Create Product and Audit History atomically in Neon PostgreSQL
     const product = await prisma.$transaction(async (tx) => {
@@ -73,16 +86,19 @@ export async function POST(request: Request) {
           name: name.trim(),
           nameRw: nameRw?.trim() || null,
           description: description?.trim() || null,
-          price: Number(price) || (Number(priceMin) || 0),
+          price: rawPrice,
           priceMin: priceMin !== undefined ? Number(priceMin) : null,
           priceMax: priceMax !== undefined ? Number(priceMax) : null,
           priceType: normPriceType,
-          unit: unit || "item",
+          unit: unit || (isService ? "service" : "item"),
           category: category || null,
           isAvailable: Boolean(isAvailable),
-          isEstimated: Boolean(isEstimated || normPriceType === "ESTIMATED" || normPriceType === "RANGE"),
-          isService: Boolean(body.isService),
+          isEstimated: Boolean(isEstimated || isContactForPrice || normPriceType === "ESTIMATED" || normPriceType === "RANGE"),
+          isService: isService,
           dataStatus: "VERIFIED",
+          mediaUrl: hasMedia ? body.mediaUrl.trim() : null,
+          mediaType: hasMedia ? (body.mediaType || "IMAGE") : "IMAGE",
+          mediaCaption: hasMedia ? body.mediaCaption.trim() : null,
         },
       });
 
@@ -203,6 +219,42 @@ export async function PATCH(request: Request) {
     if (fields.isService !== undefined) updateData.isService = Boolean(fields.isService);
     if (fields.sortOrder !== undefined) updateData.sortOrder = Number(fields.sortOrder);
     if (fields.isArchived !== undefined) updateData.isArchived = Boolean(fields.isArchived);
+
+    if (fields.contactForPrice) {
+      updateData.price = 0;
+      updateData.priceType = "ESTIMATED";
+      updateData.isEstimated = true;
+    }
+
+    if (fields.mediaUrl !== undefined) {
+      if (fields.mediaUrl && fields.mediaUrl.trim()) {
+        const caption = fields.mediaCaption !== undefined ? fields.mediaCaption?.trim() : existingProduct.mediaCaption;
+        if (!caption) {
+          return NextResponse.json(
+            { error: "Media caption is required when uploading or attaching an image, file, or video." },
+            { status: 400 }
+          );
+        }
+        updateData.mediaUrl = fields.mediaUrl.trim();
+        updateData.mediaType = fields.mediaType || existingProduct.mediaType || "IMAGE";
+        updateData.mediaCaption = caption;
+      } else {
+        updateData.mediaUrl = null;
+        updateData.mediaCaption = null;
+      }
+    } else if (fields.mediaCaption !== undefined) {
+      if (existingProduct.mediaUrl) {
+        if (!fields.mediaCaption?.trim()) {
+          return NextResponse.json(
+            { error: "Media caption is required when media is attached." },
+            { status: 400 }
+          );
+        }
+        updateData.mediaCaption = fields.mediaCaption.trim();
+      } else {
+        updateData.mediaCaption = fields.mediaCaption?.trim() || null;
+      }
+    }
 
     updateData.updatedAt = new Date();
 

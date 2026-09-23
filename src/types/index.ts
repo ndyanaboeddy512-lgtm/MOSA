@@ -155,6 +155,9 @@ export interface ProductItem {
   confidenceScore?: number;
   verifiedByAgent: boolean;
   lastVerifiedAt?: string;
+  mediaUrl?: string;
+  mediaType?: "IMAGE" | "VIDEO" | "FILE" | string;
+  mediaCaption?: string;
 }
 
 export interface BusinessMedia {

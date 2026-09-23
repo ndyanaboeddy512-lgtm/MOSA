@@ -71,6 +71,9 @@ export function formatBusinessRecord(raw: any): Business {
         confidenceScore: typeof p.confidenceScore === "number" ? p.confidenceScore : undefined,
         verifiedByAgent: typeof p.verifiedByAgent === "boolean" ? p.verifiedByAgent : (dataStatus === "VERIFIED"),
         lastVerifiedAt: p.updatedAt ? new Date(p.updatedAt).toISOString() : (p.createdAt ? new Date(p.createdAt).toISOString() : undefined),
+        mediaUrl: p.mediaUrl || undefined,
+        mediaType: p.mediaType || "IMAGE",
+        mediaCaption: p.mediaCaption || undefined,
       }))
     : [];
 

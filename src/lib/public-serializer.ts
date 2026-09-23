@@ -15,6 +15,9 @@ export interface PublicProduct {
   isAvailable: boolean;
   category?: string | null;
   isService?: boolean;
+  mediaUrl?: string | null;
+  mediaType?: string | null;
+  mediaCaption?: string | null;
 }
 
 export interface PublicVideo {
@@ -159,6 +162,9 @@ export function serializePublicBusiness(raw: any): PublicBusiness {
           priceType: p.priceType,
           isEstimated: p.isEstimated,
           isService: Boolean((p as any).isService),
+          mediaUrl: (p as any).mediaUrl || null,
+          mediaType: (p as any).mediaType || "IMAGE",
+          mediaCaption: (p as any).mediaCaption || null,
           currency: p.currency || "RWF",
           unit: p.unit || "unit",
           isAvailable: p.isAvailable !== false,

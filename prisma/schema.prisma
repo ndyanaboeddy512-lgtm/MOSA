@@ -460,6 +460,10 @@ model Product {
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 
+  mediaUrl        String?
+  mediaType       String?       @default("IMAGE") // IMAGE, VIDEO, FILE
+  mediaCaption    String?
+
   receiptItemId   String?       @unique
   receiptItem     ReceiptItem?  @relation(fields: [receiptItemId], references: [id])
   changeHistory   BusinessChangeHistory[]

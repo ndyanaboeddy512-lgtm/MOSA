@@ -55,6 +55,9 @@ import {
   Megaphone,
   Users,
   UserCheck,
+  Upload,
+  FileText,
+  Camera,
 } from "lucide-react";
 import { MosaMap } from "@/components/discovery/MosaMap";
 import { calculateLocationCompleteness, getGoogleMapsDirectionsUrl } from "@/lib/location-quality";
@@ -196,7 +199,43 @@ export default function OwnerDashboardPage() {
     isAvailable: true,
     isEstimated: false,
     isService: false,
+    contactForPrice: false,
+    mediaUrl: "",
+    mediaType: "IMAGE" as "IMAGE" | "VIDEO" | "FILE",
+    mediaCaption: "",
   });
+  const [productMediaError, setProductMediaError] = useState("");
+
+  const handleProductFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    let detectedType: "IMAGE" | "VIDEO" | "FILE" = "IMAGE";
+    if (file.type.startsWith("video/")) {
+      detectedType = "VIDEO";
+    } else if (file.type.startsWith("image/")) {
+      detectedType = "IMAGE";
+    } else {
+      detectedType = "FILE";
+    }
+
+    if (file.size > 15 * 1024 * 1024) {
+      setProductMediaError(lang === "rw" ? "Dosiye irengeje 15MB." : "File exceeds 15MB limit. Please choose a smaller file or link a URL.");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const result = event.target?.result as string;
+      setProductForm((prev) => ({
+        ...prev,
+        mediaUrl: result,
+        mediaType: detectedType,
+      }));
+      setProductMediaError("");
+    };
+    reader.readAsDataURL(file);
+  };
 
   // Offer form state
   const [offerForm, setOfferForm] = useState({
@@ -963,6 +1002,16 @@ export default function OwnerDashboardPage() {
     e.preventDefault();
     if (!business || !productForm.name.trim()) return;
 
+    // VALIDATE REQUIRED CAPTION IF MEDIA IS ATTACHED
+    if (productForm.mediaUrl.trim() && !productForm.mediaCaption.trim()) {
+      setErrorMsg(
+        lang === "rw"
+          ? "Ugomba gushyiraho ibisobanuro (caption) by'ifoto/dosiye/videwo mbere yo kubika."
+          : "Media caption is strictly required whenever uploading or attaching an image, file, or video."
+      );
+      return;
+    }
+
     try {
       const res = await fetch("/api/owner/products", {
         method: "POST",
@@ -972,15 +1021,19 @@ export default function OwnerDashboardPage() {
           name: productForm.name,
           nameRw: productForm.nameRw || productForm.name,
           description: productForm.description,
-          price: Number(productForm.price),
+          price: productForm.contactForPrice ? 0 : Number(productForm.price),
           priceMin: productForm.priceMin ? Number(productForm.priceMin) : undefined,
           priceMax: productForm.priceMax ? Number(productForm.priceMax) : undefined,
-          priceType: productForm.priceType,
+          priceType: productForm.contactForPrice ? "ESTIMATED" : productForm.priceType,
           unit: productForm.unit,
           category: productForm.category,
           isAvailable: productForm.isAvailable,
-          isEstimated: productForm.isEstimated,
+          isEstimated: Boolean(productForm.contactForPrice || productForm.isEstimated),
           isService: productForm.isService,
+          contactForPrice: productForm.contactForPrice,
+          mediaUrl: productForm.mediaUrl.trim() || undefined,
+          mediaType: productForm.mediaType,
+          mediaCaption: productForm.mediaCaption.trim() || undefined,
         }),
       });
 
@@ -1005,7 +1058,12 @@ export default function OwnerDashboardPage() {
           isAvailable: true,
           isEstimated: false,
           isService: false,
+          contactForPrice: false,
+          mediaUrl: "",
+          mediaType: "IMAGE",
+          mediaCaption: "",
         });
+        setProductMediaError("");
         setSaveSuccessMsg(
           lang === "rw"
             ? "Igicuruzwa cyongerewe neza kandi cyahise gishyirwa ku rubuga!"
@@ -1018,10 +1076,19 @@ export default function OwnerDashboardPage() {
     }
   };
 
-  // Handle Edit Product (e.g. Price Change from 3,000 -> 3,500 RWF)
+  // Handle Edit Product (e.g. Price Change from 3,000 -> 3,500 RWF or Media Update)
   const handleEditProductSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!business || !selectedProduct) return;
+
+    if (productForm.mediaUrl.trim() && !productForm.mediaCaption.trim()) {
+      setErrorMsg(
+        lang === "rw"
+          ? "Ugomba gushyiraho ibisobanuro (caption) by'ifoto/dosiye/videwo mbere yo kubika."
+          : "Media caption is strictly required whenever uploading or attaching an image, file, or video."
+      );
+      return;
+    }
 
     try {
       const res = await fetch("/api/owner/products", {
@@ -1033,13 +1100,17 @@ export default function OwnerDashboardPage() {
           name: productForm.name,
           nameRw: productForm.nameRw,
           description: productForm.description,
-          price: Number(productForm.price),
+          price: productForm.contactForPrice ? 0 : Number(productForm.price),
           priceMin: productForm.priceMin ? Number(productForm.priceMin) : null,
           priceMax: productForm.priceMax ? Number(productForm.priceMax) : null,
-          priceType: productForm.priceType,
+          priceType: productForm.contactForPrice ? "ESTIMATED" : productForm.priceType,
           unit: productForm.unit,
           isAvailable: productForm.isAvailable,
           isService: productForm.isService,
+          contactForPrice: productForm.contactForPrice,
+          mediaUrl: productForm.mediaUrl.trim() || null,
+          mediaType: productForm.mediaType,
+          mediaCaption: productForm.mediaCaption.trim() || null,
         }),
       });
 
@@ -3250,45 +3321,80 @@ export default function OwnerDashboardPage() {
             <div className="divide-y divide-slate-100">
               {business.products.map((item) => (
                 <div key={item.id} className="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 group">
-                  <div className="space-y-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-extrabold text-slate-900 text-sm">{item.name}</span>
-                      {item.isAvailable === false ? (
-                        <span className="text-[10px] font-bold text-red-600 bg-red-50 px-2 py-0.5 rounded border border-red-200">
-                          {lang === "rw" ? "Bishize (Out of Stock)" : "Out of Stock"}
-                        </span>
-                      ) : (
-                        <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                          {lang === "rw" ? "Birahari" : "In Stock"}
-                        </span>
-                      )}
-                      {item.isEstimated && (
-                        <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
-                          ~ Estimated
-                        </span>
-                      )}
-                    </div>
-
-                    {item.nameRw && item.nameRw !== item.name && (
-                      <div className="text-xs text-slate-500 italic">{item.nameRw}</div>
+                  <div className="flex items-start gap-3.5">
+                    {item.mediaUrl && (
+                      <div className="relative w-16 h-16 shrink-0 rounded-2xl overflow-hidden bg-slate-100 border border-slate-200">
+                        {item.mediaType === "VIDEO" ? (
+                          <div className="w-full h-full bg-slate-900 flex flex-col items-center justify-center text-emerald-400">
+                            <Video className="w-6 h-6" />
+                            <span className="text-[8px] font-bold">VIDEO</span>
+                          </div>
+                        ) : item.mediaType === "FILE" ? (
+                          <div className="w-full h-full bg-slate-200 flex flex-col items-center justify-center text-slate-700">
+                            <FileText className="w-6 h-6" />
+                            <span className="text-[8px] font-bold">FILE</span>
+                          </div>
+                        ) : (
+                          <img src={item.mediaUrl} alt={item.name} className="w-full h-full object-cover" />
+                        )}
+                      </div>
                     )}
 
-                    {item.description && <p className="text-xs text-slate-500">{item.description}</p>}
+                    <div className="space-y-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-extrabold text-slate-900 text-sm">{item.name}</span>
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200">
+                          {item.isService ? "Service" : "Product"}
+                        </span>
+                        {item.isAvailable === false ? (
+                          <span className="text-[10px] font-bold text-red-600 bg-red-50 px-2 py-0.5 rounded border border-red-200">
+                            {lang === "rw" ? "Bishize (Out of Stock)" : "Out of Stock"}
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                            {lang === "rw" ? "Birahari" : "In Stock"}
+                          </span>
+                        )}
+                        {item.isEstimated && item.price > 0 && (
+                          <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                            ~ Estimated
+                          </span>
+                        )}
+                      </div>
 
-                    <div className="text-[11px] text-slate-400 flex items-center gap-2">
-                      <span>Category: {item.category || "General"}</span>
-                      <span>•</span>
-                      <span>Unit: /{item.unit || "item"}</span>
+                      {item.nameRw && item.nameRw !== item.name && (
+                        <div className="text-xs text-slate-500 italic">{item.nameRw}</div>
+                      )}
+
+                      {item.description && <p className="text-xs text-slate-500">{item.description}</p>}
+
+                      {item.mediaCaption && (
+                        <p className="text-[10px] text-amber-900 bg-amber-50/80 px-2 py-0.5 rounded border border-amber-200 font-semibold italic inline-block">
+                          Caption: &ldquo;{item.mediaCaption}&rdquo;
+                        </p>
+                      )}
+
+                      <div className="text-[11px] text-slate-400 flex items-center gap-2">
+                        <span>Category: {item.category || "General"}</span>
+                        <span>•</span>
+                        <span>Unit: /{item.unit || (item.isService ? "service" : "item")}</span>
+                      </div>
                     </div>
                   </div>
 
                   <div className="flex flex-wrap items-center gap-3 self-end sm:self-center">
                     <div className="text-right">
-                      <div className="text-base sm:text-lg font-black text-slate-900">
-                        {item.priceType === "RANGE" && item.priceMin && item.priceMax
-                          ? `${item.priceMin.toLocaleString()} – ${item.priceMax.toLocaleString()} Frw`
-                          : `${item.price.toLocaleString()} Frw`}
-                      </div>
+                      {item.price === 0 ? (
+                        <div className="text-sm font-black text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-xl border border-emerald-200">
+                          {lang === "rw" ? "Baza Igiciro" : "Contact for price"}
+                        </div>
+                      ) : (
+                        <div className="text-base sm:text-lg font-black text-slate-900">
+                          {item.priceType === "RANGE" && item.priceMin && item.priceMax
+                            ? `${item.priceMin.toLocaleString()} – ${item.priceMax.toLocaleString()} Frw`
+                            : `${item.price.toLocaleString()} Frw`}
+                        </div>
+                      )}
                       <div className="text-[10px] text-slate-400">Verified in PostgreSQL</div>
                     </div>
 
@@ -3340,12 +3446,17 @@ export default function OwnerDashboardPage() {
                             priceMin: item.priceMin ? String(item.priceMin) : "",
                             priceMax: item.priceMax ? String(item.priceMax) : "",
                             priceType: item.priceType || "FIXED",
-                            unit: item.unit || "service",
+                            unit: item.unit || (item.isService ? "service" : "item"),
                             category: item.category || "General",
                             isAvailable: item.isAvailable,
                             isEstimated: Boolean(item.isEstimated),
-                            isService: Boolean((item as any).isService),
+                            isService: Boolean(item.isService),
+                            contactForPrice: Boolean(item.price === 0 || (item.isService && item.price === 0)),
+                            mediaUrl: item.mediaUrl || "",
+                            mediaType: (item.mediaType || "IMAGE") as "IMAGE" | "VIDEO" | "FILE",
+                            mediaCaption: item.mediaCaption || "",
                           });
+                          setProductMediaError("");
                           setEditProductModalOpen(true);
                         }}
                         className="p-2 text-slate-500 hover:text-emerald-700 hover:bg-emerald-50 rounded-xl transition-colors cursor-pointer"
@@ -4698,56 +4809,85 @@ export default function OwnerDashboardPage() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">Price (RWF)</label>
-                  <input
-                    type="number"
-                    required
-                    value={productForm.price}
-                    onChange={(e) => setProductForm({ ...productForm, price: Number(e.target.value) })}
-                    className="w-full p-2.5 bg-slate-50 rounded-xl border border-slate-300 font-bold outline-none"
-                  />
+              <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="block font-bold text-slate-700">Pricing Details</label>
+                  <label className="inline-flex items-center gap-1.5 cursor-pointer text-xs font-bold text-slate-700 bg-white px-2.5 py-1 rounded-lg border border-slate-200">
+                    <input
+                      type="checkbox"
+                      checked={productForm.contactForPrice}
+                      onChange={(e) =>
+                        setProductForm({
+                          ...productForm,
+                          contactForPrice: e.target.checked,
+                          price: e.target.checked ? 0 : productForm.price,
+                        })
+                      }
+                      className="w-3.5 h-3.5 accent-emerald-600 rounded cursor-pointer"
+                    />
+                    <span>{lang === "rw" ? "Baza igiciro" : "Contact for price"}</span>
+                  </label>
                 </div>
 
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">Pricing Type</label>
-                  <select
-                    value={productForm.priceType}
-                    onChange={(e) => setProductForm({ ...productForm, priceType: e.target.value })}
-                    className="w-full p-2.5 bg-slate-50 rounded-xl border border-slate-300 font-semibold outline-none"
-                  >
-                    <option value="FIXED">Fixed Exact Price</option>
-                    <option value="ESTIMATED">Estimated Price (~)</option>
-                    <option value="RANGE">Price Range (Min - Max)</option>
-                  </select>
-                </div>
+                {!productForm.contactForPrice ? (
+                  <>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block font-bold text-slate-700 mb-1">Price (RWF)</label>
+                        <input
+                          type="number"
+                          required
+                          value={productForm.price}
+                          onChange={(e) => setProductForm({ ...productForm, price: Number(e.target.value) })}
+                          className="w-full p-2.5 bg-white rounded-xl border border-slate-300 font-bold outline-none"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block font-bold text-slate-700 mb-1">Pricing Type</label>
+                        <select
+                          value={productForm.priceType}
+                          onChange={(e) => setProductForm({ ...productForm, priceType: e.target.value })}
+                          className="w-full p-2.5 bg-white rounded-xl border border-slate-300 font-semibold outline-none"
+                        >
+                          <option value="FIXED">Fixed Exact Price</option>
+                          <option value="ESTIMATED">Estimated Price (~)</option>
+                          <option value="RANGE">Price Range (Min - Max)</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    {productForm.priceType === "RANGE" && (
+                      <div className="grid grid-cols-2 gap-3 p-3 bg-white rounded-xl border border-slate-200">
+                        <div>
+                          <label className="block font-bold text-slate-600 mb-1">Min Price (RWF)</label>
+                          <input
+                            type="number"
+                            placeholder="e.g. 2000"
+                            value={productForm.priceMin}
+                            onChange={(e) => setProductForm({ ...productForm, priceMin: e.target.value })}
+                            className="w-full p-2 bg-slate-50 rounded-lg border border-slate-300 outline-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="block font-bold text-slate-600 mb-1">Max Price (RWF)</label>
+                          <input
+                            type="number"
+                            placeholder="e.g. 5000"
+                            value={productForm.priceMax}
+                            onChange={(e) => setProductForm({ ...productForm, priceMax: e.target.value })}
+                            className="w-full p-2 bg-slate-50 rounded-lg border border-slate-300 outline-none"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="p-2.5 bg-emerald-50 rounded-xl border border-emerald-200 text-emerald-800 text-xs font-semibold">
+                    ✓ {lang === "rw" ? "Baza igiciro byemejwe: Abakiriya bazajya babaza igiciro kuri WhatsApp." : "Contact for price enabled: Clients will inquire for custom quote on WhatsApp."}
+                  </div>
+                )}
               </div>
-
-              {productForm.priceType === "RANGE" && (
-                <div className="grid grid-cols-2 gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200">
-                  <div>
-                    <label className="block font-bold text-slate-600 mb-1">Min Price (RWF)</label>
-                    <input
-                      type="number"
-                      placeholder="e.g. 2000"
-                      value={productForm.priceMin}
-                      onChange={(e) => setProductForm({ ...productForm, priceMin: e.target.value })}
-                      className="w-full p-2 bg-white rounded-lg border border-slate-300 outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block font-bold text-slate-600 mb-1">Max Price (RWF)</label>
-                    <input
-                      type="number"
-                      placeholder="e.g. 5000"
-                      value={productForm.priceMax}
-                      onChange={(e) => setProductForm({ ...productForm, priceMax: e.target.value })}
-                      className="w-full p-2 bg-white rounded-lg border border-slate-300 outline-none"
-                    />
-                  </div>
-                </div>
-              )}
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -4796,6 +4936,105 @@ export default function OwnerDashboardPage() {
                 />
               </div>
 
+              {/* Media Upload & Mandatory Caption */}
+              <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="block font-bold text-slate-800 flex items-center gap-1.5">
+                    <Camera className="w-4 h-4 text-emerald-600" />
+                    <span>Photo, File, or Video (Optional)</span>
+                  </label>
+                  {productForm.mediaUrl && (
+                    <button
+                      type="button"
+                      onClick={() => setProductForm({ ...productForm, mediaUrl: "", mediaCaption: "" })}
+                      className="text-[11px] font-bold text-rose-600 hover:text-rose-700 flex items-center gap-1 cursor-pointer"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                      <span>Remove</span>
+                    </button>
+                  )}
+                </div>
+
+                {productMediaError && (
+                  <div className="p-2 rounded-lg bg-rose-50 text-rose-700 text-xs font-semibold">
+                    {productMediaError}
+                  </div>
+                )}
+
+                {!productForm.mediaUrl ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <label className="flex flex-col items-center justify-center p-3 rounded-xl border border-dashed border-slate-300 hover:border-emerald-500 hover:bg-emerald-50/40 cursor-pointer transition-colors text-center bg-white">
+                      <Upload className="w-4 h-4 text-emerald-600 mb-1" />
+                      <span className="text-xs font-bold text-slate-700">Choose Image, File or Video</span>
+                      <span className="text-[10px] text-slate-400">Up to 15MB</span>
+                      <input
+                        type="file"
+                        accept="image/*,video/*,.pdf"
+                        onChange={handleProductFileUpload}
+                        className="hidden"
+                      />
+                    </label>
+                    <div>
+                      <input
+                        type="url"
+                        placeholder="Or paste media URL (https://...)"
+                        value={productForm.mediaUrl}
+                        onChange={(e) => setProductForm({ ...productForm, mediaUrl: e.target.value })}
+                        className="w-full p-2.5 bg-white rounded-xl border border-slate-300 text-xs font-medium outline-none focus:border-emerald-500"
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-3 p-2 bg-white rounded-xl border border-slate-200">
+                      {productForm.mediaType === "IMAGE" ? (
+                        <img src={productForm.mediaUrl} alt="Preview" className="w-14 h-14 rounded-lg object-cover border" />
+                      ) : productForm.mediaType === "VIDEO" ? (
+                        <div className="w-14 h-14 rounded-lg bg-slate-900 flex flex-col items-center justify-center text-emerald-400">
+                          <Video className="w-5 h-5" />
+                          <span className="text-[8px] font-bold">VIDEO</span>
+                        </div>
+                      ) : (
+                        <div className="w-14 h-14 rounded-lg bg-slate-200 flex flex-col items-center justify-center text-slate-700">
+                          <FileText className="w-5 h-5" />
+                          <span className="text-[8px] font-bold">FILE</span>
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <span className="text-[10px] font-black uppercase px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800">
+                          {productForm.mediaType} ATTACHED
+                        </span>
+                        <p className="text-[11px] text-slate-500 mt-0.5 truncate">
+                          Attached to this item. Caption below is mandatory.
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* MANDATORY CAPTION */}
+                    <div className="p-3 rounded-xl bg-amber-50/80 border border-amber-200">
+                      <label className="block text-xs font-bold text-amber-950 mb-1 flex items-center justify-between">
+                        <span className="flex items-center gap-1">
+                          <span>Media Caption</span>
+                          <span className="text-rose-600 font-extrabold">* (Required)</span>
+                        </span>
+                        <span className="text-[10px] font-normal text-amber-700">Mandatory for all uploads</span>
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="Describe what this photo/video shows..."
+                        value={productForm.mediaCaption}
+                        onChange={(e) => setProductForm({ ...productForm, mediaCaption: e.target.value })}
+                        className="w-full p-2 bg-white rounded-lg border border-amber-300 text-xs font-semibold text-slate-800 focus:border-emerald-600 outline-none"
+                      />
+                      <p className="text-[10px] text-amber-800 mt-1">
+                        This caption will remain permanently associated with this media item.
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <div className="flex items-center gap-3 pt-3">
                 <button
                   type="button"
@@ -4839,33 +5078,109 @@ export default function OwnerDashboardPage() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">Price (RWF)</label>
-                  <input
-                    type="number"
-                    required
-                    value={productForm.price}
-                    onChange={(e) => setProductForm({ ...productForm, price: Number(e.target.value) })}
-                    className="w-full p-2.5 bg-slate-50 rounded-xl border border-slate-300 font-black text-sm outline-none focus:ring-2 focus:ring-emerald-500"
-                  />
-                  <span className="text-[10px] text-slate-400 mt-0.5 block">
-                    Old: {selectedProduct.price.toLocaleString()} RWF
-                  </span>
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Name in Kinyarwanda (Optional)</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Izina mu Kinyarwanda"
+                  value={productForm.nameRw}
+                  onChange={(e) => setProductForm({ ...productForm, nameRw: e.target.value })}
+                  className="w-full p-2.5 bg-slate-50 rounded-xl border border-slate-300 outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Description (Optional)</label>
+                <textarea
+                  placeholder="Details on what this service or product includes..."
+                  rows={2}
+                  value={productForm.description}
+                  onChange={(e) => setProductForm({ ...productForm, description: e.target.value })}
+                  className="w-full p-2.5 bg-slate-50 rounded-xl border border-slate-300 outline-none"
+                />
+              </div>
+
+              <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="block font-bold text-slate-700">Pricing Details</label>
+                  <label className="inline-flex items-center gap-1.5 cursor-pointer text-xs font-bold text-slate-700 bg-white px-2.5 py-1 rounded-lg border border-slate-200">
+                    <input
+                      type="checkbox"
+                      checked={productForm.contactForPrice}
+                      onChange={(e) =>
+                        setProductForm({
+                          ...productForm,
+                          contactForPrice: e.target.checked,
+                          price: e.target.checked ? 0 : productForm.price,
+                        })
+                      }
+                      className="w-3.5 h-3.5 accent-emerald-600 rounded cursor-pointer"
+                    />
+                    <span>{lang === "rw" ? "Baza igiciro" : "Contact for price"}</span>
+                  </label>
                 </div>
 
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">Pricing Type</label>
-                  <select
-                    value={productForm.priceType}
-                    onChange={(e) => setProductForm({ ...productForm, priceType: e.target.value })}
-                    className="w-full p-2.5 bg-slate-50 rounded-xl border border-slate-300 font-semibold outline-none"
-                  >
-                    <option value="FIXED">Fixed Exact Price</option>
-                    <option value="ESTIMATED">Estimated Price (~)</option>
-                    <option value="RANGE">Price Range (Min - Max)</option>
-                  </select>
-                </div>
+                {!productForm.contactForPrice ? (
+                  <>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block font-bold text-slate-700 mb-1">Price (RWF)</label>
+                        <input
+                          type="number"
+                          required
+                          value={productForm.price}
+                          onChange={(e) => setProductForm({ ...productForm, price: Number(e.target.value) })}
+                          className="w-full p-2.5 bg-white rounded-xl border border-slate-300 font-black text-sm outline-none focus:ring-2 focus:ring-emerald-500"
+                        />
+                        <span className="text-[10px] text-slate-400 mt-0.5 block">
+                          Old: {selectedProduct.price.toLocaleString()} RWF
+                        </span>
+                      </div>
+
+                      <div>
+                        <label className="block font-bold text-slate-700 mb-1">Pricing Type</label>
+                        <select
+                          value={productForm.priceType}
+                          onChange={(e) => setProductForm({ ...productForm, priceType: e.target.value })}
+                          className="w-full p-2.5 bg-white rounded-xl border border-slate-300 font-semibold outline-none"
+                        >
+                          <option value="FIXED">Fixed Exact Price</option>
+                          <option value="ESTIMATED">Estimated Price (~)</option>
+                          <option value="RANGE">Price Range (Min - Max)</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    {productForm.priceType === "RANGE" && (
+                      <div className="grid grid-cols-2 gap-3 p-3 bg-white rounded-xl border border-slate-200">
+                        <div>
+                          <label className="block font-bold text-slate-600 mb-1">Min Price (RWF)</label>
+                          <input
+                            type="number"
+                            placeholder="e.g. 2000"
+                            value={productForm.priceMin}
+                            onChange={(e) => setProductForm({ ...productForm, priceMin: e.target.value })}
+                            className="w-full p-2 bg-slate-50 rounded-lg border border-slate-300 outline-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="block font-bold text-slate-600 mb-1">Max Price (RWF)</label>
+                          <input
+                            type="number"
+                            placeholder="e.g. 5000"
+                            value={productForm.priceMax}
+                            onChange={(e) => setProductForm({ ...productForm, priceMax: e.target.value })}
+                            className="w-full p-2 bg-slate-50 rounded-lg border border-slate-300 outline-none"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="p-2.5 bg-emerald-50 rounded-xl border border-emerald-200 text-emerald-800 text-xs font-semibold">
+                    ✓ {lang === "rw" ? "Baza igiciro byemejwe: Abakiriya bazajya babaza igiciro kuri WhatsApp." : "Contact for price enabled: Clients will inquire for custom quote on WhatsApp."}
+                  </div>
+                )}
               </div>
 
               <div className="flex items-center gap-2">
@@ -4874,7 +5189,7 @@ export default function OwnerDashboardPage() {
                   id="availCheck"
                   checked={productForm.isAvailable}
                   onChange={(e) => setProductForm({ ...productForm, isAvailable: e.target.checked })}
-                  className="w-4 h-4 accent-emerald-600 rounded"
+                  className="w-4 h-4 accent-emerald-600 rounded cursor-pointer"
                 />
                 <label htmlFor="availCheck" className="font-bold text-slate-700 cursor-pointer">
                   Available in store now
@@ -4892,6 +5207,105 @@ export default function OwnerDashboardPage() {
                 <label htmlFor="editIsService" className="font-bold text-slate-700 select-none cursor-pointer">
                   This item is a Service (barber, tailoring, electronics repair, etc.)
                 </label>
+              </div>
+
+              {/* Media Upload & Mandatory Caption */}
+              <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="block font-bold text-slate-800 flex items-center gap-1.5">
+                    <Camera className="w-4 h-4 text-emerald-600" />
+                    <span>Photo, File, or Video (Optional)</span>
+                  </label>
+                  {productForm.mediaUrl && (
+                    <button
+                      type="button"
+                      onClick={() => setProductForm({ ...productForm, mediaUrl: "", mediaCaption: "" })}
+                      className="text-[11px] font-bold text-rose-600 hover:text-rose-700 flex items-center gap-1 cursor-pointer"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                      <span>Remove</span>
+                    </button>
+                  )}
+                </div>
+
+                {productMediaError && (
+                  <div className="p-2 rounded-lg bg-rose-50 text-rose-700 text-xs font-semibold">
+                    {productMediaError}
+                  </div>
+                )}
+
+                {!productForm.mediaUrl ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <label className="flex flex-col items-center justify-center p-3 rounded-xl border border-dashed border-slate-300 hover:border-emerald-500 hover:bg-emerald-50/40 cursor-pointer transition-colors text-center bg-white">
+                      <Upload className="w-4 h-4 text-emerald-600 mb-1" />
+                      <span className="text-xs font-bold text-slate-700">Choose Image, File or Video</span>
+                      <span className="text-[10px] text-slate-400">Up to 15MB</span>
+                      <input
+                        type="file"
+                        accept="image/*,video/*,.pdf"
+                        onChange={handleProductFileUpload}
+                        className="hidden"
+                      />
+                    </label>
+                    <div>
+                      <input
+                        type="url"
+                        placeholder="Or paste media URL (https://...)"
+                        value={productForm.mediaUrl}
+                        onChange={(e) => setProductForm({ ...productForm, mediaUrl: e.target.value })}
+                        className="w-full p-2.5 bg-white rounded-xl border border-slate-300 text-xs font-medium outline-none focus:border-emerald-500"
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-3 p-2 bg-white rounded-xl border border-slate-200">
+                      {productForm.mediaType === "IMAGE" ? (
+                        <img src={productForm.mediaUrl} alt="Preview" className="w-14 h-14 rounded-lg object-cover border" />
+                      ) : productForm.mediaType === "VIDEO" ? (
+                        <div className="w-14 h-14 rounded-lg bg-slate-900 flex flex-col items-center justify-center text-emerald-400">
+                          <Video className="w-5 h-5" />
+                          <span className="text-[8px] font-bold">VIDEO</span>
+                        </div>
+                      ) : (
+                        <div className="w-14 h-14 rounded-lg bg-slate-200 flex flex-col items-center justify-center text-slate-700">
+                          <FileText className="w-5 h-5" />
+                          <span className="text-[8px] font-bold">FILE</span>
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <span className="text-[10px] font-black uppercase px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800">
+                          {productForm.mediaType} ATTACHED
+                        </span>
+                        <p className="text-[11px] text-slate-500 mt-0.5 truncate">
+                          Attached to this item. Caption below is mandatory.
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* MANDATORY CAPTION */}
+                    <div className="p-3 rounded-xl bg-amber-50/80 border border-amber-200">
+                      <label className="block text-xs font-bold text-amber-950 mb-1 flex items-center justify-between">
+                        <span className="flex items-center gap-1">
+                          <span>Media Caption</span>
+                          <span className="text-rose-600 font-extrabold">* (Required)</span>
+                        </span>
+                        <span className="text-[10px] font-normal text-amber-700">Mandatory for all uploads</span>
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="Describe what this photo/video shows..."
+                        value={productForm.mediaCaption}
+                        onChange={(e) => setProductForm({ ...productForm, mediaCaption: e.target.value })}
+                        className="w-full p-2 bg-white rounded-lg border border-amber-300 text-xs font-semibold text-slate-800 focus:border-emerald-600 outline-none"
+                      />
+                      <p className="text-[10px] text-amber-800 mt-1">
+                        This caption will remain permanently associated with this media item.
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="flex items-center gap-3 pt-3">

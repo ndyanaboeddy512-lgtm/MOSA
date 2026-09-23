@@ -26,7 +26,13 @@ import {
   Edit3,
   Image as ImageIcon,
   Compass,
-  Layers
+  Layers,
+  Video,
+  FileText,
+  Upload,
+  Check,
+  X,
+  Camera
 } from "lucide-react";
 import {
   CANONICAL_TAXONOMY,
@@ -155,26 +161,183 @@ export default function RegisterBusinessPage() {
     locationVerificationStatus: "UNVERIFIED",
   });
 
-  // Step 3: Initial Catalog Items (Optional/Recommended)
-  const [products, setProducts] = useState<Array<{ name: string; price: string }>>([
-    { name: "", price: "" },
-  ]);
+  // Step 3: Initial Catalog Items (Products & Services with Media & Mandatory Caption)
+  const [products, setProducts] = useState<Array<{
+    id: string;
+    name: string;
+    nameRw?: string;
+    description?: string;
+    isService: boolean;
+    contactForPrice: boolean;
+    price: string;
+    priceMin?: string;
+    priceMax?: string;
+    priceType?: "FIXED" | "RANGE" | "ESTIMATED";
+    unit?: string;
+    mediaUrl?: string;
+    mediaType?: "IMAGE" | "VIDEO" | "FILE";
+    mediaCaption?: string;
+  }>>([]);
 
-  const handleProductChange = (index: number, field: "name" | "price", value: string) => {
-    const updated = [...products];
-    updated[index][field] = value;
-    setProducts(updated);
-  };
+  // Active item draft form for Step 3
+  const [itemDraft, setItemDraft] = useState({
+    name: "",
+    nameRw: "",
+    description: "",
+    isService: false,
+    contactForPrice: false,
+    price: "",
+    priceMin: "",
+    priceMax: "",
+    priceType: "FIXED" as "FIXED" | "RANGE" | "ESTIMATED",
+    unit: "item",
+    mediaUrl: "",
+    mediaType: "IMAGE" as "IMAGE" | "VIDEO" | "FILE",
+    mediaCaption: "",
+  });
+  const [editingItemIndex, setEditingItemIndex] = useState<number | null>(null);
+  const [itemError, setItemError] = useState<string | null>(null);
 
-  const addProductRow = () => {
-    if (products.length < 5) {
-      setProducts([...products, { name: "", price: "" }]);
+  const handleItemFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    let detectedType: "IMAGE" | "VIDEO" | "FILE" = "IMAGE";
+    if (file.type.startsWith("video/")) {
+      detectedType = "VIDEO";
+    } else if (file.type.startsWith("image/")) {
+      detectedType = "IMAGE";
+    } else {
+      detectedType = "FILE";
     }
+
+    if (file.size > 15 * 1024 * 1024) {
+      setItemError(lang === "rw" ? "Dosiye irarenga 15MB. Hitamo idafite uburemere bwinshi." : "File exceeds 15MB limit. Please choose a smaller file or link a URL.");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const result = event.target?.result as string;
+      setItemDraft((prev) => ({
+        ...prev,
+        mediaUrl: result,
+        mediaType: detectedType,
+      }));
+      setItemError(null);
+    };
+    reader.readAsDataURL(file);
   };
 
-  const removeProductRow = (index: number) => {
-    if (products.length > 1) {
-      setProducts(products.filter((_, i) => i !== index));
+  const handleSaveItem = () => {
+    if (!itemDraft.name.trim()) {
+      setItemError(lang === "rw" ? "Injiza izina ry'igicuruzwa cyangwa serivisi." : "Please enter the item or service name.");
+      return;
+    }
+
+    // MANDATORY CAPTION ENFORCEMENT FOR UPLOADS
+    if (itemDraft.mediaUrl.trim() && !itemDraft.mediaCaption.trim()) {
+      setItemError(
+        lang === "rw"
+          ? "Ugomba gushyiraho ibisobanuro (caption) by'ifoto cyangwa videwo mbere yo kubika."
+          : "A media caption is strictly required when uploading or attaching an image, file, or video."
+      );
+      return;
+    }
+
+    if (!itemDraft.contactForPrice && !itemDraft.price.trim() && itemDraft.priceType !== "RANGE") {
+      setItemError(
+        lang === "rw"
+          ? "Injiza igiciro cyangwa uhitemo 'Baza Igiciro'."
+          : "Please enter a price or select 'Contact for price'."
+      );
+      return;
+    }
+
+    const newItem = {
+      id: editingItemIndex !== null ? products[editingItemIndex].id : `reg-prod-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      name: itemDraft.name.trim(),
+      nameRw: itemDraft.nameRw.trim() || undefined,
+      description: itemDraft.description.trim() || undefined,
+      isService: Boolean(itemDraft.isService),
+      contactForPrice: Boolean(itemDraft.contactForPrice),
+      price: itemDraft.contactForPrice ? "0" : (itemDraft.price.trim() || "0"),
+      priceMin: itemDraft.priceMin.trim() || undefined,
+      priceMax: itemDraft.priceMax.trim() || undefined,
+      priceType: itemDraft.contactForPrice ? "ESTIMATED" : itemDraft.priceType,
+      unit: itemDraft.unit.trim() || (itemDraft.isService ? "service" : "item"),
+      mediaUrl: itemDraft.mediaUrl.trim() || undefined,
+      mediaType: itemDraft.mediaType,
+      mediaCaption: itemDraft.mediaCaption.trim() || undefined,
+    };
+
+    if (editingItemIndex !== null) {
+      const updated = [...products];
+      updated[editingItemIndex] = newItem;
+      setProducts(updated);
+      setEditingItemIndex(null);
+    } else {
+      setProducts([...products, newItem]);
+    }
+
+    setItemDraft({
+      name: "",
+      nameRw: "",
+      description: "",
+      isService: operatingModel.isServiceDefault,
+      contactForPrice: false,
+      price: "",
+      priceMin: "",
+      priceMax: "",
+      priceType: "FIXED",
+      unit: operatingModel.model === "SERVICES" ? "service" : "item",
+      mediaUrl: "",
+      mediaType: "IMAGE",
+      mediaCaption: "",
+    });
+    setItemError(null);
+  };
+
+  const handleEditItem = (index: number) => {
+    const item = products[index];
+    setItemDraft({
+      name: item.name,
+      nameRw: item.nameRw || "",
+      description: item.description || "",
+      isService: item.isService,
+      contactForPrice: item.contactForPrice,
+      price: item.price,
+      priceMin: item.priceMin || "",
+      priceMax: item.priceMax || "",
+      priceType: item.priceType || "FIXED",
+      unit: item.unit || "item",
+      mediaUrl: item.mediaUrl || "",
+      mediaType: (item.mediaType || "IMAGE") as "IMAGE" | "VIDEO" | "FILE",
+      mediaCaption: item.mediaCaption || "",
+    });
+    setEditingItemIndex(index);
+    setItemError(null);
+  };
+
+  const handleRemoveItem = (index: number) => {
+    setProducts(products.filter((_, i) => i !== index));
+    if (editingItemIndex === index) {
+      setEditingItemIndex(null);
+      setItemDraft({
+        name: "",
+        nameRw: "",
+        description: "",
+        isService: operatingModel.isServiceDefault,
+        contactForPrice: false,
+        price: "",
+        priceMin: "",
+        priceMax: "",
+        priceType: "FIXED",
+        unit: operatingModel.model === "SERVICES" ? "service" : "item",
+        mediaUrl: "",
+        mediaType: "IMAGE",
+        mediaCaption: "",
+      });
     }
   };
 
@@ -251,21 +414,36 @@ export default function RegisterBusinessPage() {
 
   // Step 3 Validation
   const validateStep3 = () => {
-    const errors: Record<string, string> = {};
-    products.forEach((p, idx) => {
-      if (p.name.trim() && (!p.price.trim() || isNaN(Number(p.price)) || Number(p.price) < 0)) {
-        errors[`product_price_${idx}`] = "Valid price in RWF is required for this item";
+    // If user has an active draft with name, validate and save
+    if (itemDraft.name.trim()) {
+      if (itemDraft.mediaUrl.trim() && !itemDraft.mediaCaption.trim()) {
+        setItemError(
+          lang === "rw"
+            ? "Ugomba gushyiraho ibisobanuro (caption) by'ifoto cyangwa videwo mbere yo gukomeza."
+            : "Media caption is strictly required when uploading or attaching an image, file, or video."
+        );
+        setErrorMsg(
+          lang === "rw"
+            ? "Ugomba gushyiraho ibisobanuro (caption) by'ifoto cyangwa videwo mbere yo gukomeza."
+            : "Media caption is strictly required when uploading or attaching an image, file, or video."
+        );
+        return false;
       }
-      if (!p.name.trim() && p.price.trim()) {
-        errors[`product_name_${idx}`] = "Product name is required when price is entered";
-      }
-    });
-
-    setFieldErrors(errors);
-    if (Object.keys(errors).length > 0) {
-      setErrorMsg("Please ensure all item names and prices are valid.");
-      return false;
+      handleSaveItem();
     }
+
+    // Verify all products have required captions if media is attached
+    for (const p of products) {
+      if (p.mediaUrl && !p.mediaCaption?.trim()) {
+        setErrorMsg(
+          lang === "rw"
+            ? `Ibisobanuro (caption) birakenewe ku kintu "${p.name}".`
+            : `Media caption is strictly required for "${p.name}".`
+        );
+        return false;
+      }
+    }
+
     setErrorMsg(null);
     return true;
   };
@@ -317,10 +495,10 @@ export default function RegisterBusinessPage() {
       },
       {
         id: "products",
-        label: `${operatingModel.stepLabel} Pricing (if specified)`,
+        label: `${operatingModel.stepLabel} & Media Pricing`,
         valid: products.every((p) => {
-          if (p.name.trim()) return Number(p.price) >= 0;
-          if (p.price.trim()) return Boolean(p.name.trim());
+          if (p.mediaUrl && !p.mediaCaption?.trim()) return false;
+          if (p.name.trim()) return p.contactForPrice || Number(p.price) >= 0;
           return true;
         }),
         step: 3,
@@ -347,12 +525,60 @@ export default function RegisterBusinessPage() {
     setSubmitting(true);
 
     try {
-      const validProducts = products
+      let effectiveProducts = [...products];
+      if (itemDraft.name.trim()) {
+        if (itemDraft.mediaUrl.trim() && !itemDraft.mediaCaption.trim()) {
+          setErrorMsg(
+            lang === "rw"
+              ? "Ugomba gushyiraho ibisobanuro (caption) by'ifoto/videwo y'igicuruzwa mbere yo kubika."
+              : "Media caption is strictly required for the item being added before submitting."
+          );
+          setSubmitting(false);
+          return;
+        }
+        effectiveProducts.push({
+          id: `reg-prod-${Date.now()}`,
+          name: itemDraft.name.trim(),
+          nameRw: itemDraft.nameRw.trim() || undefined,
+          description: itemDraft.description.trim() || undefined,
+          isService: Boolean(itemDraft.isService),
+          contactForPrice: Boolean(itemDraft.contactForPrice),
+          price: itemDraft.contactForPrice ? "0" : (itemDraft.price.trim() || "0"),
+          priceMin: itemDraft.priceMin.trim() || undefined,
+          priceMax: itemDraft.priceMax.trim() || undefined,
+          priceType: itemDraft.contactForPrice ? "ESTIMATED" : itemDraft.priceType,
+          unit: itemDraft.unit.trim() || (itemDraft.isService ? "service" : "item"),
+          mediaUrl: itemDraft.mediaUrl.trim() || undefined,
+          mediaType: itemDraft.mediaType,
+          mediaCaption: itemDraft.mediaCaption.trim() || undefined,
+        });
+      }
+
+      for (const p of effectiveProducts) {
+        if (p.mediaUrl && !p.mediaCaption?.trim()) {
+          setErrorMsg(`Caption is required for uploaded media on "${p.name}".`);
+          setSubmitting(false);
+          return;
+        }
+      }
+
+      const validProducts = effectiveProducts
         .filter((p) => p.name.trim())
         .map((p) => ({
           name: p.name.trim(),
-          price: Number(p.price) || 0,
-          isService: operatingModel.isServiceDefault,
+          nameRw: p.nameRw?.trim() || p.name.trim(),
+          description: p.description?.trim() || undefined,
+          price: p.contactForPrice ? 0 : (Number(p.price) || 0),
+          priceMin: p.priceMin ? Number(p.priceMin) : undefined,
+          priceMax: p.priceMax ? Number(p.priceMax) : undefined,
+          priceType: p.contactForPrice ? "ESTIMATED" : (p.priceType || (p.priceMin && p.priceMax ? "RANGE" : "FIXED")),
+          unit: p.unit || (p.isService ? "service" : "item"),
+          isService: Boolean(p.isService),
+          contactForPrice: Boolean(p.contactForPrice),
+          isEstimated: Boolean(p.contactForPrice),
+          mediaUrl: p.mediaUrl?.trim() || undefined,
+          mediaType: p.mediaType || "IMAGE",
+          mediaCaption: p.mediaCaption?.trim() || undefined,
         }));
 
       const effectiveWhatsapp = formData.hasDifferentWhatsapp && formData.whatsapp.trim()
@@ -957,10 +1183,12 @@ export default function RegisterBusinessPage() {
                   <div>
                     <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
                       <Tag className="w-5 h-5 text-emerald-600" />
-                      <span>{lang === "rw" ? operatingModel.sectionTitleRw : operatingModel.sectionTitle}</span>
+                      <span>{lang === "rw" ? "Ongeraho Ibicuruzwa na Serivisi" : "Add Products & Services"}</span>
                     </h2>
                     <p className="text-xs text-slate-500 mt-1">
-                      {lang === "rw" ? operatingModel.sectionSubtitleRw : operatingModel.sectionSubtitle}
+                      {lang === "rw"
+                        ? "Shyiraho ibicuruzwa cyangwa serivisi zawe ukoresheje ifoto/dosiye/videwo, izina, ibisobanuro n'igiciro. Buri foto cyangwa videwo igomba kugira ibisobanuro (caption)."
+                        : "Add products or services with photos/files/videos, names, descriptions, and pricing. Every upload strictly requires a caption."}
                     </p>
                   </div>
                   <span className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold">
@@ -968,61 +1196,461 @@ export default function RegisterBusinessPage() {
                   </span>
                 </div>
 
-                {/* Product / Service / Menu Rows */}
-                <div className="space-y-3">
-                  {products.map((prod, idx) => (
-                    <div key={idx} className="flex items-center gap-3 p-3 rounded-2xl bg-slate-50 border border-slate-200">
-                      <div className="w-7 h-7 rounded-full bg-slate-200 text-slate-700 font-bold text-xs flex items-center justify-center shrink-0">
-                        {idx + 1}
-                      </div>
-                      <div className="flex-1">
+                {/* Sub-form: Add / Edit Product or Service */}
+                <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                      <Plus className="w-4 h-4 text-emerald-600" />
+                      {editingItemIndex !== null
+                        ? (lang === "rw" ? "Vugurura Igicuruzwa / Serivisi" : "Edit Product / Service")
+                        : (lang === "rw" ? "Ongeraho Igicuruzwa / Serivisi Bishya" : "Add New Product or Service")}
+                    </span>
+                    {editingItemIndex !== null && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingItemIndex(null);
+                          setItemDraft({
+                            name: "",
+                            nameRw: "",
+                            description: "",
+                            isService: operatingModel.isServiceDefault,
+                            contactForPrice: false,
+                            price: "",
+                            priceMin: "",
+                            priceMax: "",
+                            priceType: "FIXED",
+                            unit: operatingModel.model === "SERVICES" ? "service" : "item",
+                            mediaUrl: "",
+                            mediaType: "IMAGE",
+                            mediaCaption: "",
+                          });
+                          setItemError(null);
+                        }}
+                        className="text-xs font-bold text-slate-500 hover:text-slate-800 flex items-center gap-1 cursor-pointer"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                        <span>Cancel Edit</span>
+                      </button>
+                    )}
+                  </div>
+
+                  {itemError && (
+                    <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-bold flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                      <span>{itemError}</span>
+                    </div>
+                  )}
+
+                  {/* Toggle: Product vs Service */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-slate-600">Type:</span>
+                    <button
+                      type="button"
+                      onClick={() => setItemDraft((prev) => ({ ...prev, isService: false, unit: "item" }))}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                        !itemDraft.isService
+                          ? "bg-emerald-600 text-white shadow-xs"
+                          : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-100"
+                      }`}
+                    >
+                      📦 Product (Igicuruzwa)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setItemDraft((prev) => ({ ...prev, isService: true, unit: "service" }))}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                        itemDraft.isService
+                          ? "bg-emerald-600 text-white shadow-xs"
+                          : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-100"
+                      }`}
+                    >
+                      🛠️ Service (Serivisi)
+                    </button>
+                  </div>
+
+                  {/* Item Names */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        Name *
+                      </label>
+                      <input
+                        type="text"
+                        placeholder={itemDraft.isService ? "e.g. Tailoring Suit, Phone Repair" : "e.g. Maize Flour 5kg, Leather Shoes"}
+                        value={itemDraft.name}
+                        onChange={(e) => {
+                          setItemDraft({ ...itemDraft, name: e.target.value });
+                          if (itemError) setItemError(null);
+                        }}
+                        className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs font-semibold focus:border-emerald-500 outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        Name in Kinyarwanda <span className="text-slate-400 font-normal">(Optional)</span>
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Kudoda Ikanzu, Ifu y'ibigori 5kg"
+                        value={itemDraft.nameRw}
+                        onChange={(e) => setItemDraft({ ...itemDraft, nameRw: e.target.value })}
+                        className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs font-semibold focus:border-emerald-500 outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Description */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Description <span className="text-slate-400 font-normal">(Optional)</span>
+                    </label>
+                    <textarea
+                      rows={2}
+                      placeholder="Add details, materials, what is included, turnaround time, sizes..."
+                      value={itemDraft.description}
+                      onChange={(e) => setItemDraft({ ...itemDraft, description: e.target.value })}
+                      className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs font-medium focus:border-emerald-500 outline-none resize-none"
+                    />
+                  </div>
+
+                  {/* Pricing Mode */}
+                  <div className="p-3.5 rounded-xl bg-white border border-slate-200 space-y-3">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                        <Tag className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>Pricing Details</span>
+                      </label>
+                      <label className="inline-flex items-center gap-2 cursor-pointer bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200">
                         <input
-                          type="text"
-                          placeholder={lang === "rw" ? operatingModel.itemPlaceholderRw : operatingModel.itemPlaceholder}
-                          value={prod.name}
-                          onChange={(e) => handleProductChange(idx, "name", e.target.value)}
-                          className={`w-full px-3 py-2 rounded-xl bg-white border text-xs font-semibold outline-none ${
-                            fieldErrors[`product_name_${idx}`] ? "border-rose-400" : "border-slate-200 focus:border-emerald-500"
-                          }`}
+                          type="checkbox"
+                          checked={itemDraft.contactForPrice}
+                          onChange={(e) =>
+                            setItemDraft({
+                              ...itemDraft,
+                              contactForPrice: e.target.checked,
+                              price: e.target.checked ? "0" : itemDraft.price,
+                            })
+                          }
+                          className="w-3.5 h-3.5 accent-emerald-600 rounded cursor-pointer"
                         />
-                      </div>
-                      <div className="w-32 sm:w-40">
-                        <div className="relative">
+                        <span className="text-xs font-bold text-slate-700">
+                          {lang === "rw" ? "Baza igiciro (Nta giciro gihamye)" : "Contact for price (No fixed price)"}
+                        </span>
+                      </label>
+                    </div>
+
+                    {!itemDraft.contactForPrice && (
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-600 mb-1">Pricing Mode</label>
+                          <select
+                            value={itemDraft.priceType}
+                            onChange={(e) =>
+                              setItemDraft({
+                                ...itemDraft,
+                                priceType: e.target.value as "FIXED" | "RANGE" | "ESTIMATED",
+                              })
+                            }
+                            className="w-full px-2.5 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold outline-none"
+                          >
+                            <option value="FIXED">Fixed Exact Price</option>
+                            <option value="RANGE">Price Range (Min - Max)</option>
+                            <option value="ESTIMATED">Estimated Price (~)</option>
+                          </select>
+                        </div>
+
+                        {itemDraft.priceType === "RANGE" ? (
+                          <>
+                            <div>
+                              <label className="block text-[11px] font-bold text-slate-600 mb-1">Min Price (RWF)</label>
+                              <input
+                                type="number"
+                                placeholder="e.g. 2000"
+                                value={itemDraft.priceMin}
+                                onChange={(e) => setItemDraft({ ...itemDraft, priceMin: e.target.value })}
+                                className="w-full px-2.5 py-2 rounded-xl bg-white border border-slate-200 text-xs font-semibold outline-none"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[11px] font-bold text-slate-600 mb-1">Max Price (RWF)</label>
+                              <input
+                                type="number"
+                                placeholder="e.g. 5000"
+                                value={itemDraft.priceMax}
+                                onChange={(e) => setItemDraft({ ...itemDraft, priceMax: e.target.value })}
+                                className="w-full px-2.5 py-2 rounded-xl bg-white border border-slate-200 text-xs font-semibold outline-none"
+                              />
+                            </div>
+                          </>
+                        ) : (
+                          <div>
+                            <label className="block text-[11px] font-bold text-slate-600 mb-1">Price (RWF) *</label>
+                            <div className="relative">
+                              <input
+                                type="number"
+                                placeholder="e.g. 3500"
+                                value={itemDraft.price}
+                                onChange={(e) => setItemDraft({ ...itemDraft, price: e.target.value })}
+                                className="w-full px-2.5 py-2 pr-12 rounded-xl bg-white border border-slate-200 text-xs font-bold outline-none"
+                              />
+                              <span className="text-[10px] text-slate-400 font-bold absolute right-2.5 top-2.5">
+                                RWF
+                              </span>
+                            </div>
+                          </div>
+                        )}
+
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-600 mb-1">Unit</label>
                           <input
-                            type="number"
-                            placeholder="Price (RWF)"
-                            value={prod.price}
-                            onChange={(e) => handleProductChange(idx, "price", e.target.value)}
-                            className={`w-full px-3 py-2 pr-10 rounded-xl bg-white border text-xs font-semibold outline-none ${
-                              fieldErrors[`product_price_${idx}`] ? "border-rose-400" : "border-slate-200 focus:border-emerald-500"
-                            }`}
+                            type="text"
+                            placeholder={itemDraft.isService ? "e.g. service, hour" : "e.g. item, kg, pair"}
+                            value={itemDraft.unit}
+                            onChange={(e) => setItemDraft({ ...itemDraft, unit: e.target.value })}
+                            className="w-full px-2.5 py-2 rounded-xl bg-white border border-slate-200 text-xs font-semibold outline-none"
                           />
-                          <span className="text-[10px] text-slate-400 font-bold absolute right-2.5 top-2.5">
-                            RWF
-                          </span>
                         </div>
                       </div>
-                      {products.length > 1 && (
+                    )}
+                  </div>
+
+                  {/* Media Upload & Required Caption */}
+                  <div className="p-3.5 rounded-xl bg-white border border-slate-200 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                        <Camera className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>Upload Photo, File or Video <span className="text-slate-400 font-normal">(Optional)</span></span>
+                      </label>
+                      {itemDraft.mediaUrl && (
                         <button
                           type="button"
-                          onClick={() => removeProductRow(idx)}
-                          className="p-2 text-slate-400 hover:text-rose-600 rounded-lg transition-colors cursor-pointer"
+                          onClick={() => setItemDraft({ ...itemDraft, mediaUrl: "", mediaCaption: "" })}
+                          className="text-[11px] font-bold text-rose-600 hover:text-rose-700 flex items-center gap-1 cursor-pointer"
                         >
-                          <Trash2 className="w-4 h-4" />
+                          <Trash2 className="w-3 h-3" />
+                          <span>Remove Media</span>
                         </button>
                       )}
                     </div>
-                  ))}
 
-                  {products.length < 8 && (
+                    {!itemDraft.mediaUrl ? (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <label className="flex flex-col items-center justify-center p-4 rounded-xl border-2 border-dashed border-slate-200 hover:border-emerald-400 hover:bg-emerald-50/40 cursor-pointer transition-colors text-center">
+                          <Upload className="w-5 h-5 text-emerald-600 mb-1" />
+                          <span className="text-xs font-bold text-slate-800">
+                            {lang === "rw" ? "Hitamo ifoto, dosiye cyangwa videwo" : "Choose Image, File or Video"}
+                          </span>
+                          <span className="text-[10px] text-slate-400 mt-0.5">PNG, JPG, MP4 up to 15MB</span>
+                          <input
+                            type="file"
+                            accept="image/*,video/*,.pdf"
+                            onChange={handleItemFileUpload}
+                            className="hidden"
+                          />
+                        </label>
+
+                        <div className="flex flex-col justify-center space-y-1.5">
+                          <span className="text-[11px] font-bold text-slate-600">Or Paste Media URL:</span>
+                          <input
+                            type="url"
+                            placeholder="https://... (image, video or brochure link)"
+                            value={itemDraft.mediaUrl}
+                            onChange={(e) => setItemDraft({ ...itemDraft, mediaUrl: e.target.value })}
+                            className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-medium outline-none focus:border-emerald-500"
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {/* Media Preview */}
+                        <div className="flex items-center gap-3 p-2.5 rounded-xl bg-slate-50 border border-slate-200">
+                          {itemDraft.mediaType === "IMAGE" ? (
+                            <img
+                              src={itemDraft.mediaUrl}
+                              alt="Item Preview"
+                              className="w-16 h-16 object-cover rounded-lg border border-slate-200"
+                            />
+                          ) : itemDraft.mediaType === "VIDEO" ? (
+                            <div className="w-16 h-16 rounded-lg bg-emerald-950 flex flex-col items-center justify-center text-emerald-400">
+                              <Video className="w-6 h-6" />
+                              <span className="text-[8px] font-bold mt-0.5">VIDEO</span>
+                            </div>
+                          ) : (
+                            <div className="w-16 h-16 rounded-lg bg-slate-200 flex flex-col items-center justify-center text-slate-700">
+                              <FileText className="w-6 h-6" />
+                              <span className="text-[8px] font-bold mt-0.5">FILE</span>
+                            </div>
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <span className="px-2 py-0.5 rounded text-[10px] font-extrabold uppercase bg-emerald-100 text-emerald-800">
+                              {itemDraft.mediaType} ATTACHED
+                            </span>
+                            <p className="text-[11px] text-slate-500 mt-1 truncate">
+                              Media successfully attached. Enter mandatory caption below.
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* MANDATORY CAPTION INPUT */}
+                        <div className="p-3 rounded-xl bg-amber-50/80 border border-amber-200">
+                          <label className="block text-xs font-bold text-amber-950 mb-1 flex items-center justify-between">
+                            <span className="flex items-center gap-1">
+                              <span>Media Caption</span>
+                              <span className="text-rose-600 font-extrabold">* (Required)</span>
+                            </span>
+                            <span className="text-[10px] font-normal text-amber-700">
+                              {lang === "rw" ? "Birakenewe byanze bikunze" : "Mandatory for all uploads"}
+                            </span>
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            placeholder={
+                              lang === "rw"
+                                ? "Andika ibisobanuro birambuye by'iyi foto/videwo..."
+                                : "Describe what this image/video shows (e.g. Front view of bespoke wedding suit)..."
+                            }
+                            value={itemDraft.mediaCaption}
+                            onChange={(e) => {
+                              setItemDraft({ ...itemDraft, mediaCaption: e.target.value });
+                              if (itemError) setItemError(null);
+                            }}
+                            className="w-full px-3 py-2 rounded-xl bg-white border border-amber-300 text-xs font-semibold text-slate-800 focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600 outline-none"
+                          />
+                          <p className="text-[10px] text-amber-800 mt-1">
+                            This caption will remain permanently associated with this {itemDraft.mediaType.toLowerCase()} on your public business page.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Add / Update Item Button */}
+                  <div className="pt-2 flex justify-end">
                     <button
                       type="button"
-                      onClick={addProductRow}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-dashed border-emerald-300 text-emerald-700 hover:bg-emerald-50 text-xs font-bold transition-colors cursor-pointer"
+                      onClick={handleSaveItem}
+                      className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md transition-all flex items-center gap-1.5 cursor-pointer"
                     >
-                      <Plus className="w-3.5 h-3.5" />
-                      <span>{lang === "rw" ? operatingModel.addAnotherTextRw : operatingModel.addAnotherText}</span>
+                      <Check className="w-4 h-4" />
+                      <span>
+                        {editingItemIndex !== null
+                          ? (lang === "rw" ? "Bika Impinduka" : "Save Changes to Item")
+                          : (lang === "rw" ? "Ongeraho ku Rutonde" : "Add Product / Service to List")}
+                      </span>
                     </button>
+                  </div>
+                </div>
+
+                {/* Items List (Show all added items) */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-xs font-black uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                      <Layers className="w-4 h-4 text-emerald-600" />
+                      <span>{lang === "rw" ? "Ibicuruzwa na Serivisi Byongeweho" : "Added Products & Services"} ({products.length})</span>
+                    </h3>
+                  </div>
+
+                  {products.length === 0 ? (
+                    <div className="p-6 rounded-2xl bg-slate-50 border border-dashed border-slate-200 text-center text-xs text-slate-400">
+                      {lang === "rw"
+                        ? "Nta gicuruzwa cyangwa serivisi birongerwaho. Uzuza ifishi iri haruguru maze ukande 'Ongeraho ku Rutonde'."
+                        : "No products or services added yet. Fill out the form above and click 'Add Product / Service to List'."}
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 gap-2.5">
+                      {products.map((p, idx) => (
+                        <div
+                          key={p.id || idx}
+                          className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-2xl bg-slate-50 border border-slate-200"
+                        >
+                          <div className="flex items-start gap-3">
+                            {p.mediaUrl ? (
+                              <div className="relative w-14 h-14 shrink-0 rounded-xl overflow-hidden bg-slate-200 border border-slate-300">
+                                {p.mediaType === "VIDEO" ? (
+                                  <div className="w-full h-full bg-slate-900 flex items-center justify-center text-emerald-400">
+                                    <Video className="w-5 h-5" />
+                                  </div>
+                                ) : p.mediaType === "FILE" ? (
+                                  <div className="w-full h-full bg-slate-100 flex items-center justify-center text-slate-600">
+                                    <FileText className="w-5 h-5" />
+                                  </div>
+                                ) : (
+                                  <img src={p.mediaUrl} alt={p.name} className="w-full h-full object-cover" />
+                                )}
+                              </div>
+                            ) : (
+                              <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-700 font-extrabold text-xs flex items-center justify-center shrink-0 border border-emerald-200">
+                                {idx + 1}
+                              </div>
+                            )}
+
+                            <div className="space-y-1">
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <span className="font-extrabold text-slate-900 text-xs">{p.name}</span>
+                                {p.nameRw && p.nameRw !== p.name && (
+                                  <span className="text-[11px] text-slate-500 italic">({p.nameRw})</span>
+                                )}
+                                <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-slate-200 text-slate-700">
+                                  {p.isService ? "Service" : "Product"}
+                                </span>
+                              </div>
+
+                              {p.description && (
+                                <p className="text-[11px] text-slate-600 line-clamp-1">{p.description}</p>
+                              )}
+
+                              {p.mediaCaption && (
+                                <p className="text-[10px] text-amber-800 italic bg-amber-50 px-2 py-0.5 rounded border border-amber-200 inline-block">
+                                  Caption: &ldquo;{p.mediaCaption}&rdquo;
+                                </p>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-200">
+                            <div className="text-right">
+                              {p.contactForPrice ? (
+                                <span className="text-xs font-black text-emerald-700 bg-emerald-50 px-2 py-1 rounded-lg border border-emerald-200">
+                                  {lang === "rw" ? "Baza igiciro" : "Contact for price"}
+                                </span>
+                              ) : p.priceType === "RANGE" && p.priceMin && p.priceMax ? (
+                                <span className="text-xs font-black text-slate-900">
+                                  {Number(p.priceMin).toLocaleString()} – {Number(p.priceMax).toLocaleString()} RWF
+                                </span>
+                              ) : (
+                                <span className="text-xs font-black text-slate-900">
+                                  {Number(p.price).toLocaleString()} RWF
+                                </span>
+                              )}
+                              {!p.contactForPrice && p.unit && (
+                                <span className="text-[10px] text-slate-400 block">/{p.unit}</span>
+                              )}
+                            </div>
+
+                            <div className="flex items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => handleEditItem(idx)}
+                                className="p-1.5 rounded-lg text-slate-500 hover:text-emerald-700 hover:bg-emerald-50 transition-colors cursor-pointer"
+                                title="Edit"
+                              >
+                                <Edit3 className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveItem(idx)}
+                                className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                                title="Remove"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   )}
                 </div>
 
@@ -1184,15 +1812,43 @@ export default function RegisterBusinessPage() {
                         </button>
                       </div>
                       {products.filter((p) => p.name.trim()).length > 0 ? (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                           {products.filter((p) => p.name.trim()).map((p, i) => (
-                            <div key={i} className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-xs">
-                              <span className="font-semibold text-slate-800">{p.name}</span>
-                              <div className="flex items-center gap-2">
-                                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
-                                  {operatingModel.model === "SERVICES" ? "Service" : operatingModel.model === "FOOD_DINING" ? "Menu Item" : "Product"}
-                                </span>
-                                <span className="font-mono font-bold text-emerald-700">{Number(p.price).toLocaleString()} RWF</span>
+                            <div key={i} className="flex items-center gap-3 p-2.5 rounded-xl bg-white border border-slate-200 text-xs">
+                              {p.mediaUrl && (
+                                <div className="w-12 h-12 rounded-lg overflow-hidden shrink-0 bg-slate-100 border border-slate-200">
+                                  {p.mediaType === "VIDEO" ? (
+                                    <div className="w-full h-full bg-slate-900 flex items-center justify-center text-emerald-400">
+                                      <Video className="w-4 h-4" />
+                                    </div>
+                                  ) : p.mediaType === "FILE" ? (
+                                    <div className="w-full h-full bg-slate-200 flex items-center justify-center text-slate-700">
+                                      <FileText className="w-4 h-4" />
+                                    </div>
+                                  ) : (
+                                    <img src={p.mediaUrl} alt={p.name} className="w-full h-full object-cover" />
+                                  )}
+                                </div>
+                              )}
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className="font-semibold text-slate-800">{p.name}</span>
+                                  <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                    {p.isService ? "Service" : "Product"}
+                                  </span>
+                                </div>
+                                {p.mediaCaption && (
+                                  <p className="text-[10px] text-amber-800 italic truncate">Caption: &ldquo;{p.mediaCaption}&rdquo;</p>
+                                )}
+                              </div>
+                              <div className="text-right shrink-0">
+                                {p.contactForPrice ? (
+                                  <span className="font-bold text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                                    Contact for price
+                                  </span>
+                                ) : (
+                                  <span className="font-mono font-bold text-emerald-700">{Number(p.price).toLocaleString()} RWF</span>
+                                )}
                               </div>
                             </div>
                           ))}

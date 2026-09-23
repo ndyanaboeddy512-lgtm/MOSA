@@ -540,88 +540,142 @@ export default function BusinessDetailPage({
               </p>
             ) : (
               <div className="divide-y divide-slate-100">
-                {business.products.map((item) => (
-                  <div key={item.id} className="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 group">
-                    <div className="space-y-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-semibold text-slate-900 text-sm group-hover:text-emerald-700 transition-colors">
-                          {lang === "rw" && item.nameRw ? item.nameRw : item.name}
-                        </span>
-                        {item.isAvailable === false ? (
-                          <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-red-100 text-red-700 border border-red-200">
-                            {lang === "rw" ? "Bishize (Out of Stock)" : "Out of Stock"}
-                          </span>
-                        ) : (
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200/60">
-                            {lang === "rw" ? "Birahari" : "In Stock"}
-                          </span>
-                        )}
-                        {item.verifiedByAgent && (
-                          <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200/60">
-                            ✓ {lang === "rw" ? "Kuri fagitire" : "Verified Source"}
-                          </span>
-                        )}
-                      </div>
-                      {item.description && (
-                        <p className="text-xs text-slate-500">{item.description}</p>
-                      )}
-                      {item.extractedFrom && (
-                        <div className="text-[10px] text-slate-400">
-                          Source: {item.extractedFrom.replace("_", " ")} ({Math.round((item.confidenceScore || 0.95) * 100)}% accuracy)
-                        </div>
-                      )}
-                    </div>
+                {business.products.map((item) => {
+                  const isContactForPrice = item.price === 0 || (!item.price && !item.priceMin);
+                  const priceLabel = isContactForPrice
+                    ? (lang === "rw" ? "Baza Igiciro" : "Contact for price")
+                    : item.priceType === "RANGE" && item.priceMin && item.priceMax
+                    ? `${item.priceMin.toLocaleString()} – ${item.priceMax.toLocaleString()} Frw`
+                    : `${item.price.toLocaleString()} Frw`;
 
-                    <div className="flex items-center sm:flex-col sm:items-end justify-between sm:justify-center gap-2 shrink-0">
-                      <div className="text-right">
-                        <div className="text-base font-extrabold text-slate-900">
-                          {item.priceType === "RANGE" && item.priceMin && item.priceMax
-                            ? `${item.priceMin.toLocaleString()} – ${item.priceMax.toLocaleString()} Frw`
-                            : `${item.price.toLocaleString()} Frw`}
-                        </div>
-                        <div className="flex items-center justify-end gap-1 text-[10px] text-slate-400">
-                          {item.isEstimated && <span className="text-amber-600 font-semibold">(Est.)</span>}
-                          {item.unit && <span>/{item.unit}</span>}
-                        </div>
-                      </div>
+                  const waText = item.isService || operatingModel.hasBookings
+                    ? (isContactForPrice
+                        ? `Muraho, ndifuza kubaza igiciro no gufata gahunda ya serivisi: ${item.name} kuri ${displayName}.`
+                        : `Muraho, ndifuza gufata gahunda ya: ${item.name} (${priceLabel}) kuri ${displayName}.`)
+                    : (isContactForPrice
+                        ? `Muraho, ndifuza kubaza igiciro cy'igicuruzwa: ${item.name} kuri ${displayName}.`
+                        : `Muraho, ndifuza gutumiza: ${item.name} (${priceLabel}) kuri ${displayName}.`);
 
-                      {(business.whatsapp || business.phone) && (
-                        item.isAvailable !== false ? (
-                          <a
-                            href={`https://wa.me/${formattedWhatsApp}?text=${encodeURIComponent(
-                              item.isService || operatingModel.hasBookings
-                                ? `Muraho, ndifuza gufata gahunda ya: ${item.name} (${item.price.toLocaleString()} Frw) kuri ${displayName}.`
-                                : `Muraho, ndifuza gutumiza: ${item.name} (${item.price.toLocaleString()} Frw) kuri ${displayName}.`
-                            )}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            onClick={() =>
-                              handleTrackInquiry(
-                                business.id,
-                                item.isService || operatingModel.hasBookings
-                                  ? "BOOKING_REQUEST"
-                                  : "ORDER_INQUIRY",
-                                { id: item.id, name: item.name, price: item.price }
-                              )
-                            }
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs transition-all cursor-pointer"
-                          >
-                            <MessageCircle className="w-3.5 h-3.5" />
-                            <span>
-                              {item.isService || operatingModel.hasBookings
-                                ? (lang === "rw" ? "Fata Gahunda" : "Book via WhatsApp")
-                                : (lang === "rw" ? "Tumiza" : "Order via WhatsApp")}
+                  return (
+                    <div key={item.id} className="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 group">
+                      <div className="flex items-start gap-3.5">
+                        {item.mediaUrl && (
+                          <div className="relative w-16 h-16 sm:w-20 sm:h-20 shrink-0 rounded-2xl overflow-hidden bg-slate-100 border border-slate-200">
+                            {item.mediaType === "VIDEO" ? (
+                              <div className="w-full h-full bg-slate-900 flex flex-col items-center justify-center text-emerald-400 group-hover:scale-105 transition-transform">
+                                <Video className="w-6 h-6" />
+                                <span className="text-[8px] font-black uppercase tracking-wider text-white mt-0.5">Video</span>
+                              </div>
+                            ) : item.mediaType === "FILE" ? (
+                              <div className="w-full h-full bg-slate-100 flex flex-col items-center justify-center text-slate-700 group-hover:scale-105 transition-transform">
+                                <FileText className="w-6 h-6 text-emerald-600" />
+                                <span className="text-[8px] font-black uppercase tracking-wider text-slate-600 mt-0.5">File</span>
+                              </div>
+                            ) : (
+                              <img
+                                src={item.mediaUrl}
+                                alt={item.mediaCaption || item.name}
+                                className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                              />
+                            )}
+                          </div>
+                        )}
+
+                        <div className="space-y-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-bold text-slate-900 text-sm group-hover:text-emerald-700 transition-colors">
+                              {lang === "rw" && item.nameRw ? item.nameRw : item.name}
                             </span>
-                          </a>
-                        ) : (
-                          <span className="text-xs text-red-500 font-bold italic">
-                            {lang === "rw" ? "Ntibikibonetse" : "Out of stock"}
-                          </span>
-                        )
-                      )}
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200/80">
+                              {item.isService ? (lang === "rw" ? "Serivisi" : "Service") : (lang === "rw" ? "Igicuruzwa" : "Product")}
+                            </span>
+                            {item.isAvailable === false ? (
+                              <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-red-100 text-red-700 border border-red-200">
+                                {lang === "rw" ? "Bishize (Out of Stock)" : "Out of Stock"}
+                              </span>
+                            ) : (
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200/60">
+                                {lang === "rw" ? "Birahari" : "In Stock"}
+                              </span>
+                            )}
+                            {item.verifiedByAgent && (
+                              <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200/60">
+                                ✓ {lang === "rw" ? "Kuri fagitire" : "Verified Source"}
+                              </span>
+                            )}
+                          </div>
+
+                          {item.description && (
+                            <p className="text-xs text-slate-600 leading-relaxed">{item.description}</p>
+                          )}
+
+                          {item.mediaCaption && (
+                            <div className="text-[11px] text-amber-900 bg-amber-50/80 px-2.5 py-1 rounded-xl border border-amber-200/70 italic font-medium inline-block">
+                              Caption: &ldquo;{item.mediaCaption}&rdquo;
+                            </div>
+                          )}
+
+                          {item.extractedFrom && (
+                            <div className="text-[10px] text-slate-400">
+                              Source: {item.extractedFrom.replace("_", " ")} ({Math.round((item.confidenceScore || 0.95) * 100)}% accuracy)
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center sm:flex-col sm:items-end justify-between sm:justify-center gap-2 shrink-0">
+                        <div className="text-right">
+                          {isContactForPrice ? (
+                            <div className="text-sm font-extrabold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-xl border border-emerald-200/80">
+                              {priceLabel}
+                            </div>
+                          ) : (
+                            <div className="text-base font-extrabold text-slate-900">
+                              {priceLabel}
+                            </div>
+                          )}
+                          <div className="flex items-center justify-end gap-1 text-[10px] text-slate-400">
+                            {item.isEstimated && !isContactForPrice && <span className="text-amber-600 font-semibold">(Est.)</span>}
+                            {!isContactForPrice && item.unit && <span>/{item.unit}</span>}
+                          </div>
+                        </div>
+
+                        {(business.whatsapp || business.phone) && (
+                          item.isAvailable !== false ? (
+                            <a
+                              href={`https://wa.me/${formattedWhatsApp}?text=${encodeURIComponent(waText)}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={() =>
+                                handleTrackInquiry(
+                                  business.id,
+                                  item.isService || operatingModel.hasBookings
+                                    ? "BOOKING_REQUEST"
+                                    : "ORDER_INQUIRY",
+                                  { id: item.id, name: item.name, price: item.price }
+                                )
+                              }
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs transition-all cursor-pointer"
+                            >
+                              <MessageCircle className="w-3.5 h-3.5" />
+                              <span>
+                                {isContactForPrice
+                                  ? (lang === "rw" ? "Baza Igiciro" : "Inquire / Quote")
+                                  : item.isService || operatingModel.hasBookings
+                                  ? (lang === "rw" ? "Fata Gahunda" : "Book via WhatsApp")
+                                  : (lang === "rw" ? "Tumiza" : "Order via WhatsApp")}
+                              </span>
+                            </a>
+                          ) : (
+                            <span className="text-xs text-red-500 font-bold italic">
+                              {lang === "rw" ? "Ntibikibonetse" : "Out of stock"}
+                            </span>
+                          )
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
