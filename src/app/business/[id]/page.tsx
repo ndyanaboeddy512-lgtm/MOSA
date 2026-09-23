@@ -313,9 +313,9 @@ export default function BusinessDetailPage({
         <span>{t.common.back}</span>
       </button>
 
-      {/* Hero Profile Banner */}
-      <div className="relative rounded-3xl overflow-hidden bg-slate-900 border border-slate-200 shadow-elevated mb-8">
-        <div className="h-64 sm:h-80 w-full relative">
+      {/* Hero Profile Banner - Spatial Discovery Showcase */}
+      <div className="relative rounded-3xl overflow-hidden bg-slate-950 border border-slate-200/80 shadow-[0_20px_60px_rgba(0,0,0,0.12)] mb-10 group">
+        <div className="h-80 sm:h-96 md:h-[420px] w-full relative">
           {hasValidCover ? (
             isCoverVideo ? (
               <video
@@ -324,43 +324,47 @@ export default function BusinessDetailPage({
                 loop
                 muted
                 playsInline
-                className="w-full h-full object-cover"
+                className="w-full h-full object-cover group-hover:scale-102 transition-transform duration-700 ease-out"
               />
             ) : (
               <img
                 src={business.coverImage!}
                 alt={displayName}
-                className="w-full h-full object-cover"
+                className="w-full h-full object-cover group-hover:scale-102 transition-transform duration-700 ease-out"
               />
             )
           ) : (
-            <div className="w-full h-full bg-gradient-to-tr from-slate-950 via-slate-900 to-emerald-950 flex flex-col items-center justify-center text-center p-6 relative overflow-hidden">
-              <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-emerald-600/15 via-transparent to-transparent pointer-events-none" />
-              <div className="relative z-10 w-16 h-16 rounded-3xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center text-white font-extrabold text-3xl shadow-xl mb-3">
+            <div className="w-full h-full bg-slate-950 flex flex-col items-center justify-center text-center p-8 relative overflow-hidden">
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(16,185,129,0.15),transparent_70%)] pointer-events-none" />
+              <div className="relative z-10 w-20 h-20 rounded-3xl bg-white/5 border border-white/10 flex items-center justify-center text-white font-extrabold text-4xl shadow-xl mb-3">
                 {displayName ? displayName.charAt(0).toUpperCase() : "M"}
               </div>
-              <div className="relative z-10 text-xs font-bold text-emerald-300 tracking-wider uppercase bg-emerald-950/60 px-3 py-1 rounded-full border border-emerald-500/30">
+              <div className="relative z-10 text-[11px] font-bold text-amber-400 tracking-[0.2em] uppercase bg-white/5 px-4 py-1.5 rounded-full border border-white/10">
                 {(lang === "rw" ? business.classificationPathRw : business.classificationPath) || displayCategory}
               </div>
             </div>
           )}
-          <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/40 to-transparent pointer-events-none" />
+          <div className="absolute inset-0 bg-gradient-to-t from-slate-950/95 via-slate-950/40 to-transparent pointer-events-none" />
         </div>
 
         {/* Floating Profile Info */}
-        <div className="absolute bottom-0 left-0 right-0 p-6 sm:p-8 text-white flex flex-col md:flex-row md:items-end justify-between gap-6">
-          <div className="space-y-2">
-            <div className="flex flex-wrap items-center gap-2">
+        <div className="absolute bottom-0 left-0 right-0 p-6 sm:p-10 text-white flex flex-col md:flex-row md:items-end justify-between gap-6">
+          <div className="space-y-3 max-w-2xl">
+            <div className="flex flex-wrap items-center gap-2.5">
               <VerificationBadge status={business.verificationStatus} size="md" />
-              <span className="text-xs font-medium px-2.5 py-1 bg-white/20 backdrop-blur-md rounded-full text-emerald-200">
+              <span className="text-xs font-semibold px-3 py-1 bg-white/10 backdrop-blur-md rounded-full text-slate-200 border border-white/15">
                 {(lang === "rw" ? business.classificationPathRw : business.classificationPath) || displayCategory}
               </span>
-              <span className="text-xs font-medium px-2.5 py-1 bg-emerald-600/80 backdrop-blur-md rounded-full text-white">
+              <span className={`text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full backdrop-blur-md ${
+                business.isOpenNow ? "bg-emerald-600/90 text-white" : "bg-slate-800/90 text-slate-300"
+              }`}>
                 {business.isOpenNow ? t.common.openNow : t.common.closedNow}
               </span>
             </div>
 
-            <h1 className="text-2xl sm:text-4xl font-black tracking-tight">{displayName}</h1>
+            <h1 className="text-3xl sm:text-5xl md:text-6xl font-black tracking-tight text-white leading-tight">
+              {displayName}
+            </h1>
             
             <div className="flex items-center gap-2 text-xs sm:text-sm text-slate-300">
               <MapPin className="w-4 h-4 text-emerald-400 shrink-0" />
@@ -375,7 +379,7 @@ export default function BusinessDetailPage({
             </div>
           </div>
 
-          {/* Direct CTAs */}
+          {/* Direct Action Dock */}
           <div className="flex items-center gap-2.5 shrink-0 flex-wrap">
             <a
               href={getGoogleMapsDirectionsUrl(
@@ -385,7 +389,7 @@ export default function BusinessDetailPage({
               target="_blank"
               rel="noopener noreferrer"
               onClick={() => handleTrackInquiry(business.id, "DIRECTIONS_VIEW")}
-              className="px-4 py-2.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-white font-bold text-xs sm:text-sm border border-slate-700 shadow-md transition-all flex items-center gap-2 cursor-pointer"
+              className="px-5 py-3 rounded-full bg-slate-900/90 hover:bg-slate-800 text-white font-bold text-xs sm:text-sm border border-slate-700/80 shadow-md transition-all flex items-center gap-2 cursor-pointer backdrop-blur-md hover:scale-[1.02]"
               title="Get Directions via Google Maps"
             >
               <Navigation className="w-4 h-4 text-emerald-400" />
@@ -395,9 +399,9 @@ export default function BusinessDetailPage({
               <a
                 href={`tel:${business.phone}`}
                 onClick={() => handleTrackInquiry(business.id, "PHONE_CALL")}
-                className="px-4 py-2.5 rounded-xl bg-white hover:bg-slate-100 text-slate-900 font-bold text-xs sm:text-sm shadow-md transition-all flex items-center gap-2"
+                className="px-5 py-3 rounded-full bg-white hover:bg-slate-100 text-slate-950 font-bold text-xs sm:text-sm shadow-md transition-all flex items-center gap-2 hover:scale-[1.02]"
               >
-                <Phone className="w-4 h-4 text-emerald-600" />
+                <Phone className="w-4 h-4 text-emerald-700" />
                 <span>{t.common.call}</span>
               </a>
             )}
@@ -411,7 +415,7 @@ export default function BusinessDetailPage({
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={() => handleTrackInquiry(business.id, operatingModel.hasBookings ? "BOOKING_REQUEST" : "WHATSAPP_CLICK")}
-                className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs sm:text-sm shadow-md transition-all flex items-center gap-2"
+                className="px-6 py-3 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs sm:text-sm shadow-md transition-all flex items-center gap-2 hover:scale-[1.02]"
               >
                 <MessageCircle className="w-4 h-4" />
                 <span>

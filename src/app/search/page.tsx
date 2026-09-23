@@ -117,49 +117,54 @@ function SearchContent() {
   );
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14 space-y-8">
       
       {/* Search Header */}
-      <div className="mb-6 space-y-4">
+      <div className="space-y-4 pb-6 border-b border-slate-200/80">
         <button
           onClick={() => router.back()}
-          className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-900 transition-colors cursor-pointer"
+          className="inline-flex items-center gap-2 text-xs font-semibold text-slate-500 hover:text-slate-950 transition-colors cursor-pointer"
         >
           <ArrowLeft className="w-4 h-4" />
           <span>{t.common.back}</span>
         </button>
 
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 flex items-center gap-2">
-              <Search className="w-6 h-6 text-emerald-600 shrink-0" />
-              <span>
-                {initialQuery
-                  ? `${lang === "rw" ? "Ibisubizo bya" : "Results for"} "${initialQuery}"`
-                  : lang === "rw"
-                  ? "Ishakisha rishingiye ku byo ukeneye"
-                  : "Natural Language Need Discovery"}
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <span className="p-2 rounded-xl bg-slate-950 text-amber-400">
+                <Search className="w-4 h-4" />
               </span>
+              <span className="text-[11px] font-extrabold uppercase tracking-[0.25em] text-emerald-800">
+                {lang === "rw" ? "Gushakisha Ubucuruzi" : "Spatial Search"}
+              </span>
+            </div>
+            <h1 className="text-3xl sm:text-5xl font-extrabold text-slate-950 tracking-tight leading-[1.1]">
+              {initialQuery
+                ? `${lang === "rw" ? "Ibisubizo bya" : "Results for"} "${initialQuery}"`
+                : lang === "rw"
+                ? "Ishakisha rishingiye ku byo ukeneye"
+                : "Natural Language Need Discovery"}
             </h1>
-            <p className="text-xs sm:text-sm text-slate-500 mt-1">
-              {results.length} {lang === "rw" ? "ubucuruzi bubonetse" : "businesses found across Rwanda"}
+            <p className="text-xs sm:text-sm text-slate-500">
+              {results.length} {lang === "rw" ? "ubucuruzi bubonetse muri aka gace" : "verified micro-enterprises found"}
             </p>
           </div>
 
           {/* Search Bar */}
           <form onSubmit={handleSearchSubmit} className="flex-1 max-w-md">
-            <div className="relative">
+            <div className="relative flex items-center bg-white rounded-full border border-slate-200/80 p-1.5 shadow-[0_4px_20px_rgba(0,0,0,0.04)] focus-within:ring-2 focus-within:ring-slate-950">
+              <Search className="w-4 h-4 text-slate-400 ml-3.5 shrink-0" />
               <input
                 type="text"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder={t.common.searchPlaceholder}
-                className="w-full pl-10 pr-24 py-2.5 bg-white rounded-xl border border-slate-300 text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none shadow-xs"
+                className="w-full pl-3 pr-20 py-2 bg-transparent text-xs sm:text-sm text-slate-950 placeholder:text-slate-400 outline-none font-medium"
               />
-              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
               <button
                 type="submit"
-                className="absolute right-1.5 top-1.5 bottom-1.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-lg transition-colors cursor-pointer"
+                className="px-4 py-2 bg-slate-950 hover:bg-slate-800 text-white text-xs font-bold uppercase tracking-wider rounded-full transition-all shrink-0 cursor-pointer"
               >
                 {t.common.searchBtn}
               </button>
@@ -169,35 +174,35 @@ function SearchContent() {
 
         {/* NLP Parsed Query Pills */}
         {hasNlpDetails && (
-          <div className="p-3 bg-gradient-to-r from-emerald-50 via-teal-50 to-indigo-50 rounded-2xl border border-emerald-200/80 shadow-xs flex flex-wrap items-center gap-2 text-xs">
-            <div className="flex items-center gap-1.5 font-bold text-emerald-900 mr-1">
-              <Sparkles className="w-4 h-4 text-amber-500 animate-pulse" />
-              <span>{lang === "rw" ? "Ibyasobanuwe mu bushakashatsi:" : "Understood Intent:"}</span>
+          <div className="p-4 bg-slate-50 rounded-3xl border border-slate-200/80 shadow-[0_4px_20px_rgba(0,0,0,0.02)] flex flex-wrap items-center gap-2.5 text-xs mt-4">
+            <div className="flex items-center gap-1.5 font-bold text-slate-950 text-xs mr-1">
+              <Sparkles className="w-4 h-4 text-amber-500" />
+              <span>{lang === "rw" ? "Ibyasobanuwe:" : "Understood Intent:"}</span>
             </div>
 
             {nlpIntent.cleanQuery && (
-              <span className="px-2.5 py-1 bg-white rounded-lg border border-emerald-200 font-semibold text-slate-800 flex items-center gap-1 shadow-2xs">
+              <span className="px-3 py-1 bg-white rounded-full border border-slate-200/80 font-medium text-slate-800 flex items-center gap-1.5 shadow-2xs">
                 <Search className="w-3 h-3 text-slate-400" />
                 <span>{nlpIntent.cleanQuery}</span>
               </span>
             )}
 
             {nlpIntent.detectedCategory && (
-              <span className="px-2.5 py-1 bg-emerald-600 text-white rounded-lg font-bold flex items-center gap-1 shadow-2xs">
+              <span className="px-3 py-1 bg-slate-950 text-white rounded-full font-bold flex items-center gap-1 shadow-2xs">
                 <span>{nlpIntent.detectedCategory.replace(/_/g, " ").toUpperCase()}</span>
               </span>
             )}
 
             {nlpIntent.matchedLandmark && (
-              <span className="px-2.5 py-1 bg-amber-100 text-amber-900 border border-amber-300 rounded-lg font-bold flex items-center gap-1 shadow-2xs">
+              <span className="px-3 py-1 bg-amber-50 text-amber-900 border border-amber-200/80 rounded-full font-bold flex items-center gap-1 shadow-2xs">
                 <MapPin className="w-3 h-3 text-amber-600" />
                 <span>Near: {nlpIntent.matchedLandmark}</span>
               </span>
             )}
 
             {(nlpIntent.matchedSector || nlpIntent.matchedCell) && (
-              <span className="px-2.5 py-1 bg-blue-100 text-blue-900 border border-blue-200 rounded-lg font-semibold flex items-center gap-1 shadow-2xs">
-                <Compass className="w-3 h-3 text-blue-600" />
+              <span className="px-3 py-1 bg-emerald-50 text-emerald-900 border border-emerald-200/80 rounded-full font-semibold flex items-center gap-1 shadow-2xs">
+                <Compass className="w-3 h-3 text-emerald-600" />
                 <span>
                   {nlpIntent.matchedSector}
                   {nlpIntent.matchedCell ? ` / ${nlpIntent.matchedCell}` : ""}
@@ -206,7 +211,7 @@ function SearchContent() {
             )}
 
             {nlpIntent.priceMax && (
-              <span className="px-2.5 py-1 bg-purple-100 text-purple-900 border border-purple-200 rounded-lg font-bold flex items-center gap-1 shadow-2xs">
+              <span className="px-3 py-1 bg-purple-50 text-purple-900 border border-purple-200/80 rounded-full font-bold flex items-center gap-1 shadow-2xs">
                 <DollarSign className="w-3 h-3 text-purple-600" />
                 <span>Under {nlpIntent.priceMax.toLocaleString()} Frw</span>
               </span>
@@ -216,20 +221,20 @@ function SearchContent() {
       </div>
 
       {/* Filter & View Mode Toolbar */}
-      <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-xs mb-8 flex flex-wrap items-center justify-between gap-3 text-xs">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="font-semibold text-slate-700 flex items-center gap-1">
-            <SlidersHorizontal className="w-3.5 h-3.5 text-slate-500" />
+      <div className="bg-white p-4 rounded-3xl border border-slate-200/80 shadow-[0_4px_20px_rgba(0,0,0,0.02)] flex flex-wrap items-center justify-between gap-4 text-xs">
+        <div className="flex flex-wrap items-center gap-2.5">
+          <span className="font-bold text-slate-500 text-[10px] uppercase tracking-wider flex items-center gap-1 mr-1">
+            <SlidersHorizontal className="w-3.5 h-3.5 text-slate-400" />
             <span>{lang === "rw" ? "Akayunguruzo:" : "Filters:"}</span>
           </span>
 
           {/* Open Now toggle */}
           <button
             onClick={() => setOpenNowOnly(!openNowOnly)}
-            className={`px-3 py-1.5 rounded-xl font-medium border transition-all cursor-pointer ${
+            className={`px-3.5 py-1.5 rounded-full font-semibold border transition-all cursor-pointer ${
               openNowOnly
-                ? "bg-emerald-600 text-white border-emerald-600 shadow-xs"
-                : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
+                ? "bg-slate-950 text-white border-slate-950 shadow-xs"
+                : "bg-slate-50 text-slate-700 border-slate-200/80 hover:bg-slate-100"
             }`}
           >
             {t.common.openNow}
@@ -238,10 +243,10 @@ function SearchContent() {
           {/* Verified Only toggle */}
           <button
             onClick={() => setVerifiedOnly(!verifiedOnly)}
-            className={`px-3 py-1.5 rounded-xl font-medium border transition-all cursor-pointer ${
+            className={`px-3.5 py-1.5 rounded-full font-semibold border transition-all cursor-pointer ${
               verifiedOnly
-                ? "bg-emerald-600 text-white border-emerald-600 shadow-xs"
-                : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
+                ? "bg-slate-950 text-white border-slate-950 shadow-xs"
+                : "bg-slate-50 text-slate-700 border-slate-200/80 hover:bg-slate-100"
             }`}
           >
             ✓ {lang === "rw" ? "Ibyemejwe Gusa" : "Verified Only"}
@@ -251,7 +256,7 @@ function SearchContent() {
           <select
             value={selectedCell}
             onChange={(e) => setSelectedCell(e.target.value)}
-            className="px-3 py-1.5 rounded-xl bg-slate-50 text-slate-700 border border-slate-200 font-medium outline-none cursor-pointer"
+            className="px-3.5 py-1.5 rounded-full bg-slate-50 text-slate-700 border border-slate-200/80 font-semibold outline-none cursor-pointer"
           >
             <option value="all">{lang === "rw" ? "Utugari Twose (All Cells)" : "All Cells"}</option>
             <option value="kamutwa">Kamutwa (Kacyiru)</option>
@@ -265,27 +270,27 @@ function SearchContent() {
 
         {/* View Mode Toggle: Grid vs Map */}
         <div className="flex items-center gap-2">
-          <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200">
+          <div className="flex items-center bg-slate-100 p-1 rounded-full border border-slate-200/80">
             <button
               onClick={() => setViewMode("list")}
-              className={`flex items-center gap-1.5 px-3 py-1 rounded-lg font-bold text-xs transition-all cursor-pointer ${
+              className={`flex items-center gap-1.5 px-3.5 py-1 rounded-full font-bold text-xs transition-all cursor-pointer ${
                 viewMode === "list"
-                  ? "bg-white text-slate-900 shadow-xs"
-                  : "text-slate-600 hover:text-slate-900"
+                  ? "bg-slate-950 text-white shadow-xs"
+                  : "text-slate-600 hover:text-slate-950"
               }`}
             >
               <ListIcon className="w-3.5 h-3.5" />
-              <span>{lang === "rw" ? "Urutonde" : "List"}</span>
+              <span>{lang === "rw" ? "Urutonde" : "Grid"}</span>
             </button>
             <button
               onClick={() => setViewMode("map")}
-              className={`flex items-center gap-1.5 px-3 py-1 rounded-lg font-bold text-xs transition-all cursor-pointer ${
+              className={`flex items-center gap-1.5 px-3.5 py-1 rounded-full font-bold text-xs transition-all cursor-pointer ${
                 viewMode === "map"
-                  ? "bg-white text-emerald-700 shadow-xs"
-                  : "text-slate-600 hover:text-slate-900"
+                  ? "bg-slate-950 text-white shadow-xs"
+                  : "text-slate-600 hover:text-slate-950"
               }`}
             >
-              <MapIcon className="w-3.5 h-3.5 text-emerald-600" />
+              <MapIcon className="w-3.5 h-3.5 text-amber-400" />
               <span>{lang === "rw" ? "Ikarita" : "Interactive Map"}</span>
             </button>
           </div>
@@ -459,9 +464,13 @@ function SearchContent() {
           </div>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-          {results.map((biz) => (
-            <BusinessCard key={biz.id} business={biz} />
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
+          {results.map((biz, idx) => (
+            <BusinessCard
+              key={biz.id}
+              business={biz}
+              variant={idx === 0 ? "featured" : "standard"}
+            />
           ))}
         </div>
       )}

@@ -81,22 +81,25 @@ export default function ExplorePage() {
   }, [selectedCategory, currentSector, currentCell, selectedDataStatus]);
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14 space-y-8">
       
       {/* Top Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-        <div>
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-6 border-b border-slate-200/80">
+        <div className="space-y-2">
           <div className="flex items-center gap-2">
-            <span className="p-2 rounded-xl bg-emerald-100 text-emerald-700">
-              <Compass className="w-5 h-5" />
+            <span className="p-2 rounded-xl bg-slate-950 text-amber-400">
+              <Compass className="w-4 h-4" />
             </span>
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900">
-              {lang === "rw"
-                ? `Vumbura Ubucuruzi bwo muri ${currentSector === "all" ? "Rwanda" : currentSector}`
-                : `Explore ${currentSector === "all" ? "Rwanda" : currentSector} Businesses`}
-            </h1>
+            <span className="text-[11px] font-extrabold uppercase tracking-[0.25em] text-emerald-800">
+              {lang === "rw" ? "Irembo ry'Ubucuruzi" : "Geographic Discovery"}
+            </span>
           </div>
-          <p className="text-xs sm:text-sm text-slate-500 mt-1">
+          <h1 className="text-3xl sm:text-5xl font-extrabold text-slate-950 tracking-tight leading-[1.1]">
+            {lang === "rw"
+              ? `Vumbura Ubucuruzi bwo muri ${currentSector === "all" ? "Rwanda" : currentSector}`
+              : `Explore ${currentSector === "all" ? "Rwanda" : currentSector} Businesses`}
+          </h1>
+          <p className="text-xs sm:text-sm text-slate-500 max-w-2xl leading-relaxed">
             {currentSector === "Kacyiru"
               ? (lang === "rw"
                   ? "Ubucuruzi bwo muri Kacyiru (Gasabo): ahazwi cyane ahegereye MINAGRI ku muhanda KG 569 St, Kamutwa, Kibaza na Kamatamu."
@@ -108,37 +111,38 @@ export default function ExplorePage() {
         </div>
 
         {/* Community & View Switcher */}
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2.5 flex-wrap">
           <button
             onClick={openSelector}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 text-xs font-bold transition-colors shadow-xs"
+            className="flex items-center gap-2 px-4 py-2 rounded-full bg-slate-50 hover:bg-slate-100 border border-slate-200/80 text-slate-900 text-xs font-semibold transition-all shadow-xs cursor-pointer"
           >
-            <MapPin className="w-3.5 h-3.5 text-emerald-600" />
+            <span className="w-2 h-2 rounded-full bg-emerald-600" />
+            <MapPin className="w-3.5 h-3.5 text-slate-500" />
             <span>{displayLabel}</span>
-            <span className="text-[10px] text-emerald-600">▾</span>
+            <span className="text-[10px] text-slate-400">▾</span>
           </button>
 
-          <div className="flex items-center bg-white border border-slate-200 p-1 rounded-xl shadow-xs">
+          <div className="flex items-center bg-slate-100 p-1 rounded-full border border-slate-200/80">
             <button
               onClick={() => setViewMode("grid")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer ${
                 viewMode === "grid"
-                  ? "bg-slate-900 text-white shadow-xs"
-                  : "text-slate-600 hover:text-slate-900"
+                  ? "bg-slate-950 text-white shadow-xs"
+                  : "text-slate-600 hover:text-slate-950"
               }`}
             >
-              <List className="w-4 h-4" />
+              <List className="w-3.5 h-3.5" />
               <span>{lang === "rw" ? "Urutonde" : "Grid"}</span>
             </button>
             <button
               onClick={() => setViewMode("map")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer ${
                 viewMode === "map"
-                  ? "bg-slate-900 text-white shadow-xs"
-                  : "text-slate-600 hover:text-slate-900"
+                  ? "bg-slate-950 text-white shadow-xs"
+                  : "text-slate-600 hover:text-slate-950"
               }`}
             >
-              <Map className="w-4 h-4" />
+              <Map className="w-3.5 h-3.5" />
               <span>{lang === "rw" ? "Ikarita" : "Map"}</span>
             </button>
           </div>
@@ -146,8 +150,8 @@ export default function ExplorePage() {
       </div>
 
       {/* Filter Toolbar */}
-      <div className="space-y-4 mb-8">
-        <div className="bg-white p-3 sm:p-4 rounded-2xl border border-slate-200 shadow-xs">
+      <div className="space-y-4">
+        <div className="bg-white p-4 sm:p-5 rounded-3xl border border-slate-200/80 shadow-[0_4px_20px_rgba(0,0,0,0.02)]">
           <CategoryPills
             selectedCategory={selectedCategory}
             onSelectCategory={(cat) => setSelectedCategory(cat)}
@@ -155,10 +159,10 @@ export default function ExplorePage() {
         </div>
 
         {/* Cells & Data Status Filters */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50 p-2.5 rounded-2xl border border-slate-200">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-4 rounded-3xl border border-slate-200/80 shadow-[0_4px_20px_rgba(0,0,0,0.02)]">
           {/* Cells Filter */}
           <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider shrink-0 mr-1">
+            <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest shrink-0 mr-1">
               {lang === "rw" ? "Akagari:" : "Cell:"}
             </span>
             {currentCellsList.map((c) => {
@@ -167,10 +171,10 @@ export default function ExplorePage() {
                 <button
                   key={c.id}
                   onClick={() => setCell(c.id === "all" ? null : c.label.split(" ")[0])}
-                  className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all ${
+                  className={`px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
                     isActive
-                      ? "bg-emerald-600 text-white shadow-xs"
-                      : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-100"
+                      ? "bg-slate-950 text-white shadow-xs"
+                      : "bg-slate-50 text-slate-700 border border-slate-200/80 hover:bg-slate-100 hover:text-slate-950"
                   }`}
                 >
                   {c.label}
@@ -181,7 +185,7 @@ export default function ExplorePage() {
 
           {/* Data Lifecycle Filter */}
           <div className="flex items-center gap-1.5 shrink-0">
-            <span className="text-xs font-bold text-slate-500 uppercase mr-1">
+            <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mr-1.5">
               Status:
             </span>
             {(
@@ -194,12 +198,12 @@ export default function ExplorePage() {
               <button
                 key={s.id}
                 onClick={() => setSelectedDataStatus(s.id)}
-                className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
+                className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer ${
                   selectedDataStatus === s.id
                     ? s.id === "DEMO"
-                      ? "bg-amber-500 text-slate-950 font-bold"
-                      : "bg-emerald-700 text-white"
-                    : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-100"
+                      ? "bg-amber-500 text-slate-950 font-bold shadow-xs"
+                      : "bg-slate-950 text-white shadow-xs"
+                    : "bg-slate-50 text-slate-600 border border-slate-200/80 hover:bg-slate-100"
                 }`}
               >
                 {s.label}
@@ -323,22 +327,30 @@ export default function ExplorePage() {
           </div>
         </div>
       ) : (
-        /* Grid View Mode */
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-          {businesses.map((biz) => (
-            <BusinessCard key={biz.id} business={biz} />
+        /* Editorial Grid View Mode */
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
+          {businesses.map((biz, idx) => (
+            <BusinessCard
+              key={biz.id}
+              business={biz}
+              variant={idx === 0 ? "featured" : "standard"}
+            />
           ))}
         </div>
       )}
 
       {/* Merchant Self-Registration Callout Banner */}
-      <div className="mt-12 bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-6">
-        <div className="space-y-1.5 text-center sm:text-left">
-          <h3 className="font-bold text-slate-900 text-base sm:text-lg flex items-center justify-center sm:justify-start gap-2">
-            <Store className="w-5 h-5 text-emerald-600" />
-            <span>{lang === "rw" ? "Ucuruza muri aka gace? Ntiwirengagize abakiliya!" : "Do you run a shop or service in this area?"}</span>
+      <div className="mt-16 bg-slate-950 rounded-3xl border border-slate-800 p-8 sm:p-10 shadow-[0_20px_50px_rgba(0,0,0,0.25)] flex flex-col sm:flex-row items-center justify-between gap-6 text-white relative overflow-hidden">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_left,rgba(16,185,129,0.12),transparent_60%)] pointer-events-none" />
+        <div className="space-y-2 text-center sm:text-left relative z-10">
+          <div className="inline-flex items-center gap-2 text-amber-400 text-[10px] font-bold uppercase tracking-[0.2em]">
+            <Store className="w-3.5 h-3.5" />
+            <span>{lang === "rw" ? "Ucuruza muri aka gace?" : "Operate in this sector?"}</span>
+          </div>
+          <h3 className="font-bold text-white text-xl sm:text-2xl tracking-tight">
+            {lang === "rw" ? "Ucuruza muri aka gace? Ntiwirengagize abakiliya!" : "Put your verified shop directly on the map"}
           </h3>
-          <p className="text-xs text-slate-600 max-w-xl leading-relaxed">
+          <p className="text-xs sm:text-sm text-slate-400 max-w-xl leading-relaxed">
             {lang === "rw"
               ? "Andika ubucuruzi bwawe ku buntu kuri MOSA kugira ngo abaturage bo mu murenge wawe bakubone bidasabye ubuhuza."
               : "Register your business directly on MOSA for free discovery across your sector without commission fees."}
@@ -346,9 +358,9 @@ export default function ExplorePage() {
         </div>
         <Link
           href="/register-business"
-          className="px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs sm:text-sm shadow-md transition-all shrink-0 flex items-center gap-2 cursor-pointer"
+          className="px-7 py-3.5 rounded-full bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs sm:text-sm shadow-md transition-all shrink-0 flex items-center gap-2 cursor-pointer relative z-10 hover:scale-[1.02]"
         >
-          <Store className="w-4 h-4 text-emerald-200" />
+          <Store className="w-4 h-4 text-slate-950" />
           <span>{lang === "rw" ? "Andika Ubucuruzi Bwawe" : "Register Your Business"}</span>
         </Link>
       </div>

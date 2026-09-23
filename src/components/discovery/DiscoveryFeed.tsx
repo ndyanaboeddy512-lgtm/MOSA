@@ -49,16 +49,16 @@ export function DiscoveryFeed({ businesses }: DiscoveryFeedProps) {
   const displayedBusinesses = getFilteredList();
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       
       {/* Discovery Feed Section Header with Tabs */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200/80 pb-5">
         <div>
-          <div className="flex items-center gap-2">
-            <span className="p-1.5 rounded-lg bg-emerald-100 text-emerald-700">
-              <Compass className="w-5 h-5" />
+          <div className="flex items-center gap-2.5">
+            <span className="p-2 rounded-xl bg-slate-950 text-amber-400">
+              <Compass className="w-4 h-4" />
             </span>
-            <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900">
+            <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-950 tracking-tight">
               {t.discoveryFeed.title}
             </h2>
           </div>
@@ -68,7 +68,7 @@ export function DiscoveryFeed({ businesses }: DiscoveryFeedProps) {
         </div>
 
         {/* Discovery Filter Chips */}
-        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1">
+        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
           {[
             { id: "all", label: t.discoveryFeed.tabs.all, count: businesses.length },
             { id: "gems", label: t.discoveryFeed.tabs.newGems, count: hiddenGems.length },
@@ -79,15 +79,15 @@ export function DiscoveryFeed({ businesses }: DiscoveryFeedProps) {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id as typeof activeTab)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-1.5 ${
+              className={`px-3.5 py-2 rounded-full text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-2 cursor-pointer ${
                 activeTab === tab.id
-                  ? "bg-slate-900 text-white shadow-xs"
-                  : "bg-white text-slate-600 border border-slate-200 hover:border-slate-300 hover:bg-slate-50"
+                  ? "bg-slate-950 text-white shadow-xs"
+                  : "bg-slate-50 text-slate-600 border border-slate-200/80 hover:border-slate-300 hover:bg-white hover:text-slate-950"
               }`}
             >
               <span>{tab.label}</span>
               <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
-                activeTab === tab.id ? "bg-slate-700 text-white" : "bg-slate-100 text-slate-500"
+                activeTab === tab.id ? "bg-slate-800 text-amber-300" : "bg-slate-200/70 text-slate-600"
               }`}>
                 {tab.count}
               </span>
@@ -98,19 +98,19 @@ export function DiscoveryFeed({ businesses }: DiscoveryFeedProps) {
 
       {/* Discovery Prompt Cards (Curiosity & Utility) */}
       {activeTab === "all" && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
           
           {/* Card 1: Hidden Local Micro-Enterprises */}
-          <div className="bg-gradient-to-br from-emerald-500/10 to-teal-500/5 rounded-2xl p-4 border border-emerald-200/70 flex flex-col justify-between">
+          <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-[0_4px_20px_rgba(0,0,0,0.02)] flex flex-col justify-between hover:border-slate-300 transition-all group">
             <div>
-              <div className="flex items-center gap-2 text-emerald-800 text-xs font-bold uppercase tracking-wider mb-1">
-                <Sparkles className="w-3.5 h-3.5" />
+              <div className="flex items-center gap-2 text-emerald-800 text-[10px] font-bold uppercase tracking-[0.2em] mb-2">
+                <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
                 <span>{lang === "rw" ? "Ubukorikori bw'i Nyamirambo" : "Nyamirambo Crafts"}</span>
               </div>
-              <h4 className="font-bold text-slate-900 text-sm">
+              <h4 className="font-bold text-slate-950 text-base tracking-tight leading-snug group-hover:text-emerald-800 transition-colors">
                 {lang === "rw" ? "Amaduka 3 ushobora kuba utari uzi ko ahari" : "3 businesses you may not know about"}
               </h4>
-              <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+              <p className="text-xs text-slate-500 mt-2 leading-relaxed">
                 {lang === "rw"
                   ? "Reba abanyabukorikori baboha uduseke tw'umwimerere na za salo zigezweho ziri hafi yawe."
                   : "From traditional Agaseke weavers at Maison des Jeunes to expert phone microsoldering in Biryogo."}
@@ -118,24 +118,24 @@ export function DiscoveryFeed({ businesses }: DiscoveryFeedProps) {
             </div>
             <button
               onClick={() => setActiveTab("gems")}
-              className="mt-3 inline-flex items-center gap-1 text-xs font-bold text-emerald-800 hover:text-emerald-950"
+              className="mt-4 pt-3 border-t border-slate-100 inline-flex items-center gap-1.5 text-xs font-bold text-slate-900 hover:text-emerald-800 transition-colors cursor-pointer"
             >
               <span>{lang === "rw" ? "Kora kuri ibyo bucuruzi" : "View hidden gems"}</span>
-              <ArrowRight className="w-3.5 h-3.5" />
+              <ArrowRight className="w-3.5 h-3.5 text-amber-500" />
             </button>
           </div>
 
           {/* Card 2: Fresh Physical Data Capture */}
-          <div className="bg-gradient-to-br from-amber-500/10 to-orange-500/5 rounded-2xl p-4 border border-amber-200/70 flex flex-col justify-between">
+          <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-[0_4px_20px_rgba(0,0,0,0.02)] flex flex-col justify-between hover:border-slate-300 transition-all group">
             <div>
-              <div className="flex items-center gap-2 text-amber-800 text-xs font-bold uppercase tracking-wider mb-1">
-                <FileText className="w-3.5 h-3.5" />
+              <div className="flex items-center gap-2 text-amber-800 text-[10px] font-bold uppercase tracking-[0.2em] mb-2">
+                <FileText className="w-3.5 h-3.5 text-amber-600" />
                 <span>{lang === "rw" ? "Ibiciro Byashyizweho Vuba" : "Digitized From Paper"}</span>
               </div>
-              <h4 className="font-bold text-slate-900 text-sm">
+              <h4 className="font-bold text-slate-950 text-base tracking-tight leading-snug group-hover:text-amber-800 transition-colors">
                 {lang === "rw" ? "Amamenyu n'inyemezabwishyu byemejwe" : "Physical price lists converted to digital"}
               </h4>
-              <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+              <p className="text-xs text-slate-500 mt-2 leading-relaxed">
                 {lang === "rw"
                   ? "Abakozi b'umuryango bafashe amafoto y'ibyapa by'ibiciro bya salo n'utubari tw'amata bashyira mu ikoranabuhanga."
                   : "Fresh boiled cow milk, tailor hems, and motorcycle maintenance prices verified directly on the ground."}
@@ -143,24 +143,24 @@ export function DiscoveryFeed({ businesses }: DiscoveryFeedProps) {
             </div>
             <button
               onClick={() => setActiveTab("digitized")}
-              className="mt-3 inline-flex items-center gap-1 text-xs font-bold text-amber-800 hover:text-amber-950"
+              className="mt-4 pt-3 border-t border-slate-100 inline-flex items-center gap-1.5 text-xs font-bold text-slate-900 hover:text-amber-800 transition-colors cursor-pointer"
             >
               <span>{lang === "rw" ? "Reba ibiciro byose" : "Browse verified price lists"}</span>
-              <ArrowRight className="w-3.5 h-3.5" />
+              <ArrowRight className="w-3.5 h-3.5 text-amber-500" />
             </button>
           </div>
 
           {/* Card 3: Reverse Market Opportunity */}
-          <div className="bg-gradient-to-br from-purple-500/10 to-indigo-500/5 rounded-2xl p-4 border border-purple-200/70 flex flex-col justify-between">
+          <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-[0_4px_20px_rgba(0,0,0,0.02)] flex flex-col justify-between hover:border-slate-300 transition-all group">
             <div>
-              <div className="flex items-center gap-2 text-purple-800 text-xs font-bold uppercase tracking-wider mb-1">
-                <TrendingUp className="w-3.5 h-3.5" />
+              <div className="flex items-center gap-2 text-slate-800 text-[10px] font-bold uppercase tracking-[0.2em] mb-2">
+                <TrendingUp className="w-3.5 h-3.5 text-slate-700" />
                 <span>{lang === "rw" ? "Icyuho mu Bucuruzi" : "Local Opportunity"}</span>
               </div>
-              <h4 className="font-bold text-slate-900 text-sm">
+              <h4 className="font-bold text-slate-950 text-base tracking-tight leading-snug group-hover:text-slate-800 transition-colors">
                 {lang === "rw" ? "Ibyo abaturage bakeneye kurusha ibihari" : "High resident demand, few providers"}
               </h4>
-              <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+              <p className="text-xs text-slate-500 mt-2 leading-relaxed">
                 {lang === "rw"
                   ? "Abaturage benshi bashakishije abanyamashanyarazi n'abadozi b'ikubitiro muri iki cyumweru."
                   : "38 searches for phone screen repair with only 2 certified shops in Biryogo. Check the demand radar."}
@@ -168,21 +168,21 @@ export function DiscoveryFeed({ businesses }: DiscoveryFeedProps) {
             </div>
             <Link
               href="/demand"
-              className="mt-3 inline-flex items-center gap-1 text-xs font-bold text-purple-800 hover:text-purple-950"
+              className="mt-4 pt-3 border-t border-slate-100 inline-flex items-center gap-1.5 text-xs font-bold text-slate-900 hover:text-emerald-800 transition-colors"
             >
               <span>{lang === "rw" ? "Fungura Demand Radar" : "Explore Demand Radar"}</span>
-              <ArrowRight className="w-3.5 h-3.5" />
+              <ArrowRight className="w-3.5 h-3.5 text-amber-500" />
             </Link>
           </div>
 
         </div>
       )}
 
-      {/* Grid of Business Cards */}
+      {/* Editorial Composition of Business Cards */}
       {displayedBusinesses.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center">
+        <div className="bg-white rounded-3xl border border-slate-200/80 p-12 text-center shadow-xs">
           <HelpCircle className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-          <h3 className="font-bold text-slate-800 text-base">
+          <h3 className="font-bold text-slate-950 text-base">
             {lang === "rw" ? "Nta bucuruzi buhuye n'iki cyiciro bubonetse" : "No businesses found in this discovery view"}
           </h3>
           <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
@@ -192,9 +192,13 @@ export function DiscoveryFeed({ businesses }: DiscoveryFeedProps) {
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-          {displayedBusinesses.map((biz) => (
-            <BusinessCard key={biz.id} business={biz} />
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
+          {displayedBusinesses.map((biz, idx) => (
+            <BusinessCard
+              key={biz.id}
+              business={biz}
+              variant={idx === 0 ? "featured" : "standard"}
+            />
           ))}
         </div>
       )}
