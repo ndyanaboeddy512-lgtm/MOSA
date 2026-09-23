@@ -56,16 +56,24 @@ export async function verifySessionToken(token: string): Promise<SessionPayload 
 
 /**
  * Sets the secure HTTP-only session cookie on the response.
+ * If rememberMe is true, persists for 30 days. Otherwise, creates a session-duration cookie.
  */
-export async function setSessionCookie(token: string) {
+export async function setSessionCookie(token: string, rememberMe: boolean = true) {
   const cookieStore = await cookies();
-  cookieStore.set(SESSION_COOKIE_NAME, token, {
+  const cookieOptions: any = {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
     path: "/",
-    maxAge: 30 * 24 * 60 * 60, // 30 days
-  });
+  };
+
+  if (rememberMe) {
+    cookieOptions.maxAge = 30 * 24 * 60 * 60; // 30 days
+  } else {
+    cookieOptions.maxAge = 24 * 60 * 60; // 1 day
+  }
+
+  cookieStore.set(SESSION_COOKIE_NAME, token, cookieOptions);
 }
 
 /**

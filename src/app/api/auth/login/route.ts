@@ -7,24 +7,39 @@ import { logAuditEvent } from "@/lib/audit";
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { phone, password, role = "CUSTOMER" } = body;
+    const { username, phone, email, password, role = "CUSTOMER", rememberMe = true } = body;
 
-    const norm = normalizeRwandaPhone(phone);
-    if (!norm.isValid || !norm.e164) {
+    const rawIdentifier = (username || phone || email || "").trim();
+    if (!rawIdentifier) {
       return NextResponse.json(
-        { error: norm.error || "A valid Rwandan phone number is required (e.g. 0788123456)" },
+        { error: "Phone number or email is required" },
         { status: 400 }
       );
     }
 
     // Direct Password-based authentication flow
     if (password && typeof password === "string") {
-      const user = await prisma.user.findUnique({
-        where: { phone: norm.e164 },
-      });
+      let user = null;
+
+      if (rawIdentifier.includes("@")) {
+        user = await prisma.user.findFirst({
+          where: { email: rawIdentifier.toLowerCase() },
+        });
+      } else {
+        const norm = normalizeRwandaPhone(rawIdentifier);
+        if (norm.isValid && norm.e164) {
+          user = await prisma.user.findUnique({
+            where: { phone: norm.e164 },
+          });
+        } else {
+          user = await prisma.user.findFirst({
+            where: { phone: rawIdentifier },
+          });
+        }
+      }
 
       if (!user) {
-        return NextResponse.json({ error: "Invalid phone number or password" }, { status: 401 });
+        return NextResponse.json({ error: "Invalid username, phone number, or password" }, { status: 401 });
       }
 
       if (user.status !== "ACTIVE") {
@@ -33,24 +48,28 @@ export async function POST(request: Request) {
 
       if (!user.passwordHash) {
         return NextResponse.json(
-          { error: "Password has not been set for this account yet. Please sign in via SMS code." },
+          { error: "Password has not been set for this account yet. Please sign in via SMS code or reset your password." },
           { status: 400 }
         );
       }
 
       const isMatch = await comparePassword(password, user.passwordHash);
       if (!isMatch) {
-        return NextResponse.json({ error: "Invalid phone number or password" }, { status: 401 });
+        return NextResponse.json({ error: "Invalid username, phone number, or password" }, { status: 401 });
       }
 
       const token = await createSessionToken({
         userId: user.id,
         phone: user.phone,
+        email: user.email,
         role: user.role,
         name: user.name,
       });
 
-      const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+      const isRemember = rememberMe !== false;
+      const sessionDurationMs = isRemember ? 30 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000;
+      const expiresAt = new Date(Date.now() + sessionDurationMs);
+
       await prisma.session.create({
         data: {
           userId: user.id,
@@ -59,14 +78,14 @@ export async function POST(request: Request) {
         },
       });
 
-      await setSessionCookie(token);
+      await setSessionCookie(token, isRemember);
 
       await logAuditEvent({
         actorId: user.id,
         action: "USER_LOGGED_IN_PASSWORD",
         entityType: "USER",
         entityId: user.id,
-        metadata: { role: user.role, phone: norm.e164 },
+        metadata: { role: user.role, identifier: rawIdentifier, rememberMe: isRemember },
       });
 
       return NextResponse.json({
@@ -75,6 +94,7 @@ export async function POST(request: Request) {
           id: user.id,
           name: user.name,
           phone: user.phone,
+          email: user.email,
           role: user.role,
           language: user.language,
           community: user.community,
@@ -83,7 +103,16 @@ export async function POST(request: Request) {
       });
     }
 
-    // Otherwise: Generate and persist OTP in database with 10-minute validity
+    // Otherwise: SMS OTP flow (phone required)
+    const norm = normalizeRwandaPhone(rawIdentifier);
+    if (!norm.isValid || !norm.e164) {
+      return NextResponse.json(
+        { error: norm.error || "A valid Rwandan phone number is required for SMS code login (e.g. 0788123456)" },
+        { status: 400 }
+      );
+    }
+
+    // Generate and persist OTP in database with 10-minute validity
     const otp = await createAndSaveOtp(norm.e164);
 
     await logAuditEvent({

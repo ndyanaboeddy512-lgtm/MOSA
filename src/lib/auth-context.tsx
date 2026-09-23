@@ -77,7 +77,7 @@ interface AuthContextType {
   user: UserSession | null;
   switchDemoRole: (role: Role) => Promise<void>;
   loginWithPhone: (phone: string, role?: Role) => Promise<{ success: boolean; otp: string }>;
-  loginWithPassword: (phone: string, password: string) => Promise<{ success: boolean; user?: UserSession; error?: string }>;
+  loginWithPassword: (identifier: string, password: string, rememberMe?: boolean) => Promise<{ success: boolean; user?: UserSession; error?: string }>;
   register: (data: { phone: string; password: string; name: string; role?: Role; community?: string }) => Promise<{ success: boolean; user?: UserSession; error?: string }>;
   verifyOtp: (code: string) => Promise<{ success: boolean; user?: UserSession }>;
   logout: () => Promise<void>;
@@ -237,21 +237,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { success: false };
   };
 
-  const loginWithPassword = async (phone: string, password: string): Promise<{ success: boolean; user?: UserSession; error?: string }> => {
+  const loginWithPassword = async (
+    identifier: string,
+    password: string,
+    rememberMe: boolean = true
+  ): Promise<{ success: boolean; user?: UserSession; error?: string }> => {
     try {
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone, password }),
+        body: JSON.stringify({
+          username: identifier,
+          phone: identifier,
+          email: identifier.includes("@") ? identifier : undefined,
+          password,
+          rememberMe,
+        }),
       });
       const data = await res.json();
       if (!res.ok) {
-        return { success: false, error: data.error || "Invalid phone number or password" };
+        return { success: false, error: data.error || "Invalid username, phone number, or password" };
       }
       if (data.user) {
         setUser(data.user);
         if (typeof window !== "undefined") {
-          localStorage.setItem("mosa_user_session", JSON.stringify(data.user));
+          if (rememberMe) {
+            localStorage.setItem("mosa_user_session", JSON.stringify(data.user));
+            sessionStorage.removeItem("mosa_user_session");
+          } else {
+            sessionStorage.setItem("mosa_user_session", JSON.stringify(data.user));
+            localStorage.removeItem("mosa_user_session");
+          }
         }
       }
       return { success: true, user: data.user };
