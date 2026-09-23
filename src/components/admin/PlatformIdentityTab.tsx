@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { 
   Globe, 
   ShieldCheck, 
@@ -20,8 +20,11 @@ import {
   Sparkles, 
   ExternalLink,
   MessageCircle,
-  RotateCcw
+  RotateCcw,
+  Upload
 } from "lucide-react";
+import { processDeviceUpload } from "@/lib/media-upload";
+import { usePlatformSettings } from "@/lib/platform-context";
 
 interface AuditLogEntry {
   id: string;
@@ -112,6 +115,7 @@ const LANGUAGE_OPTIONS = [
 ];
 
 export function PlatformIdentityTab({ user }: { user: any }) {
+  const { updateSettingsLocally } = usePlatformSettings();
   const [formData, setFormData] = useState<PlatformSettingsState>(DEFAULT_FORM_STATE);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -119,6 +123,26 @@ export function PlatformIdentityTab({ user }: { user: any }) {
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [recentAudits, setRecentAudits] = useState<AuditLogEntry[]>([]);
   const [previewTab, setPreviewTab] = useState<"navbar" | "contact" | "footer">("navbar");
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const logoFileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleLogoFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      setUploadingLogo(true);
+      const processed = await processDeviceUpload(file);
+      setFormData((prev) => ({ ...prev, logoUrl: processed.url }));
+      setFeedback({ type: "success", text: "Logo loaded from device. Click 'Save Platform Identity' below to persist changes." });
+    } catch (err: any) {
+      setFeedback({ type: "error", text: err.message || "Failed to process logo image file." });
+    } finally {
+      setUploadingLogo(false);
+      if (logoFileInputRef.current) {
+        logoFileInputRef.current.value = "";
+      }
+    }
+  };
 
   const fetchSettings = async () => {
     setLoading(true);
@@ -214,6 +238,7 @@ export function PlatformIdentityTab({ user }: { user: any }) {
         setFeedback({ type: "error", text: data.error || "Failed to save platform identity settings." });
       } else {
         setFeedback({ type: "success", text: "MOSA Platform Identity & Controls saved and audited successfully!" });
+        updateSettingsLocally(formData as any);
         // Dispatch event for instant multi-component re-rendering
         if (typeof window !== "undefined") {
           window.dispatchEvent(new Event("mosa_platform_settings_updated"));
@@ -240,6 +265,7 @@ export function PlatformIdentityTab({ user }: { user: any }) {
         setFeedback({ type: "error", text: data.error || "Failed to restore defaults." });
       } else {
         setFeedback({ type: "success", text: "Platform identity restored to default settings." });
+        updateSettingsLocally(DEFAULT_FORM_STATE as any);
         if (typeof window !== "undefined") {
           window.dispatchEvent(new Event("mosa_platform_settings_updated"));
         }
@@ -469,29 +495,68 @@ export function PlatformIdentityTab({ user }: { user: any }) {
             <div className="space-y-4">
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Official MOSA Logo URL
+                  Official MOSA Logo
                 </label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="url"
-                    value={formData.logoUrl}
-                    onChange={(e) => setFormData({ ...formData, logoUrl: e.target.value })}
-                    className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
-                    placeholder="https://.../logo.png (Leave empty to use default gradient shield)"
-                  />
-                  {formData.logoUrl && (
-                    <button
-                      type="button"
-                      onClick={() => setFormData({ ...formData, logoUrl: "" })}
-                      className="px-2.5 py-2 text-xs font-bold text-slate-500 hover:text-rose-600 bg-slate-100 rounded-xl transition-colors cursor-pointer"
-                    >
-                      Clear
-                    </button>
-                  )}
+                
+                <input
+                  type="file"
+                  ref={logoFileInputRef}
+                  accept="image/*"
+                  onChange={handleLogoFileUpload}
+                  className="hidden"
+                />
+
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 mb-2">
+                  <button
+                    type="button"
+                    onClick={() => logoFileInputRef.current?.click()}
+                    disabled={uploadingLogo}
+                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 cursor-pointer transition-colors shadow-xs disabled:opacity-50"
+                  >
+                    {uploadingLogo ? (
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Upload className="w-3.5 h-3.5" />
+                    )}
+                    <span>{uploadingLogo ? "Uploading..." : "Upload Logo from Device"}</span>
+                  </button>
+
+                  <div className="flex-1 flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={formData.logoUrl}
+                      onChange={(e) => setFormData({ ...formData, logoUrl: e.target.value })}
+                      className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                      placeholder="Paste image URL or upload above..."
+                    />
+                    {formData.logoUrl && (
+                      <button
+                        type="button"
+                        onClick={() => setFormData({ ...formData, logoUrl: "" })}
+                        className="px-2.5 py-2 text-xs font-bold text-slate-500 hover:text-rose-600 bg-slate-100 rounded-xl transition-colors cursor-pointer"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
                 </div>
-                <p className="text-[11px] text-slate-500 mt-1">
-                  Rendered across top navigation, mobile drawer, footer, and verification certificates.
-                </p>
+
+                {formData.logoUrl ? (
+                  <div className="flex items-center gap-3 p-2.5 bg-slate-50 border border-slate-200 rounded-xl">
+                    <div className="w-10 h-10 rounded-lg bg-white border border-slate-200 p-1 flex items-center justify-center overflow-hidden shrink-0">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={formData.logoUrl} alt="Logo Preview" className="max-w-full max-h-full object-contain" />
+                    </div>
+                    <div className="text-xs">
+                      <p className="font-bold text-slate-800">Current Logo Preview</p>
+                      <p className="text-[10px] text-emerald-600 font-semibold">Active and ready to save</p>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-slate-500">
+                    No custom logo set. The default MOSA gradient shield badge is active across top navigation, mobile drawer, and footer.
+                  </p>
+                )}
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

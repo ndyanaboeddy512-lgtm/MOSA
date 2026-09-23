@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
 import { logAuditEvent } from "@/lib/audit";
@@ -229,6 +230,11 @@ export async function PATCH(req: Request) {
       },
     });
 
+    // Zero-Stale Cache Revalidation
+    revalidatePath("/", "layout");
+    revalidatePath("/admin");
+    revalidatePath("/api/platform/settings");
+
     return NextResponse.json({
       success: true,
       message: "Platform identity & controls successfully updated and audited.",
@@ -274,6 +280,11 @@ export async function POST(req: Request) {
         adminName: auth.user.name,
       },
     });
+
+    // Zero-Stale Cache Revalidation
+    revalidatePath("/", "layout");
+    revalidatePath("/admin");
+    revalidatePath("/api/platform/settings");
 
     return NextResponse.json({
       success: true,

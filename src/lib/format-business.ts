@@ -152,9 +152,9 @@ export function formatBusinessRecord(raw: any): Business {
       recentActivityDate: raw.updatedAt ? new Date(raw.updatedAt).toISOString() : new Date().toISOString(),
     },
     photos: Array.isArray(raw.photos) && raw.photos.length > 0
-      ? raw.photos
-      : (raw.coverImage ? [raw.coverImage] : ["https://images.unsplash.com/photo-1544816155-12df9643f363?w=800&auto=format&fit=crop&q=60"]),
-    coverImage: raw.coverImage || "https://images.unsplash.com/photo-1544816155-12df9643f363?w=800&auto=format&fit=crop&q=60",
+      ? raw.photos.filter((p: string) => !p.includes("photo-1544816155-12df9643f363"))
+      : (raw.coverImage && !raw.coverImage.includes("photo-1544816155-12df9643f363") ? [raw.coverImage] : []),
+    coverImage: raw.coverImage && !raw.coverImage.includes("photo-1544816155-12df9643f363") ? raw.coverImage : null,
     openingHours,
     isOpenNow: typeof raw.isOpenNow === "boolean" ? raw.isOpenNow : true,
     priceRange: raw.priceRange || "LOW",

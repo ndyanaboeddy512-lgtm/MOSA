@@ -49,6 +49,7 @@ import {
 import { LocationCard } from "@/components/discovery/LocationCard";
 import { getGoogleMapsDirectionsUrl } from "@/lib/location-quality";
 import { getBusinessOperatingModel } from "@/lib/taxonomy";
+import { isVideoMedia, isLegacyBagPlaceholder } from "@/lib/media-upload";
 
 export default function BusinessDetailPage({
   params,
@@ -265,13 +266,16 @@ export default function BusinessDetailPage({
     ? "250" + rawWhatsApp.slice(1)
     : (rawWhatsApp.startsWith("250") ? rawWhatsApp : "250" + rawWhatsApp);
 
+  const hasValidCover = Boolean(business.coverImage && !isLegacyBagPlaceholder(business.coverImage));
+  const isCoverVideo = hasValidCover && isVideoMedia(business.coverImage);
+
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "LocalBusiness",
     name: business.name,
     description: business.description,
     telephone: business.phone,
-    image: business.coverImage,
+    image: hasValidCover ? business.coverImage : undefined,
     address: {
       "@type": "PostalAddress",
       streetAddress: business.streetName || business.nearestLandmark || "N/A",
@@ -312,12 +316,35 @@ export default function BusinessDetailPage({
       {/* Hero Profile Banner */}
       <div className="relative rounded-3xl overflow-hidden bg-slate-900 border border-slate-200 shadow-elevated mb-8">
         <div className="h-64 sm:h-80 w-full relative">
-          <img
-            src={business.coverImage}
-            alt={displayName}
-            className="w-full h-full object-cover"
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/40 to-transparent" />
+          {hasValidCover ? (
+            isCoverVideo ? (
+              <video
+                src={business.coverImage!}
+                autoPlay
+                loop
+                muted
+                playsInline
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <img
+                src={business.coverImage!}
+                alt={displayName}
+                className="w-full h-full object-cover"
+              />
+            )
+          ) : (
+            <div className="w-full h-full bg-gradient-to-tr from-slate-950 via-slate-900 to-emerald-950 flex flex-col items-center justify-center text-center p-6 relative overflow-hidden">
+              <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-emerald-600/15 via-transparent to-transparent pointer-events-none" />
+              <div className="relative z-10 w-16 h-16 rounded-3xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center text-white font-extrabold text-3xl shadow-xl mb-3">
+                {displayName ? displayName.charAt(0).toUpperCase() : "M"}
+              </div>
+              <div className="relative z-10 text-xs font-bold text-emerald-300 tracking-wider uppercase bg-emerald-950/60 px-3 py-1 rounded-full border border-emerald-500/30">
+                {(lang === "rw" ? business.classificationPathRw : business.classificationPath) || displayCategory}
+              </div>
+            </div>
+          )}
+          <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/40 to-transparent pointer-events-none" />
         </div>
 
         {/* Floating Profile Info */}

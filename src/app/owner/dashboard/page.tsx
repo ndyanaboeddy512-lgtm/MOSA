@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
 import { useLanguage } from "@/lib/i18n";
 import { useAuth } from "@/lib/auth-context";
+import { processDeviceUpload, isVideoMedia, isLegacyBagPlaceholder } from "@/lib/media-upload";
 import { Business, ProductItem, CommunityDemandSignal, BusinessHours } from "@/types";
 import { VerificationBadge, DataStatusBadge } from "@/components/common/Badge";
 import {
@@ -98,10 +99,23 @@ export default function OwnerDashboardPage() {
   // 7 Core Task-Oriented Business Navigation Sections
   type OwnerSection = "overview" | "my_business" | "catalog" | "content" | "orders_bookings" | "notifications" | "settings";
   const [activeSection, setActiveSection] = useState<OwnerSection>("overview");
-  const [myBusinessSubTab, setMyBusinessSubTab] = useState<"profile" | "location" | "hours">("profile");
+  const [myBusinessSubTab, setMyBusinessSubTab] = useState<"profile" | "cover" | "location" | "hours">("profile");
   const [contentSubTab, setContentSubTab] = useState<"updates" | "opportunities" | "photos" | "videos" | "offers">("updates");
   const [advancedAccordionOpen, setAdvancedAccordionOpen] = useState(false);
   const [advancedSubTab, setAdvancedSubTab] = useState<"operations" | "finance">("operations");
+
+  // Cover Media State
+  const [isUploadingCover, setIsUploadingCover] = useState(false);
+  const [coverUrlInput, setCoverUrlInput] = useState("");
+  const coverFileInputRef = useRef<HTMLInputElement>(null);
+
+  // Photo, Video, and Update File Upload Refs & States
+  const photoFileInputRef = useRef<HTMLInputElement>(null);
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+  const videoFileInputRef = useRef<HTMLInputElement>(null);
+  const [isUploadingVideo, setIsUploadingVideo] = useState(false);
+  const updateFileInputRef = useRef<HTMLInputElement>(null);
+  const [isUploadingUpdate, setIsUploadingUpdate] = useState(false);
 
   // Quick Price Modal State
   const [quickPriceModalOpen, setQuickPriceModalOpen] = useState(false);
@@ -341,6 +355,9 @@ export default function OwnerDashboardPage() {
           setHealthReport(data.health);
           setConfirmationStatus(data.confirmationStatus);
           setReminders(data.reminders || []);
+          if (data.business.coverImage) {
+            setCoverUrlInput(data.business.coverImage);
+          }
 
           // Sync local profile form
           setProfileForm({
@@ -1270,6 +1287,163 @@ export default function OwnerDashboardPage() {
       setTimeout(() => setSaveSuccessMsg(""), 3000);
     } catch (err: any) {
       setErrorMsg(err.message || "Failed to delete media.");
+    }
+  };
+
+  // Business Cover Management Handlers
+  const handleCoverUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !business) return;
+    try {
+      setIsUploadingCover(true);
+      setErrorMsg("");
+      const processed = await processDeviceUpload(file);
+
+      const res = await fetch("/api/owner/business", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          businessId: business.id,
+          coverImage: processed.url,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to update cover media.");
+      }
+
+      // Also register in BusinessMedia as primary cover
+      fetch("/api/owner/media", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          businessId: business.id,
+          mediaType: processed.mediaType === "VIDEO" ? "VIDEO" : "IMAGE",
+          url: processed.url,
+          caption: `${business.name} Cover Media`,
+          isCover: true,
+          topic: "FACILITY",
+        }),
+      }).catch((e) => console.warn("Failed to register BusinessMedia cover:", e));
+
+      setBusiness((prev) => prev ? { ...prev, coverImage: processed.url } : null);
+      setCoverUrlInput(processed.url);
+      setSaveSuccessMsg(
+        lang === "rw"
+          ? (processed.mediaType === "VIDEO" ? "Videwo y'urukuta yashyizweho neza kandi yageze ku rubuga!" : "Ifoto y'urukuta yashyizweho neza kandi yageze ku rubuga!")
+          : (processed.mediaType === "VIDEO" ? "Cover video saved & live on your public page!" : "Cover photo saved & live on your public page!")
+      );
+      setTimeout(() => setSaveSuccessMsg(""), 4000);
+    } catch (err: any) {
+      setErrorMsg(err.message || "Failed to upload cover media.");
+    } finally {
+      setIsUploadingCover(false);
+      if (coverFileInputRef.current) coverFileInputRef.current.value = "";
+    }
+  };
+
+  const handleCoverUrlSave = async (urlToSave: string) => {
+    if (!business || !urlToSave.trim()) return;
+    try {
+      setIsUploadingCover(true);
+      setErrorMsg("");
+      const cleanUrl = urlToSave.trim();
+      const res = await fetch("/api/owner/business", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          businessId: business.id,
+          coverImage: cleanUrl,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to update cover media URL.");
+      }
+      setBusiness((prev) => prev ? { ...prev, coverImage: cleanUrl } : null);
+      setSaveSuccessMsg(
+        lang === "rw" ? "Urukuta rw'ubucuruzi rwavuguruwe neza!" : "Cover media URL updated successfully!"
+      );
+      setTimeout(() => setSaveSuccessMsg(""), 4000);
+    } catch (err: any) {
+      setErrorMsg(err.message || "Failed to update cover media.");
+    } finally {
+      setIsUploadingCover(false);
+    }
+  };
+
+  const handleRemoveCover = async () => {
+    if (!business) return;
+    if (!confirm(lang === "rw" ? "Uremeza ko ushaka gukuraho iyi foto/videwo y'urukuta?" : "Are you sure you want to remove your cover media?")) return;
+    try {
+      setIsUploadingCover(true);
+      const res = await fetch("/api/owner/business", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          businessId: business.id,
+          coverImage: null,
+        }),
+      });
+      if (!res.ok) {
+        throw new Error("Failed to remove cover media.");
+      }
+      setBusiness((prev) => prev ? { ...prev, coverImage: "" } : null);
+      setCoverUrlInput("");
+      setSaveSuccessMsg(lang === "rw" ? "Ifoto/Videwo y'urukuta yakuweho neza." : "Cover media removed successfully.");
+      setTimeout(() => setSaveSuccessMsg(""), 3000);
+    } catch (err: any) {
+      setErrorMsg(err.message || "Failed to remove cover media.");
+    } finally {
+      setIsUploadingCover(false);
+    }
+  };
+
+  // Device upload helpers for modals
+  const handlePhotoDeviceUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      setIsUploadingPhoto(true);
+      setErrorMsg("");
+      const processed = await processDeviceUpload(file);
+      setPhotoForm((prev) => ({ ...prev, url: processed.url }));
+    } catch (err: any) {
+      setErrorMsg(err.message || "Failed to process photo.");
+    } finally {
+      setIsUploadingPhoto(false);
+      if (photoFileInputRef.current) photoFileInputRef.current.value = "";
+    }
+  };
+
+  const handleVideoDeviceUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      setIsUploadingVideo(true);
+      setErrorMsg("");
+      const processed = await processDeviceUpload(file);
+      setVideoForm((prev) => ({ ...prev, url: processed.url }));
+    } catch (err: any) {
+      setErrorMsg(err.message || "Failed to process video.");
+    } finally {
+      setIsUploadingVideo(false);
+      if (videoFileInputRef.current) videoFileInputRef.current.value = "";
+    }
+  };
+
+  const handleUpdateDeviceUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      setIsUploadingUpdate(true);
+      const processed = await processDeviceUpload(file);
+      setUpdateForm((prev) => ({ ...prev, imageUrl: processed.url }));
+    } catch (err: any) {
+      console.error("Failed to process update image:", err);
+    } finally {
+      setIsUploadingUpdate(false);
+      if (updateFileInputRef.current) updateFileInputRef.current.value = "";
     }
   };
 
@@ -2412,6 +2586,7 @@ export default function OwnerDashboardPage() {
           <div className="flex items-center gap-2 border-b border-slate-200 pb-3 overflow-x-auto scrollbar-none">
             {[
               { key: "profile", label: lang === "rw" ? "Umwirondoro & Nimero" : "Profile & Contacts", icon: Store },
+              { key: "cover", label: lang === "rw" ? "Ifoto/Videwo y'Urukuta" : "Cover Media (Photo/Video)", icon: ImageIcon },
               { key: "location", label: lang === "rw" ? "Aho Dukorera & Ikarita" : "Ground Location & Map", icon: MapPin },
               { key: "hours", label: lang === "rw" ? "Amasaha yo Gukora" : "Operating Hours", icon: Clock },
             ].map((sub) => {
@@ -2730,6 +2905,170 @@ export default function OwnerDashboardPage() {
             </button>
           </div>
         </form>
+      )}
+
+      {myBusinessSubTab === "cover" && (
+        <div className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200 shadow-card space-y-6">
+          <div className="border-b border-slate-100 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                <ImageIcon className="w-5 h-5 text-emerald-600" />
+                <span>{lang === "rw" ? "Ifoto cyangwa Videwo y'Urukuta rw'Ubucuruzi" : "Business Cover Media (Photo or Video)"}</span>
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                {lang === "rw" 
+                  ? "Iyi media igaragara hejuru ku rupapuro rw'ubucuruzi bwawe no mu makarita yo gushakisha muri MOSA."
+                  : "This media is prominently displayed as the hero banner on your public mini-website and in discovery cards."}
+              </p>
+            </div>
+            {business?.coverImage && !isLegacyBagPlaceholder(business.coverImage) && (
+              <button
+                type="button"
+                onClick={handleRemoveCover}
+                disabled={isUploadingCover}
+                className="px-3.5 py-2 rounded-xl border border-rose-200 text-rose-600 hover:bg-rose-50 text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors disabled:opacity-50"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>{lang === "rw" ? "Kukuraho Media" : "Remove Cover"}</span>
+              </button>
+            )}
+          </div>
+
+          {/* Cover Live Preview */}
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-2">
+              {lang === "rw" ? "Uko Bihagarara ku Rupapuro rw'Ubucuruzi" : "Live Storefront Banner Preview"}
+            </label>
+            <div className="relative aspect-[21/9] sm:aspect-[3/1] rounded-2xl overflow-hidden bg-slate-950 border border-slate-200 shadow-inner flex items-center justify-center">
+              {business?.coverImage && !isLegacyBagPlaceholder(business.coverImage) ? (
+                isVideoMedia(business.coverImage) ? (
+                  <video
+                    src={business.coverImage}
+                    controls
+                    autoPlay
+                    loop
+                    muted
+                    playsInline
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img
+                    src={business.coverImage}
+                    alt={business.name}
+                    className="w-full h-full object-cover"
+                  />
+                )
+              ) : (
+                /* Clean Neutral Fallback: Slate/Emerald Gradient with Initial & Badges - NO BAG IMAGE */
+                <div className="w-full h-full bg-gradient-to-r from-slate-950 via-slate-900 to-emerald-950 flex flex-col items-center justify-center p-6 text-center text-white relative">
+                  <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#10b981_1px,transparent_1px)] [background-size:16px_16px]" />
+                  <div className="relative z-10 space-y-2">
+                    <div className="w-14 h-14 rounded-2xl bg-emerald-600/30 border border-emerald-500/40 text-emerald-300 font-extrabold text-2xl flex items-center justify-center mx-auto shadow-lg backdrop-blur-xs">
+                      {business?.name ? business.name.charAt(0).toUpperCase() : "M"}
+                    </div>
+                    <p className="text-sm font-bold text-slate-200">
+                      {business?.name || "Your Business Name"}
+                    </p>
+                    <span className="inline-block px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-500/30 text-[11px] font-bold text-emerald-300 uppercase tracking-wider">
+                      Neutral Fallback Active • No Bag Image
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* Status Overlay Badge */}
+              {business?.coverImage && !isLegacyBagPlaceholder(business.coverImage) && (
+                <div className="absolute top-3 right-3 bg-slate-900/85 backdrop-blur-md px-3 py-1 rounded-full text-[11px] font-bold text-white flex items-center gap-1.5 border border-white/10 shadow-md">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>{isVideoMedia(business.coverImage) ? "Cover Video Active (Auto-loop)" : "Cover Photo Active"}</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Upload & Management Controls */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2 border-t border-slate-100">
+            {/* Method A: Device Upload */}
+            <div className="p-5 rounded-2xl bg-emerald-50/50 border border-emerald-100 space-y-3">
+              <div className="flex items-center gap-2">
+                <Upload className="w-4 h-4 text-emerald-700" />
+                <h4 className="font-bold text-xs text-emerald-950 uppercase tracking-wider">
+                  {lang === "rw" ? "Uburyo 1: Shyiraho Dosiye uvanye ku Cyuma cyawe" : "Method 1: Direct Device File Upload"}
+                </h4>
+              </div>
+              <p className="text-xs text-slate-600">
+                {lang === "rw"
+                  ? "Hitamo ifoto cyangwa videwo ngufi (MP4, WebM) muri terefoni cyangwa mudasobwa yawe. Nta link cyangwa URL ikenewe."
+                  : "Choose a photo or short video (MP4, WebM) directly from your phone or computer. Real file upload — no URL required."}
+              </p>
+
+              <input
+                type="file"
+                ref={coverFileInputRef}
+                accept="image/*,video/*"
+                onChange={handleCoverUpload}
+                className="hidden"
+              />
+
+              <button
+                type="button"
+                onClick={() => coverFileInputRef.current?.click()}
+                disabled={isUploadingCover}
+                className="w-full py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-2 cursor-pointer transition-colors shadow-sm disabled:opacity-50"
+              >
+                {isUploadingCover ? (
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Camera className="w-4 h-4" />
+                )}
+                <span>
+                  {isUploadingCover 
+                    ? (lang === "rw" ? "Iri gushyirwaho..." : "Processing & Uploading...") 
+                    : (business?.coverImage 
+                        ? (lang === "rw" ? "Hindura Ifoto / Videwo" : "Replace Cover Photo or Video") 
+                        : (lang === "rw" ? "Hitamo Ifoto / Videwo ku Cyuma" : "Upload Photo or Video from Device"))}
+                </span>
+              </button>
+              <p className="text-[11px] text-slate-400">
+                Photos auto-compressed • Videos up to 20MB supported
+              </p>
+            </div>
+
+            {/* Method B: Direct URL */}
+            <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
+              <div className="flex items-center gap-2">
+                <Globe className="w-4 h-4 text-slate-700" />
+                <h4 className="font-bold text-xs text-slate-800 uppercase tracking-wider">
+                  {lang === "rw" ? "Uburyo 2: Shyiraho URL / Link y'Ifoto cyangwa Videwo" : "Method 2: Media URL (Optional)"}
+                </h4>
+              </div>
+              <p className="text-xs text-slate-600">
+                {lang === "rw"
+                  ? "Niba ufite link y'ifoto cyangwa videwo iri kuri interineti, ushobora kuyandika hano."
+                  : "If you already host your media on Cloudflare, S3, or a CDN, paste the direct link below."}
+              </p>
+
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  placeholder="https://..."
+                  value={coverUrlInput}
+                  onChange={(e) => setCoverUrlInput(e.target.value)}
+                  className="flex-1 px-3 py-2 bg-white rounded-xl border border-slate-300 text-xs font-mono outline-none focus:border-emerald-500"
+                />
+                <button
+                  type="button"
+                  onClick={() => handleCoverUrlSave(coverUrlInput)}
+                  disabled={isUploadingCover || !coverUrlInput.trim()}
+                  className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold cursor-pointer transition-colors disabled:opacity-50"
+                >
+                  {lang === "rw" ? "Bika" : "Save"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       {myBusinessSubTab === "location" && (
@@ -5521,16 +5860,50 @@ export default function OwnerDashboardPage() {
             <form onSubmit={handleAddVideoSubmit} className="space-y-4 mt-4 text-xs">
               <div>
                 <label className="block font-bold text-slate-700 mb-1">
-                  Video URL (Direct MP4, Cloudflare Stream, or Hosted Stream)
+                  {lang === "rw" ? "Hitamo Videwo (Ku Cyuma cyangwa URL)" : "Select Video (From Device or URL)"}
                 </label>
+
                 <input
-                  type="url"
-                  required
-                  placeholder="https://assets.mosa.rw/videos/sample.mp4"
-                  value={videoForm.url}
-                  onChange={(e) => setVideoForm({ ...videoForm, url: e.target.value })}
-                  className="w-full p-2.5 bg-slate-50 rounded-xl border border-slate-300 font-mono text-xs outline-none"
+                  type="file"
+                  ref={videoFileInputRef}
+                  accept="video/*"
+                  onChange={handleVideoDeviceUpload}
+                  className="hidden"
                 />
+
+                <div className="flex items-center gap-2 mb-2">
+                  <button
+                    type="button"
+                    onClick={() => videoFileInputRef.current?.click()}
+                    disabled={isUploadingVideo}
+                    className="flex-1 py-2 px-3 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-bold flex items-center justify-center gap-2 cursor-pointer transition-colors shadow-xs disabled:opacity-50"
+                  >
+                    {isUploadingVideo ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Video className="w-3.5 h-3.5" />}
+                    <span>{isUploadingVideo ? "Processing Video..." : "Choose from Device"}</span>
+                  </button>
+
+                  <input
+                    type="text"
+                    placeholder="Or paste video URL..."
+                    value={videoForm.url}
+                    onChange={(e) => setVideoForm({ ...videoForm, url: e.target.value })}
+                    className="flex-1 p-2 bg-slate-50 rounded-xl border border-slate-300 font-mono text-xs outline-none"
+                  />
+                </div>
+
+                {videoForm.url && (
+                  <div className="relative aspect-video rounded-xl overflow-hidden bg-black border border-slate-700 mt-2">
+                    <video src={videoForm.url} controls className="w-full h-full object-contain" />
+                    <button
+                      type="button"
+                      onClick={() => setVideoForm({ ...videoForm, url: "" })}
+                      className="absolute top-2 right-2 bg-slate-900/80 hover:bg-rose-600 text-white p-1 rounded-lg cursor-pointer transition-colors"
+                      title="Clear video"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
               </div>
 
               <div>
@@ -5629,15 +6002,52 @@ export default function OwnerDashboardPage() {
 
             <form onSubmit={handleAddPhotoSubmit} className="space-y-4 mt-4 text-xs">
               <div>
-                <label className="block font-bold text-slate-700 mb-1">Photo URL</label>
+                <label className="block font-bold text-slate-700 mb-1">
+                  {lang === "rw" ? "Hitamo Ifoto (Ku Cyuma cyangwa URL)" : "Select Photo (From Device or URL)"}
+                </label>
+                
                 <input
-                  type="url"
-                  required
-                  placeholder="https://images.unsplash.com/..."
-                  value={photoForm.url}
-                  onChange={(e) => setPhotoForm({ ...photoForm, url: e.target.value })}
-                  className="w-full p-2.5 bg-slate-50 rounded-xl border border-slate-300 text-xs outline-none"
+                  type="file"
+                  ref={photoFileInputRef}
+                  accept="image/*"
+                  onChange={handlePhotoDeviceUpload}
+                  className="hidden"
                 />
+
+                <div className="flex items-center gap-2 mb-2">
+                  <button
+                    type="button"
+                    onClick={() => photoFileInputRef.current?.click()}
+                    disabled={isUploadingPhoto}
+                    className="flex-1 py-2 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold flex items-center justify-center gap-2 cursor-pointer transition-colors shadow-xs disabled:opacity-50"
+                  >
+                    {isUploadingPhoto ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
+                    <span>{isUploadingPhoto ? "Processing..." : "Choose from Device"}</span>
+                  </button>
+
+                  <input
+                    type="text"
+                    placeholder="Or paste image URL..."
+                    value={photoForm.url}
+                    onChange={(e) => setPhotoForm({ ...photoForm, url: e.target.value })}
+                    className="flex-1 p-2 bg-slate-50 rounded-xl border border-slate-300 text-xs outline-none"
+                  />
+                </div>
+
+                {photoForm.url && (
+                  <div className="relative aspect-video rounded-xl overflow-hidden bg-slate-900 border border-slate-200 mt-2">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={photoForm.url} alt="Photo Preview" className="w-full h-full object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => setPhotoForm({ ...photoForm, url: "" })}
+                      className="absolute top-2 right-2 bg-slate-900/80 hover:bg-rose-600 text-white p-1 rounded-lg cursor-pointer transition-colors"
+                      title="Clear photo"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
               </div>
 
               <div>
@@ -5854,15 +6264,51 @@ export default function OwnerDashboardPage() {
 
                 <div>
                   <label className="block font-bold text-slate-700 mb-1">
-                    {lang === "rw" ? "Ifoto y'Itangazo (URL)" : "Image URL (Optional)"}
+                    {lang === "rw" ? "Ifoto y'Itangazo" : "Update Image (Optional)"}
                   </label>
+                  
                   <input
-                    type="url"
-                    placeholder="https://..."
-                    value={updateForm.imageUrl}
-                    onChange={(e) => setUpdateForm({ ...updateForm, imageUrl: e.target.value })}
-                    className="w-full p-2.5 bg-slate-50 rounded-xl border border-slate-300 outline-none"
+                    type="file"
+                    ref={updateFileInputRef}
+                    accept="image/*"
+                    onChange={handleUpdateDeviceUpload}
+                    className="hidden"
                   />
+
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => updateFileInputRef.current?.click()}
+                      disabled={isUploadingUpdate}
+                      className="py-2 px-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold flex items-center justify-center gap-1.5 cursor-pointer transition-colors text-[11px] disabled:opacity-50 shrink-0"
+                    >
+                      {isUploadingUpdate ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
+                      <span>{isUploadingUpdate ? "Uploading..." : "From Device"}</span>
+                    </button>
+
+                    <input
+                      type="text"
+                      placeholder="Or paste URL..."
+                      value={updateForm.imageUrl}
+                      onChange={(e) => setUpdateForm({ ...updateForm, imageUrl: e.target.value })}
+                      className="flex-1 p-2 bg-slate-50 rounded-xl border border-slate-300 text-xs outline-none"
+                    />
+                  </div>
+
+                  {updateForm.imageUrl && (
+                    <div className="relative aspect-video max-h-24 rounded-lg overflow-hidden bg-slate-900 border border-slate-200 mt-2">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={updateForm.imageUrl} alt="Update Preview" className="w-full h-full object-cover" />
+                      <button
+                        type="button"
+                        onClick={() => setUpdateForm({ ...updateForm, imageUrl: "" })}
+                        className="absolute top-1 right-1 bg-slate-900/80 hover:bg-rose-600 text-white p-1 rounded-md cursor-pointer transition-colors"
+                        title="Clear image"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
 

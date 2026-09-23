@@ -7,6 +7,8 @@ import { useLanguage } from "@/lib/i18n";
 import { VerificationBadge, DataStatusBadge } from "@/components/common/Badge";
 import { MapPin, Phone, MessageCircle, Clock, ChevronRight, Tag } from "lucide-react";
 
+import { isVideoMedia, isLegacyBagPlaceholder } from "@/lib/media-upload";
+
 interface BusinessCardProps {
   business: Business;
 }
@@ -27,17 +29,42 @@ export function BusinessCard({ business }: BusinessCardProps) {
   const displayCategory = lang === "rw" && business.categoryDisplayRw ? business.categoryDisplayRw : business.categoryDisplay;
   const locationLabel = (business as any).localArea?.name || (business as any).addressNote || (business as any).cell || (business as any).sector || "Rwanda";
 
+  const hasValidCover = Boolean(business.coverImage && !isLegacyBagPlaceholder(business.coverImage));
+  const isVideo = hasValidCover && isVideoMedia(business.coverImage);
+
   return (
     <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-card hover:shadow-elevated transition-all duration-200 flex flex-col group">
-      {/* Cover Image & Status Badges */}
-      <div className="relative h-44 w-full bg-slate-100 overflow-hidden">
-        <img
-          src={business.coverImage || "https://images.unsplash.com/photo-1544816155-12df9643f363?w=800&auto=format&fit=crop&q=60"}
-          alt={displayName}
-          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-          loading="lazy"
-        />
-        <div className="absolute inset-0 bg-gradient-to-t from-slate-900/60 via-transparent to-transparent" />
+      {/* Cover Media & Status Badges */}
+      <div className="relative h-44 w-full bg-slate-900 overflow-hidden">
+        {hasValidCover ? (
+          isVideo ? (
+            <video
+              src={business.coverImage!}
+              autoPlay
+              loop
+              muted
+              playsInline
+              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+            />
+          ) : (
+            <img
+              src={business.coverImage!}
+              alt={displayName}
+              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+              loading="lazy"
+            />
+          )
+        ) : (
+          <div className="w-full h-full bg-gradient-to-tr from-slate-900 via-slate-800 to-emerald-950 flex flex-col items-center justify-center text-center p-4">
+            <div className="w-12 h-12 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center text-white font-extrabold text-xl shadow-inner mb-1">
+              {displayName ? displayName.charAt(0).toUpperCase() : "M"}
+            </div>
+            <span className="text-[10px] font-bold text-emerald-300/90 tracking-wider uppercase">
+              {displayCategory}
+            </span>
+          </div>
+        )}
+        <div className="absolute inset-0 bg-gradient-to-t from-slate-900/60 via-transparent to-transparent pointer-events-none" />
 
         {/* Top Badges */}
         <div className="absolute top-3 left-3 right-3 flex items-center justify-between gap-1 flex-wrap">

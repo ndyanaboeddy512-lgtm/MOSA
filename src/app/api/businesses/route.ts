@@ -419,7 +419,7 @@ export async function POST(request: Request) {
         priceRange,
         priceRangeMin: priceRangeMin ? Number(priceRangeMin) : null,
         priceRangeMax: priceRangeMax ? Number(priceRangeMax) : null,
-        coverImage: coverImage || "https://images.unsplash.com/photo-1544816155-12df9643f363?w=800&auto=format&fit=crop&q=60",
+        coverImage: coverImage ? coverImage.trim() : null,
         agentId: user?.id || null,
         provinceId: resolvedProvinceId || null,
         districtId: resolvedDistrictId || null,

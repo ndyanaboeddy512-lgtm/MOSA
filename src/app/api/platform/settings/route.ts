@@ -51,7 +51,8 @@ export async function GET() {
     if (settings) {
       return NextResponse.json(settings, {
         headers: {
-          "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300",
+          "Cache-Control": "no-cache, no-store, must-revalidate",
+          "Pragma": "no-cache",
         },
       });
     }

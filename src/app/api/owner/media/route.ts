@@ -99,8 +99,8 @@ export async function POST(request: Request) {
     }
 
     const cleanUrl = typeof url === "string" ? url.trim() : "";
-    if (!cleanUrl.startsWith("http://") && !cleanUrl.startsWith("https://") && !cleanUrl.startsWith("/")) {
-      return NextResponse.json({ error: "Invalid URL scheme. Must be http://, https://, or a valid path." }, { status: 400 });
+    if (!cleanUrl.startsWith("http://") && !cleanUrl.startsWith("https://") && !cleanUrl.startsWith("/") && !cleanUrl.startsWith("data:")) {
+      return NextResponse.json({ error: "Invalid URL scheme. Must be http://, https://, a valid path, or an uploaded data URL." }, { status: 400 });
     }
 
     const business = await prisma.business.findUnique({
@@ -119,35 +119,40 @@ export async function POST(request: Request) {
     // -------------------------------------------------------------------------
     // SHORT VIDEO VERIFICATION & COMMERCE INTEGRITY GATE
     // -------------------------------------------------------------------------
+    let finalTopic = topic;
     if (mediaType === "VIDEO") {
-      const isVerified = VERIFIED_STATUSES.includes(business.verificationStatus);
-      if (!isVerified && auth.user.role !== Role.SUPER_ADMIN) {
-        return NextResponse.json(
-          {
-            error: "Short video publishing requires verified business status. Please complete verification first to unlock video showcases on your mini-website.",
-            code: "VERIFICATION_REQUIRED",
-          },
-          { status: 403 }
-        );
-      }
+      if (isCover) {
+        if (!finalTopic) finalTopic = "FACILITY";
+      } else {
+        const isVerified = VERIFIED_STATUSES.includes(business.verificationStatus);
+        if (!isVerified && auth.user.role !== Role.SUPER_ADMIN) {
+          return NextResponse.json(
+            {
+              error: "Short video publishing requires verified business status. Please complete verification first to unlock video showcases on your mini-website.",
+              code: "VERIFICATION_REQUIRED",
+            },
+            { status: 403 }
+          );
+        }
 
-      // Ensure duration does not exceed short video limit (60s)
-      const duration = Number(durationSec) || 0;
-      if (duration > 60) {
-        return NextResponse.json(
-          { error: "Short business videos must be 60 seconds or less." },
-          { status: 400 }
-        );
-      }
+        // Ensure duration does not exceed short video limit (60s)
+        const duration = Number(durationSec) || 0;
+        if (duration > 60) {
+          return NextResponse.json(
+            { error: "Short business videos must be 60 seconds or less." },
+            { status: 400 }
+          );
+        }
 
-      // Enforce legitimate commercial topic to keep MOSA focused on business
-      if (!topic || !VALID_VIDEO_TOPICS.includes(topic)) {
-        return NextResponse.json(
-          {
-            error: `A valid business topic is required for videos: ${VALID_VIDEO_TOPICS.join(", ")}. MOSA showcases authentic commerce and craftsmanship.`,
-          },
-          { status: 400 }
-        );
+        // Enforce legitimate commercial topic to keep MOSA focused on business
+        if (!finalTopic || !VALID_VIDEO_TOPICS.includes(finalTopic)) {
+          return NextResponse.json(
+            {
+              error: `A valid business topic is required for videos: ${VALID_VIDEO_TOPICS.join(", ")}. MOSA showcases authentic commerce and craftsmanship.`,
+            },
+            { status: 400 }
+          );
+        }
       }
     }
 
@@ -177,7 +182,7 @@ export async function POST(request: Request) {
           mediaType,
           durationSec: mediaType === "VIDEO" ? (Number(durationSec) || 30) : null,
           thumbnailUrl: thumbnailUrl?.trim() || null,
-          topic: mediaType === "VIDEO" ? topic : null,
+          topic: mediaType === "VIDEO" ? finalTopic : null,
           moderationStatus: "APPROVED",
         },
       });

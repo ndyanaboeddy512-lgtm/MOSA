@@ -199,7 +199,7 @@ export async function POST(request: Request) {
           districtId: resolvedDistrictId,
           sectorId: resolvedSectorId,
           cellId: resolvedCellId,
-          coverImage: body.coverImage || "https://images.unsplash.com/photo-1544816155-12df9643f363?w=800&auto=format&fit=crop&q=60",
+          coverImage: body.coverImage ? body.coverImage.trim() : null,
         },
       });
 
