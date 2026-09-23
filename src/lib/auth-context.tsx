@@ -77,9 +77,9 @@ interface AuthContextType {
   user: UserSession | null;
   switchDemoRole: (role: Role) => Promise<void>;
   loginWithPhone: (phone: string, role?: Role) => Promise<{ success: boolean; otp: string }>;
-  loginWithPassword: (phone: string, password: string) => Promise<{ success: boolean; error?: string }>;
-  register: (data: { phone: string; password: string; name: string; role?: Role; community?: string }) => Promise<{ success: boolean; error?: string }>;
-  verifyOtp: (code: string) => Promise<boolean>;
+  loginWithPassword: (phone: string, password: string) => Promise<{ success: boolean; user?: UserSession; error?: string }>;
+  register: (data: { phone: string; password: string; name: string; role?: Role; community?: string }) => Promise<{ success: boolean; user?: UserSession; error?: string }>;
+  verifyOtp: (code: string) => Promise<{ success: boolean; user?: UserSession }>;
   logout: () => Promise<void>;
   isAuthenticated: boolean;
 }
@@ -90,7 +90,7 @@ const AuthContext = createContext<AuthContextType>({
   loginWithPhone: async () => ({ success: true, otp: "1234" }),
   loginWithPassword: async () => ({ success: false, error: "Not implemented" }),
   register: async () => ({ success: false, error: "Not implemented" }),
-  verifyOtp: async () => true,
+  verifyOtp: async () => ({ success: true }),
   logout: async () => {},
   isAuthenticated: false,
 });
@@ -193,7 +193,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const verifyOtp = async (code: string): Promise<boolean> => {
+  const verifyOtp = async (code: string): Promise<{ success: boolean; user?: UserSession }> => {
     try {
       const res = await fetch("/api/auth/otp", {
         method: "POST",
@@ -209,7 +209,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (data.user) {
           setUser(data.user);
           localStorage.setItem("mosa_user_session", JSON.stringify(data.user));
-          return true;
+          return { success: true, user: data.user };
         }
       }
     } catch (err) {
@@ -232,12 +232,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (typeof window !== "undefined") {
         localStorage.setItem("mosa_user_session", JSON.stringify(session));
       }
-      return true;
+      return { success: true, user: session };
     }
-    return false;
+    return { success: false };
   };
 
-  const loginWithPassword = async (phone: string, password: string): Promise<{ success: boolean; error?: string }> => {
+  const loginWithPassword = async (phone: string, password: string): Promise<{ success: boolean; user?: UserSession; error?: string }> => {
     try {
       const res = await fetch("/api/auth/login", {
         method: "POST",
@@ -254,13 +254,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           localStorage.setItem("mosa_user_session", JSON.stringify(data.user));
         }
       }
-      return { success: true };
+      return { success: true, user: data.user };
     } catch (err: any) {
       return { success: false, error: err.message || "Network error during login" };
     }
   };
 
-  const register = async (payload: { phone: string; password: string; name: string; role?: Role; community?: string }): Promise<{ success: boolean; error?: string }> => {
+  const register = async (payload: { phone: string; password: string; name: string; role?: Role; community?: string }): Promise<{ success: boolean; user?: UserSession; error?: string }> => {
     try {
       const res = await fetch("/api/auth/register", {
         method: "POST",
@@ -277,7 +277,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           localStorage.setItem("mosa_user_session", JSON.stringify(data.user));
         }
       }
-      return { success: true };
+      return { success: true, user: data.user };
     } catch (err: any) {
       return { success: false, error: err.message || "Network error during registration" };
     }

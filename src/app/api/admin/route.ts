@@ -15,6 +15,7 @@ export async function GET() {
   }
 
   try {
+    // Batch 1: Key Metric Aggregations & Geographic Counts
     const [
       totalBusinesses,
       verifiedCount,
@@ -32,15 +33,7 @@ export async function GET() {
       totalLocalAreas,
       totalProducts,
       estimatedProductsCount,
-      recentAuditLogs,
-      businesses,
-      captures,
-      reports,
-      demands,
       pendingClaimsCount,
-      claims,
-      smsMessages,
-      changeHistories,
       flaggedMediaCount,
       flaggedProductsCount,
       businessesRequiringReviewCount,
@@ -61,6 +54,23 @@ export async function GET() {
       prisma.localArea.count(),
       prisma.product.count(),
       prisma.product.count({ where: { isEstimated: true } }),
+      prisma.businessClaim.count({ where: { status: "PENDING" } }),
+      prisma.businessMedia.count({ where: { moderationStatus: { in: ["FLAGGED", "REMOVED"] } } }),
+      prisma.product.count({ where: { moderationStatus: { in: ["FLAGGED", "REMOVED"] } } }),
+      prisma.business.count({ where: { status: { in: ["PENDING", "NEEDS_CORRECTION"] } } }),
+    ]);
+
+    // Batch 2: Entity Lists & Workflows
+    const [
+      recentAuditLogs,
+      businesses,
+      captures,
+      reports,
+      demands,
+      claims,
+      smsMessages,
+      changeHistories,
+    ] = await Promise.all([
       prisma.auditLog.findMany({
         take: 30,
         orderBy: { createdAt: "desc" },
@@ -97,7 +107,6 @@ export async function GET() {
         take: 20,
         orderBy: { searchCount: "desc" },
       }),
-      prisma.businessClaim.count({ where: { status: "PENDING" } }),
       prisma.businessClaim.findMany({
         take: 40,
         orderBy: { claimedAt: "desc" },
@@ -122,9 +131,6 @@ export async function GET() {
           product: { select: { name: true } },
         },
       }),
-      prisma.businessMedia.count({ where: { moderationStatus: { in: ["FLAGGED", "REMOVED"] } } }),
-      prisma.product.count({ where: { moderationStatus: { in: ["FLAGGED", "REMOVED"] } } }),
-      prisma.business.count({ where: { status: { in: ["PENDING", "NEEDS_CORRECTION"] } } }),
     ]);
 
     // Duplicate detection analysis across businesses

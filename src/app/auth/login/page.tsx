@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useLanguage } from "@/lib/i18n";
 import { useAuth } from "@/lib/auth-context";
 import { Role } from "@/types";
@@ -9,8 +9,12 @@ import { Phone, Lock, User, Sparkles, ArrowRight, CheckCircle2, ShieldCheck } fr
 
 type AuthTab = "password" | "sms" | "register";
 
-export default function LoginPage() {
+function LoginContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirectParam = searchParams.get("redirect");
+  const reasonParam = searchParams.get("reason");
+
   const { lang, t } = useLanguage();
   const { switchDemoRole, loginWithPhone, loginWithPassword, register, verifyOtp } = useAuth();
 
@@ -36,11 +40,40 @@ export default function LoginPage() {
   const [regRole, setRegRole] = useState<Role>("BUSINESS_OWNER");
   const [regCommunity, setRegCommunity] = useState("Biryogo");
 
-  const redirectByRole = (role?: string) => {
-    if (role === "BUSINESS_OWNER") router.push("/owner/dashboard");
-    else if (role === "COMMUNITY_AGENT") router.push("/agent/dashboard");
-    else if (role === "SUPER_ADMIN") router.push("/admin");
-    else router.push("/");
+  const navigateAfterAuth = (userRole?: string) => {
+    // If a redirect parameter was provided, respect it for permitted roles
+    if (redirectParam) {
+      if (redirectParam.startsWith("/admin")) {
+        if (userRole === "SUPER_ADMIN" || userRole === "COMMUNITY_ADMIN" || userRole === "MODERATOR") {
+          router.push(redirectParam);
+          return;
+        }
+      } else if (redirectParam.startsWith("/owner")) {
+        if (userRole === "BUSINESS_OWNER" || userRole === "SUPER_ADMIN") {
+          router.push(redirectParam);
+          return;
+        }
+      } else if (redirectParam.startsWith("/agent")) {
+        if (userRole === "COMMUNITY_AGENT" || userRole === "SUPER_ADMIN") {
+          router.push(redirectParam);
+          return;
+        }
+      } else if (!redirectParam.startsWith("/api/")) {
+        router.push(redirectParam);
+        return;
+      }
+    }
+
+    // Role-based destination
+    if (userRole === "SUPER_ADMIN" || userRole === "COMMUNITY_ADMIN" || userRole === "MODERATOR") {
+      router.push("/admin");
+    } else if (userRole === "BUSINESS_OWNER") {
+      router.push("/owner/dashboard");
+    } else if (userRole === "COMMUNITY_AGENT") {
+      router.push("/agent/dashboard");
+    } else {
+      router.push("/");
+    }
   };
 
   const handlePasswordLogin = async (e: React.FormEvent) => {
@@ -54,7 +87,7 @@ export default function LoginPage() {
       if (res.success) {
         setSuccessMsg(t.auth.successLogin);
         setTimeout(() => {
-          redirectByRole();
+          navigateAfterAuth(res.user?.role);
         }, 600);
       } else {
         setErrorMsg(res.error || "Invalid phone or password");
@@ -84,9 +117,9 @@ export default function LoginPage() {
     setErrorMsg("");
     setLoading(true);
     try {
-      const ok = await verifyOtp(otp);
-      if (ok) {
-        redirectByRole();
+      const res = await verifyOtp(otp);
+      if (res.success) {
+        navigateAfterAuth(res.user?.role);
       } else {
         setErrorMsg(t.auth.invalidCode);
       }
@@ -119,7 +152,7 @@ export default function LoginPage() {
       if (res.success) {
         setSuccessMsg(t.auth.successRegister);
         setTimeout(() => {
-          redirectByRole(regRole);
+          navigateAfterAuth(res.user?.role || regRole);
         }, 800);
       } else {
         setErrorMsg(res.error || "Registration failed");
@@ -131,7 +164,7 @@ export default function LoginPage() {
 
   const handleQuickDemoRole = (role: Role) => {
     switchDemoRole(role);
-    redirectByRole(role);
+    navigateAfterAuth(role);
   };
 
   return (
@@ -151,6 +184,23 @@ export default function LoginPage() {
 
       {/* Main Container */}
       <div className="bg-white rounded-3xl p-5 sm:p-7 border border-slate-200 shadow-card space-y-5">
+        {/* Admin Access Notice */}
+        {(redirectParam?.startsWith("/admin") || reasonParam === "admin_required") && (
+          <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200 text-xs text-amber-900 flex items-start gap-2.5">
+            <ShieldCheck className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+            <div>
+              <span className="font-bold block">
+                {lang === "rw" ? "Ubuyobozi Bukuru Busabwa" : "Admin Command Center Authentication"}
+              </span>
+              <span>
+                {lang === "rw"
+                  ? "Injira ukoresheje konti y'ubuyobozi kugira ngo ugere mu buyobozi bukuru bwa MOSA."
+                  : "Please sign in with administrator credentials to enter the MOSA Command Center."}
+              </span>
+            </div>
+          </div>
+        )}
+
         {/* Navigation Tabs */}
         <div className="grid grid-cols-3 gap-1 p-1 bg-slate-100 rounded-2xl text-xs font-bold text-center">
           <button
@@ -447,5 +497,13 @@ export default function LoginPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <React.Suspense fallback={<div className="max-w-md mx-auto px-4 py-14 text-center text-sm text-slate-500">Loading...</div>}>
+      <LoginContent />
+    </React.Suspense>
   );
 }

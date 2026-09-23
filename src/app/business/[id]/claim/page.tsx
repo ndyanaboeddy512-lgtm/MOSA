@@ -58,8 +58,8 @@ export default function BusinessClaimPage({ params }: { params: Promise<{ id: st
 
   const handleOtpSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const ok = await verifyOtp(otpCode);
-    if (ok) {
+    const res = await verifyOtp(otpCode);
+    if (res.success) {
       // Sync claim to Neon PostgreSQL via official claims API
       try {
         await fetch("/api/claims", {

@@ -42,7 +42,10 @@ export async function middleware(request: NextRequest) {
         if (pathname.startsWith("/api/")) {
           return NextResponse.json({ error: "Forbidden: administrator privileges required" }, { status: 403 });
         }
-        return NextResponse.redirect(new URL("/", request.url));
+        const loginUrl = new URL("/auth/login", request.url);
+        loginUrl.searchParams.set("redirect", pathname);
+        loginUrl.searchParams.set("reason", "admin_required");
+        return NextResponse.redirect(loginUrl);
       }
     }
 
@@ -52,7 +55,10 @@ export async function middleware(request: NextRequest) {
         if (pathname.startsWith("/api/")) {
           return NextResponse.json({ error: "Forbidden: community agent privileges required" }, { status: 403 });
         }
-        return NextResponse.redirect(new URL("/", request.url));
+        const loginUrl = new URL("/auth/login", request.url);
+        loginUrl.searchParams.set("redirect", pathname);
+        loginUrl.searchParams.set("reason", "agent_required");
+        return NextResponse.redirect(loginUrl);
       }
     }
 
@@ -62,7 +68,10 @@ export async function middleware(request: NextRequest) {
         if (pathname.startsWith("/api/")) {
           return NextResponse.json({ error: "Forbidden: business proprietor privileges required" }, { status: 403 });
         }
-        return NextResponse.redirect(new URL("/", request.url));
+        const loginUrl = new URL("/auth/login", request.url);
+        loginUrl.searchParams.set("redirect", pathname);
+        loginUrl.searchParams.set("reason", "owner_required");
+        return NextResponse.redirect(loginUrl);
       }
     }
 
