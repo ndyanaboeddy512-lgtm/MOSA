@@ -7,7 +7,7 @@ import { logAuditEvent } from "@/lib/audit";
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { token, phone, otp, newPassword, confirmPassword } = body;
+    const { token, email, phone, identifier, otp, newPassword, confirmPassword } = body;
 
     if (!newPassword) {
       return NextResponse.json({ error: "New password is required" }, { status: 400 });
@@ -22,10 +22,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: strength.error || "Password does not meet strength requirements" }, { status: 400 });
     }
 
-    let user = null;
+    let user: any = null;
+    let resetMethod = "EMAIL_CODE";
 
-    // Method 1: Token-based reset (Email)
+    // Method 1: Token-based reset (Email Link)
     if (token && typeof token === "string") {
+      resetMethod = "EMAIL_TOKEN";
       user = await prisma.user.findFirst({
         where: {
           resetPasswordToken: token,
@@ -40,12 +42,30 @@ export async function POST(request: Request) {
         );
       }
     } 
-    // Method 2: OTP-based reset (Phone)
-    else if (phone && otp) {
-      const norm = normalizeRwandaPhone(phone);
-      const targetPhone = norm.isValid && norm.e164 ? norm.e164 : phone.trim();
+    // Method 2: OTP-based reset (Email Verification Code)
+    else if (otp) {
+      resetMethod = "EMAIL_CODE";
+      const rawId = (email || identifier || phone || "").trim();
+      if (!rawId) {
+        return NextResponse.json(
+          { error: "Registered email address is required alongside verification code." },
+          { status: 400 }
+        );
+      }
 
-      const isValidOtp = await verifyOtpCode(targetPhone, otp.trim());
+      let isValidOtp = false;
+      const cleanEmail = rawId.toLowerCase();
+
+      // Check OTP against email
+      isValidOtp = await verifyOtpCode(cleanEmail, otp.trim());
+
+      // If rawId is phone, also check against normalized phone
+      if (!isValidOtp && !rawId.includes("@")) {
+        const norm = normalizeRwandaPhone(rawId);
+        const targetPhone = norm.isValid && norm.e164 ? norm.e164 : rawId;
+        isValidOtp = await verifyOtpCode(targetPhone, otp.trim());
+      }
+
       if (!isValidOtp) {
         return NextResponse.json(
           { error: "Invalid or expired verification code." },
@@ -53,29 +73,30 @@ export async function POST(request: Request) {
         );
       }
 
+      // Find user by email or phone
       user = await prisma.user.findFirst({
         where: {
           OR: [
-            { phone: targetPhone },
-            ...(norm.e164 ? [{ phone: norm.e164 }] : []),
+            { email: cleanEmail },
+            { phone: rawId },
           ],
         },
       });
 
       if (!user) {
         return NextResponse.json(
-          { error: "Account not found for this phone number." },
+          { error: "User account matching this identifier could not be located." },
           { status: 404 }
         );
       }
     } else {
       return NextResponse.json(
-        { error: "A valid reset token or phone verification code is required." },
+        { error: "A valid email reset token or verification code is required." },
         { status: 400 }
       );
     }
 
-    // Hash password with bcrypt (cost factor 10) - NEVER STORE PLAINTEXT
+    // Hash password with bcrypt - NEVER STORE PLAINTEXT
     const passwordHash = await hashPassword(newPassword);
 
     await prisma.$transaction(async (tx) => {
@@ -104,7 +125,7 @@ export async function POST(request: Request) {
           metadata: JSON.stringify({
             userId: user.id,
             role: user.role,
-            resetMethod: token ? "EMAIL_TOKEN" : "SMS_OTP",
+            resetMethod,
           }),
         },
       });
@@ -113,7 +134,6 @@ export async function POST(request: Request) {
     return NextResponse.json({
       success: true,
       message: "Password reset successfully. You can now log in with your new password.",
-      phone: user.phone,
       email: user.email,
     });
   } catch (error) {

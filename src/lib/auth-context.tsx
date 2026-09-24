@@ -76,10 +76,11 @@ export const DEMO_USERS: Record<Role, DemoUser> = {
 interface AuthContextType {
   user: UserSession | null;
   switchDemoRole: (role: Role) => Promise<void>;
-  loginWithPhone: (phone: string, role?: Role) => Promise<{ success: boolean; otp: string }>;
+  loginWithPhone: (phone: string, role?: Role) => Promise<{ success: boolean; otp?: string; error?: string }>;
+  loginWithEmail: (email: string, role?: Role) => Promise<{ success: boolean; error?: string }>;
   loginWithPassword: (identifier: string, password: string, rememberMe?: boolean) => Promise<{ success: boolean; user?: UserSession; error?: string }>;
-  register: (data: { phone: string; password: string; name: string; role?: Role; community?: string }) => Promise<{ success: boolean; user?: UserSession; error?: string }>;
-  verifyOtp: (code: string) => Promise<{ success: boolean; user?: UserSession }>;
+  register: (data: { phone: string; email?: string; password: string; name: string; role?: Role; community?: string }) => Promise<{ success: boolean; user?: UserSession; error?: string }>;
+  verifyOtp: (code: string, identifier?: string) => Promise<{ success: boolean; user?: UserSession; error?: string }>;
   logout: () => Promise<void>;
   isAuthenticated: boolean;
 }
@@ -87,7 +88,8 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType>({
   user: null,
   switchDemoRole: async () => {},
-  loginWithPhone: async () => ({ success: true, otp: "1234" }),
+  loginWithPhone: async () => ({ success: true }),
+  loginWithEmail: async () => ({ success: true }),
   loginWithPassword: async () => ({ success: false, error: "Not implemented" }),
   register: async () => ({ success: false, error: "Not implemented" }),
   verifyOtp: async () => ({ success: true }),
@@ -98,6 +100,7 @@ const AuthContext = createContext<AuthContextType>({
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserSession | null>(null);
   const [pendingPhone, setPendingPhone] = useState<string | null>(null);
+  const [pendingEmail, setPendingEmail] = useState<string | null>(null);
   const [expectedOtp, setExpectedOtp] = useState<string>("7294");
 
   useEffect(() => {
@@ -173,68 +176,56 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const loginWithPhone = async (phone: string, role: Role = "CUSTOMER") => {
-    setPendingPhone(phone);
+  const loginWithEmail = async (email: string, role: Role = "CUSTOMER") => {
+    setPendingEmail(email.trim().toLowerCase());
 
     try {
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone, role }),
+        body: JSON.stringify({ email: email.trim().toLowerCase(), role }),
       });
       const data = await res.json();
-      const code = data.code || "7294";
-      setExpectedOtp(code);
-      return { success: true, otp: code };
+      if (!res.ok) {
+        return { success: false, error: data.error || "Failed to dispatch verification email" };
+      }
+      return { success: true };
     } catch {
-      const mockOtp = "7294";
-      setExpectedOtp(mockOtp);
-      return { success: true, otp: mockOtp };
+      return { success: false, error: "Network error connecting to verification service" };
     }
   };
 
-  const verifyOtp = async (code: string): Promise<{ success: boolean; user?: UserSession }> => {
+  const loginWithPhone = async (phone: string, role: Role = "CUSTOMER") => {
+    setPendingPhone(phone);
+    return loginWithEmail(phone, role);
+  };
+
+  const verifyOtp = async (code: string, identifier?: string): Promise<{ success: boolean; user?: UserSession; error?: string }> => {
+    const targetIdentifier = (identifier || pendingEmail || pendingPhone || "").trim();
+
     try {
       const res = await fetch("/api/auth/otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          phone: pendingPhone || "+250788999888",
+          email: targetIdentifier.includes("@") ? targetIdentifier : undefined,
+          phone: !targetIdentifier.includes("@") ? targetIdentifier : undefined,
+          identifier: targetIdentifier,
           code,
         }),
       });
 
-      if (res.ok) {
-        const data = await res.json();
-        if (data.user) {
-          setUser(data.user);
-          localStorage.setItem("mosa_user_session", JSON.stringify(data.user));
-          return { success: true, user: data.user };
-        }
+      const data = await res.json();
+      if (res.ok && data.user) {
+        setUser(data.user);
+        localStorage.setItem("mosa_user_session", JSON.stringify(data.user));
+        return { success: true, user: data.user };
       }
+      return { success: false, error: data.error || "Invalid or expired verification code" };
     } catch (err) {
-      console.warn("[Verify OTP server error, using fallback]:", err);
+      console.warn("[Verify OTP server error]:", err);
+      return { success: false, error: "Network error during verification" };
     }
-
-    // Dev fallback ONLY in non-production environments when offline
-    if (process.env.NODE_ENV !== "production" && (code === expectedOtp || code === "1234" || code === "7294")) {
-      const session: UserSession = {
-        id: `user-${Date.now()}`,
-        name: "Verified Resident",
-        phone: pendingPhone || "+250788000123",
-        role: "CUSTOMER",
-        community: "Nyamirambo",
-        points: 50,
-        badges: ["New Member"],
-        referralCode: `MOSA-NYA-${Math.floor(100 + Math.random() * 900)}`,
-      };
-      setUser(session);
-      if (typeof window !== "undefined") {
-        localStorage.setItem("mosa_user_session", JSON.stringify(session));
-      }
-      return { success: true, user: session };
-    }
-    return { success: false };
   };
 
   const loginWithPassword = async (
@@ -276,7 +267,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const register = async (payload: { phone: string; password: string; name: string; role?: Role; community?: string }): Promise<{ success: boolean; user?: UserSession; error?: string }> => {
+  const register = async (payload: { phone: string; email?: string; password: string; name: string; role?: Role; community?: string }): Promise<{ success: boolean; user?: UserSession; error?: string }> => {
     try {
       const res = await fetch("/api/auth/register", {
         method: "POST",
@@ -315,6 +306,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         user,
         switchDemoRole,
         loginWithPhone,
+        loginWithEmail,
         loginWithPassword,
         register,
         verifyOtp,

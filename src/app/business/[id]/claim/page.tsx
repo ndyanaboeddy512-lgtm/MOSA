@@ -6,19 +6,20 @@ import { useRouter } from "next/navigation";
 import { useLanguage } from "@/lib/i18n";
 import { useAuth } from "@/lib/auth-context";
 import { Business } from "@/types";
-import { ArrowLeft, Phone, ShieldCheck, CheckCircle2, HeartHandshake, Sparkles } from "lucide-react";
+import { ArrowLeft, Phone, Mail, ShieldCheck, CheckCircle2, HeartHandshake, Sparkles, RefreshCw } from "lucide-react";
 
 export default function BusinessClaimPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params);
   const router = useRouter();
   const { lang, t } = useLanguage();
-  const { loginWithPhone, verifyOtp } = useAuth();
+  const { loginWithEmail, verifyOtp } = useAuth();
 
   const [business, setBusiness] = useState<Business | null>(null);
-  const [step, setStep] = useState<"phone" | "otp" | "success">("phone");
+  const [step, setStep] = useState<"contact" | "otp" | "success">("contact");
+  const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("+250788");
   const [otpCode, setOtpCode] = useState("");
-  const [simulatedOtp, setSimulatedOtp] = useState("");
+  const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 
   useEffect(() => {
@@ -44,42 +45,59 @@ export default function BusinessClaimPage({ params }: { params: Promise<{ id: st
     return <div className="p-12 text-center text-sm">Business not found.</div>;
   }
 
-  const handlePhoneSubmit = async (e: React.FormEvent) => {
+  const handleContactSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (phone.length < 10) {
-      setErrorMsg("Please enter a valid Rwandan phone number");
+    if (!email || !email.includes("@")) {
+      setErrorMsg("Please enter a valid proprietor email address");
       return;
     }
     setErrorMsg("");
-    const res = await loginWithPhone(phone, "BUSINESS_OWNER");
-    setSimulatedOtp(res.otp);
-    setStep("otp");
+    setLoading(true);
+    try {
+      const res = await loginWithEmail(email, "BUSINESS_OWNER");
+      if (res.success) {
+        setStep("otp");
+      } else {
+        setErrorMsg(res.error || "Failed to dispatch verification email");
+      }
+    } catch {
+      setErrorMsg("Failed to dispatch verification email");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleOtpSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const res = await verifyOtp(otpCode);
-    if (res.success) {
-      // Sync claim to Neon PostgreSQL via official claims API
-      try {
-        await fetch("/api/claims", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            businessId: business.id,
-            claimPhone: phone,
-          }),
-        });
-      } catch (err) {
-        console.warn("[Claims sync error]:", err);
-      }
+    setErrorMsg("");
+    setLoading(true);
+    try {
+      const res = await verifyOtp(otpCode, email);
+      if (res.success) {
+        // Sync claim to Neon PostgreSQL via official claims API
+        try {
+          await fetch("/api/claims", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              businessId: business.id,
+              claimPhone: phone,
+              claimEmail: email,
+            }),
+          });
+        } catch (err) {
+          console.warn("[Claims sync error]:", err);
+        }
 
-      setStep("success");
-      setTimeout(() => {
-        router.push("/owner/dashboard");
-      }, 2000);
-    } else {
-      setErrorMsg("Invalid OTP code. Use the code shown below.");
+        setStep("success");
+        setTimeout(() => {
+          router.push("/owner/dashboard");
+        }, 2000);
+      } else {
+        setErrorMsg(res.error || "Invalid or expired verification code.");
+      }
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -103,15 +121,35 @@ export default function BusinessClaimPage({ params }: { params: Promise<{ id: st
         </h2>
         <p className="text-xs text-slate-500 mt-1 mb-6">
           {lang === "rw"
-            ? `Bwiyandikisheho kuri "${business.name}" i ${business.location?.community || (business as any).cell || "Nyamirambo"} ukoresheje telefone yawe.`
-            : `Verify ownership of "${business.name}" located in ${business.location?.community || (business as any).cell || "Nyamirambo"}.`}
+            ? `Bwiyandikisheho kuri "${business.name}" i ${business.location?.community || (business as any).cell || "Nyamirambo"} ukoresheje imeli yawe.`
+            : `Verify ownership of "${business.name}" located in ${business.location?.community || (business as any).cell || "Nyamirambo"} via email.`}
         </p>
 
-        {step === "phone" && (
-          <form onSubmit={handlePhoneSubmit} className="space-y-4">
+        {step === "contact" && (
+          <form onSubmit={handleContactSubmit} className="space-y-4">
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">
-                {lang === "rw" ? "Nimero ya Telefone (Rwanda)" : "Proprietor Phone Number"}
+                {lang === "rw" ? "Imeli y'Umucuruzi" : "Proprietor Email Address"}
+              </label>
+              <div className="relative">
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="owner@business.rw"
+                  required
+                  className="w-full pl-10 pr-4 py-3 bg-slate-50 rounded-xl border border-slate-300 text-sm font-semibold text-slate-900 focus:ring-2 focus:ring-amber-500 outline-none"
+                />
+                <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
+              </div>
+              <p className="text-[11px] text-slate-400 mt-1">
+                We will send an instant 4-digit verification code to your email.
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                {lang === "rw" ? "Nimero ya Telefone (Rwanda)" : "Proprietor Contact Phone"}
               </label>
               <div className="relative">
                 <input
@@ -124,8 +162,49 @@ export default function BusinessClaimPage({ params }: { params: Promise<{ id: st
                 />
                 <Phone className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
               </div>
-              <p className="text-[11px] text-slate-400 mt-1">
-                We will send an instant one-time verification SMS code.
+            </div>
+
+            {errorMsg && (
+              <p className="text-xs text-red-600 font-medium">{errorMsg}</p>
+            )}
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full py-3 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-sm rounded-xl shadow-md transition-all cursor-pointer disabled:opacity-60 flex items-center justify-center gap-2"
+            >
+              {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : null}
+              <span>{lang === "rw" ? "Ohereza Kode yo Kwemeza" : "Send Verification Code"}</span>
+            </button>
+          </form>
+        )}
+
+        {step === "otp" && (
+          <form onSubmit={handleOtpSubmit} className="space-y-4">
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-bold text-slate-700">
+                  {lang === "rw" ? "Injiza Kode y'Imibare 4 yo kuri Imeli" : "Enter 4-Digit Email Code"}
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setStep("contact")}
+                  className="text-xs text-amber-700 hover:underline font-semibold"
+                >
+                  Change email
+                </button>
+              </div>
+              <input
+                type="text"
+                maxLength={4}
+                value={otpCode}
+                onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ""))}
+                placeholder="1234"
+                className="w-full text-center tracking-widest text-2xl font-black py-3 bg-slate-50 rounded-xl border border-slate-300 focus:ring-2 focus:ring-amber-500 outline-none"
+                autoFocus
+              />
+              <p className="text-[11px] text-slate-500 mt-1 text-center">
+                A 4-digit code was sent to {email}. Valid for 10 minutes.
               </p>
             </div>
 
@@ -135,51 +214,11 @@ export default function BusinessClaimPage({ params }: { params: Promise<{ id: st
 
             <button
               type="submit"
-              className="w-full py-3 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-sm rounded-xl shadow-md transition-all cursor-pointer"
+              disabled={loading || otpCode.length !== 4}
+              className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm rounded-xl shadow-md transition-all cursor-pointer disabled:opacity-60 flex items-center justify-center gap-2"
             >
-              {lang === "rw" ? "Ohereza Umubare w'Ibanga (Send OTP)" : "Send Verification Code"}
-            </button>
-          </form>
-        )}
-
-        {step === "otp" && (
-          <form onSubmit={handleOtpSubmit} className="space-y-4">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                {lang === "rw" ? "Injiza Umubare w'Ibanga (4-Digit OTP)" : "Enter 4-Digit SMS Code"}
-              </label>
-              <input
-                type="text"
-                maxLength={4}
-                value={otpCode}
-                onChange={(e) => setOtpCode(e.target.value)}
-                placeholder="1234"
-                className="w-full text-center tracking-widest text-2xl font-black py-3 bg-slate-50 rounded-xl border border-slate-300 focus:ring-2 focus:ring-amber-500 outline-none"
-                autoFocus
-              />
-            </div>
-
-            {/* Simulated SMS notification display */}
-            <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900 flex items-center justify-between">
-              <span>Demo SMS: Your code is <strong>{simulatedOtp || "1234"}</strong></span>
-              <button
-                type="button"
-                onClick={() => setOtpCode(simulatedOtp || "1234")}
-                className="text-[11px] font-bold text-amber-700 underline"
-              >
-                Auto-fill
-              </button>
-            </div>
-
-            {errorMsg && (
-              <p className="text-xs text-red-600 font-medium">{errorMsg}</p>
-            )}
-
-            <button
-              type="submit"
-              className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm rounded-xl shadow-md transition-all cursor-pointer"
-            >
-              {lang === "rw" ? "Emeza Maze Winjire" : "Verify & Claim Business"}
+              {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : null}
+              <span>{lang === "rw" ? "Emeza Maze Winjire" : "Verify & Claim Business"}</span>
             </button>
           </form>
         )}

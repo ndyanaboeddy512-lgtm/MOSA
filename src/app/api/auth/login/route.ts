@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { createAndSaveOtp, comparePassword, createSessionToken, setSessionCookie } from "@/lib/auth";
 import { normalizeRwandaPhone } from "@/lib/sms/normalize";
-import { sendBusinessSMS } from "@/lib/sms";
+import { sendVerificationEmail, isValidEmail, isEmailConfigured } from "@/lib/email";
 import { logAuditEvent } from "@/lib/audit";
 
 export async function POST(request: Request) {
@@ -10,10 +10,10 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { username, phone, email, password, role = "CUSTOMER", rememberMe = true } = body;
 
-    const rawIdentifier = (username || phone || email || "").trim();
+    const rawIdentifier = (email || username || phone || "").trim();
     if (!rawIdentifier) {
       return NextResponse.json(
-        { error: "Phone number or email is required" },
+        { error: "Registered email address or username is required" },
         { status: 400 }
       );
     }
@@ -34,13 +34,18 @@ export async function POST(request: Request) {
           });
         } else {
           user = await prisma.user.findFirst({
-            where: { phone: rawIdentifier },
+            where: {
+              OR: [
+                { phone: rawIdentifier },
+                { referralCode: rawIdentifier },
+              ],
+            },
           });
         }
       }
 
       if (!user) {
-        return NextResponse.json({ error: "Invalid username, phone number, or password" }, { status: 401 });
+        return NextResponse.json({ error: "Invalid username, email, or password" }, { status: 401 });
       }
 
       if (user.status !== "ACTIVE") {
@@ -49,14 +54,14 @@ export async function POST(request: Request) {
 
       if (!user.passwordHash) {
         return NextResponse.json(
-          { error: "Password has not been set for this account yet. Please sign in via SMS code or reset your password." },
+          { error: "Password has not been set for this account yet. Please sign in via email verification code or reset your password." },
           { status: 400 }
         );
       }
 
       const isMatch = await comparePassword(password, user.passwordHash);
       if (!isMatch) {
-        return NextResponse.json({ error: "Invalid username, phone number, or password" }, { status: 401 });
+        return NextResponse.json({ error: "Invalid username, email, or password" }, { status: 401 });
       }
 
       const token = await createSessionToken({
@@ -104,43 +109,94 @@ export async function POST(request: Request) {
       });
     }
 
-    // Otherwise: SMS OTP flow (phone required)
-    const norm = normalizeRwandaPhone(rawIdentifier);
-    if (!norm.isValid || !norm.e164) {
+    // Otherwise: Email verification code flow (Resend email delivery)
+    let targetEmail: string | null = null;
+    let existingUser: any = null;
+
+    if (rawIdentifier.includes("@")) {
+      const cleanEmail = rawIdentifier.toLowerCase();
+      if (!isValidEmail(cleanEmail)) {
+        return NextResponse.json(
+          { error: "Please enter a valid email address format (e.g. name@domain.com)" },
+          { status: 400 }
+        );
+      }
+      targetEmail = cleanEmail;
+      existingUser = await prisma.user.findFirst({
+        where: { email: cleanEmail },
+      });
+    } else {
+      // Look up user by phone or referral code to locate their registered email
+      const norm = normalizeRwandaPhone(rawIdentifier);
+      const targetPhone = norm.isValid && norm.e164 ? norm.e164 : rawIdentifier;
+
+      existingUser = await prisma.user.findFirst({
+        where: {
+          OR: [
+            { phone: targetPhone },
+            ...(norm.e164 ? [{ phone: norm.e164 }] : []),
+            { referralCode: rawIdentifier },
+          ],
+        },
+      });
+
+      if (!existingUser || !existingUser.email) {
+        return NextResponse.json(
+          { error: "A valid registered email address is required to receive verification codes." },
+          { status: 400 }
+        );
+      }
+      targetEmail = existingUser.email.toLowerCase().trim();
+    }
+
+    if (!targetEmail) {
       return NextResponse.json(
-        { error: norm.error || "A valid Rwandan phone number is required for SMS code login (e.g. 0788123456)" },
+        { error: "A valid email address is required for verification." },
         { status: 400 }
       );
     }
 
+    // Check if Resend email service is configured
+    if (!isEmailConfigured()) {
+      return NextResponse.json(
+        {
+          error: "Email verification service is not configured (RESEND_API_KEY required). Please sign in using your account password.",
+        },
+        { status: 503 }
+      );
+    }
+
     // Generate and persist OTP in database with 10-minute validity
-    const otp = await createAndSaveOtp(norm.e164);
+    const otp = await createAndSaveOtp(targetEmail);
 
-    let smsSuccess = false;
-    const smsResult = await sendBusinessSMS({
-      businessId: "system",
-      recipientPhone: norm.e164,
-      templateId: "SECURITY_ALERT",
-      language: "rw",
-      variables: { code: otp },
-    }).catch(() => ({ success: false, status: "FAILED" }));
+    // Send verification email via Resend
+    const emailResult = await sendVerificationEmail({
+      to: targetEmail,
+      code: otp,
+      purpose: "ACCOUNT_LOGIN",
+      language: existingUser?.language || "rw",
+      recipientName: existingUser?.name,
+      expiresMinutes: 10,
+    });
 
-    smsSuccess = Boolean(smsResult && smsResult.success);
+    if (!emailResult.success) {
+      return NextResponse.json(
+        { error: emailResult.error || "Failed to dispatch verification email. Please try again." },
+        { status: 502 }
+      );
+    }
 
     await logAuditEvent({
-      action: "OTP_REQUESTED",
+      action: "EMAIL_OTP_REQUESTED",
       entityType: "AUTH",
-      entityId: norm.e164,
-      metadata: { requestedRole: role, smsDispatched: smsSuccess },
+      entityId: targetEmail,
+      metadata: { requestedRole: role },
     });
 
     return NextResponse.json({
       success: true,
-      message: smsSuccess 
-        ? "Verification code sent via SMS" 
-        : `SMS Gateway is not configured. Your verification code is: ${otp}`,
-      smsDispatched: smsSuccess,
-      otp: !smsSuccess || process.env.NODE_ENV !== "production" ? otp : undefined,
+      message: `A 4-digit verification code has been dispatched to ${targetEmail}.`,
+      email: targetEmail,
     });
   } catch (error) {
     console.error("[Auth API Error]:", error);

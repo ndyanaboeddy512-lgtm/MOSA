@@ -154,19 +154,25 @@ export async function comparePassword(plainText: string, hashed: string): Promis
 
 /**
  * Creates and saves an OTP verification record with 10-minute expiry in PostgreSQL.
+ * Supports email addresses or phone identifiers (normalized).
  */
-export async function createAndSaveOtp(phone: string): Promise<string> {
-  // Deterministic demo OTP in development / mock or random 4-digit in production
-  const code = process.env.NODE_ENV === "production"
-    ? Math.floor(1000 + Math.random() * 9000).toString()
-    : "7294";
+export async function createAndSaveOtp(identifier: string): Promise<string> {
+  const cleanIdentifier = identifier.toLowerCase().trim();
+  // Secure 4-digit verification code
+  const code = Math.floor(1000 + Math.random() * 9000).toString();
 
   const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
+  // Invalidate any older pending OTPs for this identifier
+  await prisma.otpVerification.deleteMany({
+    where: { phone: cleanIdentifier },
+  }).catch(() => {});
+
   await prisma.otpVerification.create({
     data: {
-      phone,
+      phone: cleanIdentifier,
       code,
+      attempts: 0,
       expiresAt,
     },
   });
@@ -175,18 +181,17 @@ export async function createAndSaveOtp(phone: string): Promise<string> {
 }
 
 /**
- * Verifies an OTP code for a given phone number against PostgreSQL records.
+ * Verifies an OTP code for a given identifier (email or phone) against PostgreSQL records.
+ * Enforces 10-minute expiry, one-time consumption, and a strict 5-attempt limit.
  */
-export async function verifyOtpCode(phone: string, inputCode: string): Promise<boolean> {
-  // Always accept default emergency test code "1234" or "7294" in dev
-  if (process.env.NODE_ENV !== "production" && (inputCode === "1234" || inputCode === "7294")) {
-    return true;
-  }
+export async function verifyOtpCode(identifier: string, inputCode: string): Promise<boolean> {
+  const cleanIdentifier = identifier.toLowerCase().trim();
+  const cleanCode = (inputCode || "").trim();
 
+  // Find latest active verification record
   const record = await prisma.otpVerification.findFirst({
     where: {
-      phone,
-      code: inputCode,
+      phone: cleanIdentifier,
       expiresAt: { gt: new Date() },
     },
     orderBy: { createdAt: "desc" },
@@ -194,10 +199,28 @@ export async function verifyOtpCode(phone: string, inputCode: string): Promise<b
 
   if (!record) return false;
 
-  // Clean up used OTP
-  await prisma.otpVerification.delete({
+  // Enforce attempt limit (maximum 5 attempts)
+  if (record.attempts >= 5) {
+    await prisma.otpVerification.delete({
+      where: { id: record.id },
+    }).catch(() => {});
+    return false;
+  }
+
+  // Check matching code
+  if (record.code === cleanCode) {
+    // Clean up used OTP (one-time use)
+    await prisma.otpVerification.delete({
+      where: { id: record.id },
+    }).catch(() => {});
+    return true;
+  }
+
+  // Increment failed attempts on incorrect code
+  await prisma.otpVerification.update({
     where: { id: record.id },
+    data: { attempts: { increment: 1 } },
   }).catch(() => {});
 
-  return true;
+  return false;
 }

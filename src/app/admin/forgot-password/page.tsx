@@ -33,11 +33,7 @@ function ForgotPasswordContent() {
       });
       const data = await res.json();
       if (res.ok) {
-        setSuccessMsg(data.message || "Password reset instructions dispatched.");
-        if (data.devToken) {
-          setToken(data.devToken);
-          setIsResetMode(true);
-        }
+        setSuccessMsg(data.message || "Password reset instructions have been sent to your administrative email.");
       } else {
         setErrorMsg(data.error || "Unable to process request.");
       }

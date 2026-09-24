@@ -7,17 +7,24 @@ import { Role } from "@prisma/client";
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { phone, code, role = "CUSTOMER", name } = body;
+    const { email, identifier, phone, code, role = "CUSTOMER", name } = body;
 
-    if (!phone || !code) {
+    const rawId = (email || identifier || phone || "").trim();
+    if (!rawId || !code) {
       return NextResponse.json(
-        { error: "Phone number and verification code are required" },
+        { error: "Email address and verification code are required" },
         { status: 400 }
       );
     }
 
-    const cleanPhone = phone.trim();
-    const isValid = await verifyOtpCode(cleanPhone, code);
+    const cleanCode = code.trim();
+    const cleanEmail = rawId.toLowerCase();
+
+    // Verify code against email identifier
+    let isValid = await verifyOtpCode(cleanEmail, cleanCode);
+    if (!isValid && !rawId.includes("@")) {
+      isValid = await verifyOtpCode(rawId, cleanCode);
+    }
 
     if (!isValid) {
       return NextResponse.json(
@@ -26,29 +33,51 @@ export async function POST(request: Request) {
       );
     }
 
-    // Upsert persistent user in PostgreSQL
-    const referralCode = `MOSA-${cleanPhone.slice(-4)}-${Math.floor(100 + Math.random() * 900)}`;
-    const targetRole: Role = (role === "BUSINESS_OWNER" || role === "CUSTOMER") ? (role as Role) : Role.CUSTOMER;
+    // Locate or upsert user in database
+    let user: any = null;
 
-    const user = await prisma.user.upsert({
-      where: { phone: cleanPhone },
-      update: {
-        updatedAt: new Date(),
-      },
-      create: {
-        phone: cleanPhone,
-        name: name || `Resident ${cleanPhone.slice(-4)}`,
-        role: targetRole,
-        referralCode,
-        language: "rw",
-        community: "Nyamirambo",
-      },
-    });
+    if (rawId.includes("@")) {
+      user = await prisma.user.findFirst({
+        where: { email: cleanEmail },
+      });
 
-    // Generate real signed JWT token
+      if (!user) {
+        const referralCode = `MOSA-${cleanEmail.slice(0, 3).toUpperCase()}-${Math.floor(100 + Math.random() * 900)}`;
+        const targetRole: Role = (role === "BUSINESS_OWNER" || role === "CUSTOMER") ? (role as Role) : Role.CUSTOMER;
+        user = await prisma.user.create({
+          data: {
+            email: cleanEmail,
+            name: name || cleanEmail.split("@")[0],
+            role: targetRole,
+            referralCode,
+            language: "rw",
+            community: "Kigali",
+          },
+        });
+      }
+    } else {
+      user = await prisma.user.findFirst({
+        where: {
+          OR: [
+            { phone: rawId },
+            { referralCode: rawId },
+          ],
+        },
+      });
+
+      if (!user) {
+        return NextResponse.json(
+          { error: "Account could not be found for this identifier" },
+          { status: 404 }
+        );
+      }
+    }
+
+    // Generate signed JWT token
     const token = await createSessionToken({
       userId: user.id,
       phone: user.phone,
+      email: user.email,
       role: user.role,
       name: user.name,
     });
@@ -69,10 +98,10 @@ export async function POST(request: Request) {
     // Record audit event
     await logAuditEvent({
       actorId: user.id,
-      action: "USER_AUTHENTICATED",
+      action: "USER_AUTHENTICATED_EMAIL_OTP",
       entityType: "USER",
       entityId: user.id,
-      metadata: { role: user.role, phone: cleanPhone },
+      metadata: { role: user.role, email: user.email },
     });
 
     return NextResponse.json({
@@ -81,6 +110,7 @@ export async function POST(request: Request) {
         id: user.id,
         name: user.name,
         phone: user.phone,
+        email: user.email,
         role: user.role,
         language: user.language,
         community: user.community,

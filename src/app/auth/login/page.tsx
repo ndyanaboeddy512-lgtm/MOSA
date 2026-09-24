@@ -22,7 +22,7 @@ import {
   X 
 } from "lucide-react";
 
-type AuthTab = "password" | "sms" | "register";
+type AuthTab = "password" | "email" | "register";
 
 function LoginContent() {
   const router = useRouter();
@@ -31,7 +31,7 @@ function LoginContent() {
   const reasonParam = searchParams.get("reason");
 
   const { lang, t } = useLanguage();
-  const { switchDemoRole, loginWithPhone, loginWithPassword, register, verifyOtp } = useAuth();
+  const { switchDemoRole, loginWithEmail, loginWithPassword, register, verifyOtp } = useAuth();
 
   const [activeTab, setActiveTab] = useState<AuthTab>("password");
   const [loading, setLoading] = useState(false);
@@ -48,7 +48,7 @@ function LoginContent() {
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [recoveryIdentifier, setRecoveryIdentifier] = useState("");
   const [recoveryStep, setRecoveryStep] = useState<"request" | "verify">("request");
-  const [recoveryMethod, setRecoveryMethod] = useState<"SMS" | "EMAIL">("SMS");
+  const [recoveryMethod, setRecoveryMethod] = useState<"EMAIL">("EMAIL");
   const [recoveryCode, setRecoveryCode] = useState("");
   const [recoveryNewPassword, setRecoveryNewPassword] = useState("");
   const [recoveryConfirmPassword, setRecoveryConfirmPassword] = useState("");
@@ -56,16 +56,15 @@ function LoginContent() {
   const [recoveryLoading, setRecoveryLoading] = useState(false);
   const [recoveryError, setRecoveryError] = useState("");
   const [recoverySuccess, setRecoverySuccess] = useState("");
-  const [devRecoveryCode, setDevRecoveryCode] = useState("");
 
-  // SMS OTP State
-  const [smsPhone, setSmsPhone] = useState("+250788");
-  const [smsStep, setSmsStep] = useState<"phone" | "otp">("phone");
+  // Email Verification Code State
+  const [emailInput, setEmailInput] = useState("");
+  const [emailStep, setEmailStep] = useState<"email" | "otp">("email");
   const [otp, setOtp] = useState("");
-  const [simulatedOtp, setSimulatedOtp] = useState("");
 
   // Register State
   const [regName, setRegName] = useState("");
+  const [regEmail, setRegEmail] = useState("");
   const [regPhone, setRegPhone] = useState("+250788");
   const [regPassword, setRegPassword] = useState("");
   const [regRole, setRegRole] = useState<Role>("BUSINESS_OWNER");
@@ -133,7 +132,7 @@ function LoginContent() {
     setRecoveryError("");
     setRecoverySuccess("");
     if (!recoveryIdentifier.trim()) {
-      setRecoveryError(lang === "rw" ? "Injiza telefone cyangwa imeli yawe." : "Please enter your phone number or email.");
+      setRecoveryError(lang === "rw" ? "Injiza imeli cyangwa nimero ya telefone yawe." : "Please enter your email or phone number.");
       return;
     }
 
@@ -149,13 +148,8 @@ function LoginContent() {
         throw new Error(data.error || "Failed to process recovery request.");
       }
 
-      setRecoveryMethod(data.method || (recoveryIdentifier.includes("@") ? "EMAIL" : "SMS"));
-      setRecoverySuccess(data.message);
-      const fallbackCode = data.code || data.devOtp || data.devToken;
-      if (fallbackCode) {
-        setDevRecoveryCode(fallbackCode);
-        setRecoveryCode(fallbackCode);
-      }
+      setRecoveryMethod("EMAIL");
+      setRecoverySuccess(data.message || (lang === "rw" ? "Kode yemeza yoherejwe kuri imeli yawe." : "A 4-digit verification code has been sent to your email."));
       setRecoveryStep("verify");
     } catch (err: any) {
       setRecoveryError(err.message || "Failed to initiate password recovery.");
@@ -170,7 +164,7 @@ function LoginContent() {
     setRecoverySuccess("");
 
     if (!recoveryCode.trim()) {
-      setRecoveryError(lang === "rw" ? "Injiza kode yemeza cyangwa token." : "Please enter the verification code or token.");
+      setRecoveryError(lang === "rw" ? "Injiza kode yemeza y'imibare 4." : "Please enter the 4-digit verification code.");
       return;
     }
 
@@ -186,17 +180,18 @@ function LoginContent() {
 
     try {
       setRecoveryLoading(true);
-      const isEmail = recoveryIdentifier.includes("@") || recoveryMethod === "EMAIL";
+      const code = recoveryCode.trim();
       const payload: any = {
         newPassword: recoveryNewPassword,
         confirmPassword: recoveryConfirmPassword,
       };
 
-      if (isEmail) {
-        payload.token = recoveryCode.trim();
+      if (code.length > 8) {
+        payload.token = code;
       } else {
-        payload.phone = recoveryIdentifier.trim();
-        payload.otp = recoveryCode.trim();
+        payload.otp = code;
+        payload.email = recoveryIdentifier.trim();
+        payload.identifier = recoveryIdentifier.trim();
       }
 
       const res = await fetch("/api/auth/reset-password", {
@@ -231,16 +226,19 @@ function LoginContent() {
     }
   };
 
-  const handleSmsPhoneSubmit = async (e: React.FormEvent) => {
+  const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg("");
     setLoading(true);
     try {
-      const res = await loginWithPhone(smsPhone);
-      setSimulatedOtp(res.otp);
-      setSmsStep("otp");
+      const res = await loginWithEmail(emailInput);
+      if (res.success) {
+        setEmailStep("otp");
+      } else {
+        setErrorMsg(res.error || (lang === "rw" ? "Ntibyashobotse kohereza kode yo kwemeza." : "Failed to send verification code."));
+      }
     } catch {
-      setErrorMsg("Failed to send verification code");
+      setErrorMsg(lang === "rw" ? "Ntibyashobotse kohereza kode yo kwemeza." : "Failed to send verification code.");
     } finally {
       setLoading(false);
     }
@@ -251,11 +249,11 @@ function LoginContent() {
     setErrorMsg("");
     setLoading(true);
     try {
-      const res = await verifyOtp(otp);
+      const res = await verifyOtp(otp, emailInput);
       if (res.success) {
         navigateAfterAuth(res.user?.role);
       } else {
-        setErrorMsg(t.auth.invalidCode);
+        setErrorMsg(res.error || t.auth.invalidCode);
       }
     } finally {
       setLoading(false);
@@ -277,6 +275,7 @@ function LoginContent() {
     try {
       const res = await register({
         name: regName,
+        email: regEmail,
         phone: regPhone,
         password: regPassword,
         role: regRole,
@@ -350,9 +349,9 @@ function LoginContent() {
           </button>
           <button
             type="button"
-            onClick={() => { setActiveTab("sms"); setErrorMsg(""); }}
+            onClick={() => { setActiveTab("email"); setErrorMsg(""); }}
             className={`py-2 px-1 rounded-xl transition-all cursor-pointer truncate ${
-              activeTab === "sms"
+              activeTab === "email"
                 ? "bg-white text-emerald-700 shadow-sm"
                 : "text-slate-600 hover:text-slate-900"
             }`}
@@ -495,71 +494,105 @@ function LoginContent() {
           </form>
         )}
 
-        {/* Tab 2: SMS OTP Login */}
-        {activeTab === "sms" && (
+        {/* Tab 2: Email Verification Code Login */}
+        {activeTab === "email" && (
           <div>
-            {smsStep === "phone" ? (
-              <form onSubmit={handleSmsPhoneSubmit} className="space-y-4">
+            {emailStep === "email" ? (
+              <form onSubmit={handleEmailSubmit} className="space-y-4">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
-                    {t.auth.phoneLabel}
+                    {lang === "rw" ? "Imeli Yanditse" : "Registered Email Address"}
                   </label>
                   <div className="relative">
                     <input
-                      type="tel"
-                      value={smsPhone}
-                      onChange={(e) => setSmsPhone(e.target.value)}
-                      placeholder={t.auth.phonePlaceholder}
+                      type="email"
+                      value={emailInput}
+                      onChange={(e) => setEmailInput(e.target.value)}
+                      placeholder={lang === "rw" ? "urugero: izina@ubucuruzi.rw" : "e.g. name@business.rw"}
                       required
                       className="w-full pl-10 pr-4 py-2.5 bg-slate-50 rounded-xl border border-slate-300 text-sm font-semibold text-slate-900 focus:ring-2 focus:ring-emerald-500 outline-none"
                     />
-                    <Phone className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+                    <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
                   </div>
+                  <p className="text-[11px] text-slate-400 mt-1">
+                    {lang === "rw"
+                      ? "Tuzakwoherereza kode y'imibare 4 yo kwinjira kuri imeli yawe."
+                      : "We'll send a 4-digit verification code directly to your email inbox."}
+                  </p>
                 </div>
 
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md transition-all cursor-pointer disabled:opacity-60"
+                  className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md transition-all cursor-pointer disabled:opacity-60 flex items-center justify-center gap-2"
                 >
-                  {loading ? t.auth.sendingOtpBtn : t.auth.sendOtpBtn}
+                  {loading ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>{t.auth.sendingOtpBtn}</span>
+                    </>
+                  ) : (
+                    <span>{t.auth.sendOtpBtn}</span>
+                  )}
                 </button>
               </form>
             ) : (
               <form onSubmit={handleOtpSubmit} className="space-y-4">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    {t.auth.otpLabel}
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-bold text-slate-700">
+                      {t.auth.otpLabel}
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setEmailStep("email")}
+                      className="text-[11px] font-bold text-emerald-700 hover:underline cursor-pointer flex items-center gap-1"
+                    >
+                      <ArrowLeft className="w-3 h-3" />
+                      <span>{lang === "rw" ? "Hindura imeli" : "Change email"}</span>
+                    </button>
+                  </div>
                   <input
                     type="text"
                     maxLength={4}
                     value={otp}
-                    onChange={(e) => setOtp(e.target.value)}
+                    onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
                     placeholder={t.auth.otpPlaceholder}
                     className="w-full text-center tracking-widest text-2xl font-black py-2.5 bg-slate-50 rounded-xl border border-slate-300 focus:ring-2 focus:ring-emerald-500 outline-none"
                     autoFocus
                   />
-                </div>
-
-                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-900 flex items-center justify-between">
-                  <span>Demo SMS Code: <strong>{simulatedOtp || "1234"}</strong></span>
-                  <button
-                    type="button"
-                    onClick={() => setOtp(simulatedOtp || "1234")}
-                    className="text-[11px] font-bold text-emerald-700 underline cursor-pointer"
-                  >
-                    Auto-fill
-                  </button>
+                  <p className="text-[11px] text-slate-500 mt-1.5 text-center">
+                    {lang === "rw"
+                      ? `Kode yoherejwe kuri ${emailInput}. Reba no muri spam folder niba utayibonye.`
+                      : `Code sent to ${emailInput}. Check your spam or promotions folder if needed.`}
+                  </p>
                 </div>
 
                 <button
                   type="submit"
-                  disabled={loading}
-                  className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md transition-all cursor-pointer disabled:opacity-60"
+                  disabled={loading || otp.length !== 4}
+                  className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md transition-all cursor-pointer disabled:opacity-60 flex items-center justify-center gap-2"
                 >
-                  {loading ? t.auth.verifyingBtn : t.auth.verifyBtn}
+                  {loading ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>{t.auth.verifyingBtn}</span>
+                    </>
+                  ) : (
+                    <span>{t.auth.verifyBtn}</span>
+                  )}
                 </button>
+
+                <div className="text-center pt-1">
+                  <button
+                    type="button"
+                    disabled={loading}
+                    onClick={handleEmailSubmit}
+                    className="text-xs text-slate-500 hover:text-emerald-700 font-medium cursor-pointer transition-colors"
+                  >
+                    {lang === "rw" ? "Ntabwo wabonye kode? Yongera uyohereze" : "Didn't receive the code? Resend email"}
+                  </button>
+                </div>
               </form>
             )}
           </div>
@@ -582,6 +615,23 @@ function LoginContent() {
                   className="w-full pl-10 pr-4 py-2.5 bg-slate-50 rounded-xl border border-slate-300 text-sm font-semibold text-slate-900 focus:ring-2 focus:ring-emerald-500 outline-none"
                 />
                 <User className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                {lang === "rw" ? "Imeli yawe" : "Email Address"}
+              </label>
+              <div className="relative">
+                <input
+                  type="email"
+                  value={regEmail}
+                  onChange={(e) => setRegEmail(e.target.value)}
+                  placeholder={lang === "rw" ? "urugero: izina@ubucuruzi.rw" : "e.g. name@business.rw"}
+                  required
+                  className="w-full pl-10 pr-4 py-2.5 bg-slate-50 rounded-xl border border-slate-300 text-sm font-semibold text-slate-900 focus:ring-2 focus:ring-emerald-500 outline-none"
+                />
+                <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
               </div>
             </div>
 
@@ -742,7 +792,7 @@ function LoginContent() {
               <form onSubmit={handleRequestPasswordReset} className="space-y-4 mt-4">
                 <div>
                   <label htmlFor="recovery-identifier" className="block text-xs font-bold text-slate-700 mb-1">
-                    {lang === "rw" ? "Nimero ya Telefone cyangwa Imeli" : "Registered Phone Number or Email"}
+                    {lang === "rw" ? "Imeli yawe cyangwa Nimero ya Telefone" : "Registered Email or Phone Number"}
                   </label>
                   <div className="relative">
                     <input
@@ -752,16 +802,16 @@ function LoginContent() {
                       autoComplete="username"
                       value={recoveryIdentifier}
                       onChange={(e) => setRecoveryIdentifier(e.target.value)}
-                      placeholder={lang === "rw" ? "urugero: 0788123456 cyangwa name@business.rw" : "e.g. 0788123456 or name@business.rw"}
+                      placeholder={lang === "rw" ? "urugero: name@business.rw cyangwa 0788123456" : "e.g. name@business.rw or 0788123456"}
                       required
                       className="w-full pl-10 pr-4 py-2.5 bg-slate-50 rounded-xl border border-slate-300 text-xs font-semibold text-slate-900 focus:ring-2 focus:ring-emerald-500 outline-none"
                     />
-                    <Phone className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+                    <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
                   </div>
                   <p className="text-[11px] text-slate-400 mt-1">
                     {lang === "rw" 
-                      ? "Tuzakwoherereza kode y'akanya gato kuri SMS cyangwa umurongo wo guhindura kuri imeli."
-                      : "We'll send a 4-digit SMS verification code to your phone or a secure reset link to your email."}
+                      ? "Tuzakwoherereza kode y'akanya gato y'imibare 4 yo guhindura ijambobanga kuri imeli yawe."
+                      : "We'll send a 4-digit password recovery code directly to your registered email address."}
                   </p>
                 </div>
 
@@ -788,39 +838,26 @@ function LoginContent() {
             {/* Recovery Step 2: Verify Code and Set New Password */}
             {recoveryStep === "verify" && (
               <form onSubmit={handleResetPasswordSubmit} className="space-y-4 mt-4">
-                {devRecoveryCode && (
-                  <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900 flex items-center justify-between">
-                    <div>
-                      <span className="font-semibold block text-[11px] text-amber-800">
-                        {lang === "rw" ? "Kode yemeza (Iyo SMS itaraza):" : "Verification Code (SMS Fallback):"}
-                      </span>
-                      <span className="font-mono font-bold text-base text-amber-900 tracking-widest">{devRecoveryCode}</span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setRecoveryCode(devRecoveryCode)}
-                      className="px-2.5 py-1 bg-amber-200 hover:bg-amber-300 text-amber-900 rounded-lg text-xs font-bold transition cursor-pointer"
-                    >
-                      {lang === "rw" ? "Koresha iyi kode" : "Auto-fill"}
-                    </button>
-                  </div>
-                )}
-
                 <div>
                   <label htmlFor="recovery-code" className="block text-xs font-bold text-slate-700 mb-1">
-                    {recoveryMethod === "EMAIL" 
-                      ? (lang === "rw" ? "Kode cyangwa Token y'Imeli" : "Email Reset Token")
-                      : (lang === "rw" ? "Kode y'Imibare 4 yo kuri SMS" : "4-Digit SMS Verification Code")}
+                    {lang === "rw" ? "Kode y'Imibare 4 yo kuri Imeli" : "4-Digit Email Verification Code"}
                   </label>
                   <input
                     id="recovery-code"
                     type="text"
+                    maxLength={6}
                     value={recoveryCode}
-                    onChange={(e) => setRecoveryCode(e.target.value)}
-                    placeholder={recoveryMethod === "EMAIL" ? "Paste token here..." : (lang === "rw" ? "Injiza kode y'imibare 4" : "Enter 4-digit code")}
+                    onChange={(e) => setRecoveryCode(e.target.value.replace(/\D/g, ""))}
+                    placeholder={lang === "rw" ? "Injiza kode y'imibare 4" : "Enter 4-digit code"}
                     required
-                    className="w-full px-3 py-2.5 bg-slate-50 rounded-xl border border-slate-300 font-mono text-sm font-bold text-slate-900 outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="w-full text-center tracking-widest text-2xl font-black py-2.5 bg-slate-50 rounded-xl border border-slate-300 focus:ring-2 focus:ring-emerald-500 outline-none"
+                    autoFocus
                   />
+                  <p className="text-[11px] text-slate-500 mt-1 text-center">
+                    {lang === "rw" 
+                      ? "Kode yoherejwe kuri imeli yawe. Izata agaciro mu minota 10." 
+                      : "A 4-digit verification code was sent to your email. Expires in 10 minutes."}
+                  </p>
                 </div>
 
                 <div>

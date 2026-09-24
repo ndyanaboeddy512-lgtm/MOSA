@@ -1,129 +1,132 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import crypto from "crypto";
 import { createAndSaveOtp } from "@/lib/auth";
+import { sendVerificationEmail, isValidEmail, isEmailConfigured } from "@/lib/email";
 import { normalizeRwandaPhone } from "@/lib/sms/normalize";
-import { sendBusinessSMS } from "@/lib/sms";
 import { logAuditEvent } from "@/lib/audit";
+
+function maskEmail(email: string): string {
+  const [local, domain] = email.split("@");
+  if (!domain) return "***";
+  if (local.length <= 2) return `${local[0]}***@${domain}`;
+  return `${local.slice(0, 2)}***${local.slice(-1)}@${domain}`;
+}
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const identifier = (body.identifier || body.username || body.phone || body.email || "").trim();
+    const rawIdentifier = (body.identifier || body.username || body.phone || body.email || "").trim();
 
-    if (!identifier) {
+    if (!rawIdentifier) {
       return NextResponse.json(
-        { error: "Phone number or email is required to recover access." },
+        { error: "Registered email address or phone number is required to recover access." },
         { status: 400 }
       );
     }
 
-    const isEmail = identifier.includes("@");
+    // 1. Check if email gateway is configured
+    if (!isEmailConfigured()) {
+      return NextResponse.json(
+        {
+          error: "Email verification service is not configured (RESEND_API_KEY required). Please contact administrator support.",
+        },
+        { status: 503 }
+      );
+    }
 
-    if (isEmail) {
-      const email = identifier.toLowerCase();
-      const user = await prisma.user.findFirst({
-        where: { email },
-      });
+    let targetEmail: string | null = null;
+    let user: any = null;
 
-      // Generic response to prevent user enumeration
-      if (!user) {
-        return NextResponse.json({
-          success: true,
-          method: "EMAIL",
-          message: "If that email belongs to an account, password reset instructions have been sent.",
-        });
+    if (rawIdentifier.includes("@")) {
+      const cleanEmail = rawIdentifier.toLowerCase();
+      if (!isValidEmail(cleanEmail)) {
+        return NextResponse.json(
+          { error: "Please provide a valid email address format." },
+          { status: 400 }
+        );
       }
 
-      const resetToken = crypto.randomBytes(32).toString("hex");
-      const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+      user = await prisma.user.findFirst({
+        where: { email: cleanEmail },
+      });
 
-      await prisma.user.update({
-        where: { id: user.id },
-        data: {
-          resetPasswordToken: resetToken,
-          resetPasswordExpires: expiresAt,
+      targetEmail = cleanEmail;
+    } else {
+      // Look up user by phone or referral code
+      const norm = normalizeRwandaPhone(rawIdentifier);
+      const targetPhone = norm.isValid && norm.e164 ? norm.e164 : rawIdentifier;
+
+      user = await prisma.user.findFirst({
+        where: {
+          OR: [
+            { phone: targetPhone },
+            ...(norm.e164 ? [{ phone: norm.e164 }] : []),
+            { referralCode: rawIdentifier },
+          ],
         },
       });
 
-      await logAuditEvent({
-        actorId: user.id,
-        action: "PASSWORD_RESET_REQUESTED",
-        entityType: "USER",
-        entityId: user.id,
-        metadata: { method: "EMAIL", email },
-      });
+      if (user && user.email) {
+        targetEmail = user.email.toLowerCase().trim();
+      } else if (user && !user.email) {
+        return NextResponse.json(
+          {
+            error: "This account has no registered email address on file. Please contact your MOSA administrator to link an email.",
+          },
+          { status: 400 }
+        );
+      }
+    }
 
+    // Generic safe response if user not found (anti-enumeration)
+    if (!user || !targetEmail) {
       return NextResponse.json({
         success: true,
         method: "EMAIL",
-        message: "Password reset instructions have been sent to your email.",
-        devToken: process.env.NODE_ENV !== "production" ? resetToken : undefined,
+        message: "If that account exists in our system, a 4-digit verification code has been dispatched to its registered email.",
       });
     }
 
-    // Phone-based recovery (Standard for Rwanda commerce)
-    const norm = normalizeRwandaPhone(identifier);
-    const targetPhone = norm.isValid && norm.e164 ? norm.e164 : identifier;
+    // 2. Generate and persist 10-minute OTP code (associated with target email)
+    const otp = await createAndSaveOtp(targetEmail);
+    // Also bind to phone if present so either identifier works on verification submit
+    if (user.phone) {
+      await createAndSaveOtp(user.phone);
+    }
 
-    const user = await prisma.user.findFirst({
-      where: {
-        OR: [
-          { phone: targetPhone },
-          ...(norm.e164 ? [{ phone: norm.e164 }] : []),
-        ],
-      },
+    // 3. Dispatch verification email via Resend
+    const emailResult = await sendVerificationEmail({
+      to: targetEmail,
+      code: otp,
+      purpose: "PASSWORD_RESET",
+      language: user.language || "rw",
+      recipientName: user.name,
+      expiresMinutes: 10,
     });
 
-    if (!user) {
-      return NextResponse.json({
-        success: true,
-        method: "SMS",
-        message: "If that phone number belongs to an account, a verification code has been dispatched via SMS.",
-      });
-    }
-
-    // Generate and persist 10-minute OTP
-    const otp = await createAndSaveOtp(user.phone || targetPhone);
-
-    let smsSuccess = false;
-    let feedbackMessage = "A 4-digit verification code has been dispatched via SMS to your phone.";
-
-    // If user has a registered phone, attempt SMS alert
-    if (user.phone) {
-      const smsResult = await sendBusinessSMS({
-        businessId: "system",
-        recipientPhone: user.phone,
-        templateId: "SECURITY_ALERT",
-        language: (user.language as any) || "rw",
-        variables: {
-          code: otp,
+    if (!emailResult.success) {
+      return NextResponse.json(
+        {
+          error: emailResult.error || "Failed to dispatch verification email. Please try again.",
         },
-      }).catch((err) => ({ success: false, status: "FAILED", error: err.message }));
-
-      smsSuccess = Boolean(smsResult && smsResult.success);
+        { status: 502 }
+      );
     }
 
-    if (!smsSuccess) {
-      feedbackMessage = `SMS gateway is not configured. For your account recovery, your verification code is: ${otp}`;
-    }
-
+    // 4. Log audit trail (without exposing sensitive code or API keys)
     await logAuditEvent({
       actorId: user.id,
-      action: "PASSWORD_RESET_OTP_REQUESTED",
+      action: "PASSWORD_RESET_EMAIL_DISPATCHED",
       entityType: "USER",
       entityId: user.id,
-      metadata: { method: "SMS", phone: user.phone, smsDispatched: smsSuccess },
+      metadata: { method: "EMAIL", maskedRecipient: maskEmail(targetEmail) },
     });
 
     return NextResponse.json({
       success: true,
-      method: "SMS",
-      phone: user.phone || targetPhone,
-      message: feedbackMessage,
-      smsDispatched: smsSuccess,
-      code: !smsSuccess ? otp : undefined,
-      devOtp: !smsSuccess || process.env.NODE_ENV !== "production" ? otp : undefined,
+      method: "EMAIL",
+      email: maskEmail(targetEmail),
+      message: `A 4-digit verification code has been dispatched to your registered email address (${maskEmail(targetEmail)}).`,
     });
   } catch (error) {
     console.error("[Forgot Password API Error]:", error);
