@@ -19,7 +19,8 @@ import {
   ShieldCheck,
   ChevronRight,
   Filter,
-  Store
+  Store,
+  Mail,
 } from "lucide-react";
 
 export default function ExplorePage() {
@@ -271,9 +272,18 @@ export default function ExplorePage() {
                 </div>
 
                 <div>
-                  <h3 className="text-lg font-bold text-slate-900">
-                    {lang === "rw" && selectedPin.nameRw ? selectedPin.nameRw : selectedPin.name}
-                  </h3>
+                  <div className="flex items-center gap-3 mb-1">
+                    {selectedPin.logo && (
+                      <img
+                        src={selectedPin.logo}
+                        alt={selectedPin.name}
+                        className="w-10 h-10 rounded-xl object-contain bg-white border border-slate-200 shadow-xs shrink-0 p-1"
+                      />
+                    )}
+                    <h3 className="text-lg font-bold text-slate-900 leading-tight">
+                      {lang === "rw" && selectedPin.nameRw ? selectedPin.nameRw : selectedPin.name}
+                    </h3>
+                  </div>
                   <div className="flex items-center gap-1.5 text-xs text-slate-500 mt-1">
                     <MapPin className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                     <span>{selectedPin.location?.community || (selectedPin as any).cell || "Nyamirambo"}, {selectedPin.location?.cell || (selectedPin as any).cell || "Nyamirambo"}</span>
@@ -315,6 +325,15 @@ export default function ExplorePage() {
                       className="flex-1 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold text-center transition-colors"
                     >
                       WhatsApp
+                    </a>
+                  )}
+                  {selectedPin.email && (
+                    <a
+                      href={`mailto:${selectedPin.email}`}
+                      className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold text-center transition-colors flex items-center justify-center shrink-0"
+                      title={selectedPin.email}
+                    >
+                      <Mail className="w-3.5 h-3.5 text-slate-600" />
                     </a>
                   )}
                 </div>

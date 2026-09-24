@@ -293,6 +293,8 @@ model Business {
   descriptionSw      String?
   phone              String
   whatsapp           String?
+  email              String?
+  logo               String?
   
   // Data Lifecycle Status
   dataStatus         DataStatus         @default(DEMO)

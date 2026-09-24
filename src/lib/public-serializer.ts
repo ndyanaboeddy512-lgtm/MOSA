@@ -85,6 +85,8 @@ export interface PublicBusiness {
   descriptionRw?: string;
   phone: string;
   whatsapp?: string;
+  email?: string;
+  logo?: string;
   dataStatus?: string;
   verificationStatus?: string;
   province?: string;
@@ -235,6 +237,8 @@ export function serializePublicBusiness(raw: any): PublicBusiness {
     descriptionRw: formatted.descriptionRw,
     phone: formatted.phone,
     whatsapp: formatted.whatsapp,
+    email: (formatted as any).email || raw.email || undefined,
+    logo: (formatted as any).logo || raw.logo || undefined,
     dataStatus: formatted.dataStatus,
     verificationStatus: formatted.verificationStatus,
     province: formatted.province,

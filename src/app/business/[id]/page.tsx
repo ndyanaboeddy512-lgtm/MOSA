@@ -44,7 +44,8 @@ import {
   Clock3,
   Send,
   Check,
-  Building2
+  Building2,
+  Mail,
 } from "lucide-react";
 import { LocationCard } from "@/components/discovery/LocationCard";
 import { getGoogleMapsDirectionsUrl } from "@/lib/location-quality";
@@ -336,9 +337,17 @@ export default function BusinessDetailPage({
           ) : (
             <div className="w-full h-full bg-slate-950 flex flex-col items-center justify-center text-center p-8 relative overflow-hidden">
               <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(16,185,129,0.15),transparent_70%)] pointer-events-none" />
-              <div className="relative z-10 w-20 h-20 rounded-3xl bg-white/5 border border-white/10 flex items-center justify-center text-white font-extrabold text-4xl shadow-xl mb-3">
-                {displayName ? displayName.charAt(0).toUpperCase() : "M"}
-              </div>
+              {business.logo ? (
+                <img
+                  src={business.logo}
+                  alt={displayName}
+                  className="relative z-10 w-24 h-24 rounded-3xl object-contain bg-white/10 p-2 border border-white/20 shadow-2xl mb-3"
+                />
+              ) : (
+                <div className="relative z-10 w-20 h-20 rounded-3xl bg-white/5 border border-white/10 flex items-center justify-center text-white font-extrabold text-4xl shadow-xl mb-3">
+                  {displayName ? displayName.charAt(0).toUpperCase() : "M"}
+                </div>
+              )}
               <div className="relative z-10 text-[11px] font-bold text-amber-400 tracking-[0.2em] uppercase bg-white/5 px-4 py-1.5 rounded-full border border-white/10">
                 {(lang === "rw" ? business.classificationPathRw : business.classificationPath) || displayCategory}
               </div>
@@ -362,9 +371,18 @@ export default function BusinessDetailPage({
               </span>
             </div>
 
-            <h1 className="text-3xl sm:text-5xl md:text-6xl font-black tracking-tight text-white leading-tight">
-              {displayName}
-            </h1>
+            <div className="flex items-center gap-3 sm:gap-4">
+              {business.logo && (
+                <img
+                  src={business.logo}
+                  alt={displayName}
+                  className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl object-contain bg-white border-2 border-white/30 shadow-xl shrink-0 p-1"
+                />
+              )}
+              <h1 className="text-3xl sm:text-5xl md:text-6xl font-black tracking-tight text-white leading-tight">
+                {displayName}
+              </h1>
+            </div>
             
             <div className="flex items-center gap-2 text-xs sm:text-sm text-slate-300">
               <MapPin className="w-4 h-4 text-emerald-400 shrink-0" />
@@ -425,6 +443,16 @@ export default function BusinessDetailPage({
                         ? (lang === "rw" ? "Gutumiza kuri WhatsApp" : "Order via WhatsApp")
                         : "WhatsApp")}
                 </span>
+              </a>
+            )}
+            {business.email && (
+              <a
+                href={`mailto:${business.email}`}
+                className="px-5 py-3 rounded-full bg-slate-900/90 hover:bg-slate-800 text-white font-bold text-xs sm:text-sm border border-slate-700/80 shadow-md transition-all flex items-center gap-2 cursor-pointer backdrop-blur-md hover:scale-[1.02]"
+                title={`Send email to ${business.email}`}
+              >
+                <Mail className="w-4 h-4 text-emerald-400" />
+                <span>Email</span>
               </a>
             )}
           </div>
@@ -1112,6 +1140,57 @@ export default function BusinessDetailPage({
                   </div>
                 </div>
               </div>
+            </div>
+          </div>
+
+          {/* Direct Contacts Card */}
+          <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-card space-y-3">
+            <h3 className="font-bold text-slate-900 text-base mb-2 flex items-center gap-2">
+              <Phone className="w-4 h-4 text-emerald-600" />
+              <span>{lang === "rw" ? "Aho Mwatubariza" : "Direct Contacts"}</span>
+            </h3>
+
+            <div className="space-y-2.5 text-xs">
+              {business.phone && (
+                <div className="flex items-center justify-between py-1.5 border-b border-slate-50">
+                  <span className="text-slate-500 font-medium flex items-center gap-1.5">
+                    <Phone className="w-3.5 h-3.5 text-slate-400" />
+                    <span>Phone</span>
+                  </span>
+                  <a href={`tel:${business.phone}`} className="font-bold text-slate-900 hover:text-emerald-700 transition-colors">
+                    {business.phone}
+                  </a>
+                </div>
+              )}
+
+              {business.whatsapp && (
+                <div className="flex items-center justify-between py-1.5 border-b border-slate-50">
+                  <span className="text-slate-500 font-medium flex items-center gap-1.5">
+                    <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>WhatsApp</span>
+                  </span>
+                  <a
+                    href={`https://wa.me/${formattedWhatsApp}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-bold text-emerald-700 hover:underline"
+                  >
+                    {business.whatsapp}
+                  </a>
+                </div>
+              )}
+
+              {business.email && (
+                <div className="flex items-center justify-between py-1.5">
+                  <span className="text-slate-500 font-medium flex items-center gap-1.5">
+                    <Mail className="w-3.5 h-3.5 text-slate-400" />
+                    <span>Email</span>
+                  </span>
+                  <a href={`mailto:${business.email}`} className="font-bold text-slate-900 hover:text-emerald-700 transition-colors truncate max-w-[180px]">
+                    {business.email}
+                  </a>
+                </div>
+              )}
             </div>
           </div>
 

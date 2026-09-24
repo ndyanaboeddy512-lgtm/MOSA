@@ -100,6 +100,8 @@ export function formatBusinessRecord(raw: any): Business {
     descriptionRw: raw.descriptionRw || raw.description || "",
     phone: raw.phone || (dataStatus === "DEMO" ? "+250780000000" : "+250788000000"),
     whatsapp: raw.whatsapp || undefined,
+    email: raw.email || undefined,
+    logo: raw.logo || undefined,
     dataStatus,
     source: raw.source || (dataStatus === "DEMO" ? "SAMPLE_SEED" : "AGENT_FIELD_AUDIT"),
     priceRangeMin: typeof raw.priceRangeMin === "number" ? raw.priceRangeMin : undefined,

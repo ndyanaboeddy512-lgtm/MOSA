@@ -371,13 +371,22 @@ function SearchContent() {
             {selectedPin ? (
               <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-4">
                 <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <span className="inline-block px-2.5 py-0.5 bg-emerald-50 text-emerald-700 text-[10px] font-bold rounded-full mb-1">
-                      {selectedPin.categoryDisplay || selectedPin.category}
-                    </span>
-                    <h3 className="text-base font-bold text-slate-900">
-                      {lang === "rw" && selectedPin.nameRw ? selectedPin.nameRw : selectedPin.name}
-                    </h3>
+                  <div className="flex items-center gap-3">
+                    {selectedPin.logo && (
+                      <img
+                        src={selectedPin.logo}
+                        alt={selectedPin.name}
+                        className="w-10 h-10 rounded-xl object-contain bg-white border border-slate-200 shadow-2xs shrink-0 p-1"
+                      />
+                    )}
+                    <div>
+                      <span className="inline-block px-2.5 py-0.5 bg-emerald-50 text-emerald-700 text-[10px] font-bold rounded-full mb-1">
+                        {selectedPin.categoryDisplay || selectedPin.category}
+                      </span>
+                      <h3 className="text-base font-bold text-slate-900 leading-tight">
+                        {lang === "rw" && selectedPin.nameRw ? selectedPin.nameRw : selectedPin.name}
+                      </h3>
+                    </div>
                   </div>
                   <VerificationBadge status={selectedPin.verificationStatus} />
                 </div>

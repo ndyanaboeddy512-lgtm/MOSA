@@ -59,6 +59,7 @@ import {
   Upload,
   FileText,
   Camera,
+  Mail,
 } from "lucide-react";
 import { MosaMap } from "@/components/discovery/MosaMap";
 import { calculateLocationCompleteness, getGoogleMapsDirectionsUrl } from "@/lib/location-quality";
@@ -108,6 +109,11 @@ export default function OwnerDashboardPage() {
   const [isUploadingCover, setIsUploadingCover] = useState(false);
   const [coverUrlInput, setCoverUrlInput] = useState("");
   const coverFileInputRef = useRef<HTMLInputElement>(null);
+
+  // Business Logo State
+  const [isUploadingLogo, setIsUploadingLogo] = useState(false);
+  const [logoUrlInput, setLogoUrlInput] = useState("");
+  const logoFileInputRef = useRef<HTMLInputElement>(null);
 
   // Photo, Video, and Update File Upload Refs & States
   const photoFileInputRef = useRef<HTMLInputElement>(null);
@@ -272,6 +278,8 @@ export default function OwnerDashboardPage() {
     businessType: "grocery_shop",
     phone: "",
     whatsapp: "",
+    email: "",
+    logo: "",
     sector: "",
     cell: "",
     addressNote: "",
@@ -358,6 +366,9 @@ export default function OwnerDashboardPage() {
           if (data.business.coverImage) {
             setCoverUrlInput(data.business.coverImage);
           }
+          if (data.business.logo) {
+            setLogoUrlInput(data.business.logo);
+          }
 
           // Sync local profile form
           setProfileForm({
@@ -371,6 +382,8 @@ export default function OwnerDashboardPage() {
             businessType: data.business.businessType || "grocery_shop",
             phone: data.business.phone || "",
             whatsapp: data.business.whatsapp || "",
+            email: data.business.email || "",
+            logo: data.business.logo || "",
             sector: data.business.location?.sector || data.business.sector || "Nyamirambo",
             cell: data.business.location?.cell || data.business.cell || "Biryogo",
             addressNote: data.business.location?.addressNote || data.business.addressNote || "",
@@ -858,6 +871,8 @@ export default function OwnerDashboardPage() {
         body: JSON.stringify({
           businessId: business.id,
           ...profileForm,
+          email: profileForm.email.trim() || null,
+          logo: profileForm.logo.trim() || null,
         }),
       });
 
@@ -865,6 +880,9 @@ export default function OwnerDashboardPage() {
         const data = await res.json();
         setBusiness(data.business);
         setHealthReport(data.health);
+        if (data.business?.logo) {
+          setLogoUrlInput(data.business.logo);
+        }
         if (data.reviewRequired) {
           setSaveSuccessMsg(
             lang === "rw"
@@ -1399,6 +1417,110 @@ export default function OwnerDashboardPage() {
     }
   };
 
+  // Business Logo Management Handlers
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !business) return;
+    try {
+      setIsUploadingLogo(true);
+      setErrorMsg("");
+      const processed = await processDeviceUpload(file);
+
+      const res = await fetch("/api/owner/business", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          businessId: business.id,
+          logo: processed.url,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to update business logo.");
+      }
+
+      setBusiness((prev) => prev ? { ...prev, logo: processed.url } : null);
+      setLogoUrlInput(processed.url);
+      setProfileForm((prev) => ({ ...prev, logo: processed.url }));
+      setSaveSuccessMsg(
+        lang === "rw"
+          ? "Ikirango (Logo) cyashyizweho neza kandi cyahise kigaragara ku rubuga rwa MOSA!"
+          : "Business logo uploaded and instantly synchronized across MOSA!"
+      );
+      setTimeout(() => setSaveSuccessMsg(""), 4000);
+    } catch (err: any) {
+      setErrorMsg(err.message || "Failed to upload business logo.");
+    } finally {
+      setIsUploadingLogo(false);
+      if (logoFileInputRef.current) logoFileInputRef.current.value = "";
+    }
+  };
+
+  const handleLogoUrlSave = async (urlToSave: string) => {
+    if (!business || !urlToSave.trim()) return;
+    try {
+      setIsUploadingLogo(true);
+      setErrorMsg("");
+      const cleanUrl = urlToSave.trim();
+      const res = await fetch("/api/owner/business", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          businessId: business.id,
+          logo: cleanUrl,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to update business logo URL.");
+      }
+      setBusiness((prev) => prev ? { ...prev, logo: cleanUrl } : null);
+      setProfileForm((prev) => ({ ...prev, logo: cleanUrl }));
+      setSaveSuccessMsg(
+        lang === "rw"
+          ? "Ikirango (Logo) cyavuguruwe neza!"
+          : "Business logo updated and synchronized across MOSA!"
+      );
+      setTimeout(() => setSaveSuccessMsg(""), 4000);
+    } catch (err: any) {
+      setErrorMsg(err.message || "Failed to update business logo.");
+    } finally {
+      setIsUploadingLogo(false);
+    }
+  };
+
+  const handleRemoveLogo = async () => {
+    if (!business) return;
+    if (!confirm(lang === "rw" ? "Uremeza ko ushaka gukuraho ikirango (Logo) cy'ubucuruzi?" : "Are you sure you want to remove your business logo?")) return;
+    try {
+      setIsUploadingLogo(true);
+      const res = await fetch("/api/owner/business", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          businessId: business.id,
+          logo: null,
+        }),
+      });
+      if (!res.ok) {
+        throw new Error("Failed to remove business logo.");
+      }
+      setBusiness((prev) => prev ? { ...prev, logo: "" } : null);
+      setLogoUrlInput("");
+      setProfileForm((prev) => ({ ...prev, logo: "" }));
+      setSaveSuccessMsg(
+        lang === "rw"
+          ? "Ikirango (Logo) cyakuweho neza."
+          : "Business logo removed successfully."
+      );
+      setTimeout(() => setSaveSuccessMsg(""), 3000);
+    } catch (err: any) {
+      setErrorMsg(err.message || "Failed to remove business logo.");
+    } finally {
+      setIsUploadingLogo(false);
+    }
+  };
+
   // Device upload helpers for modals
   const handlePhotoDeviceUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -1633,9 +1755,17 @@ export default function OwnerDashboardPage() {
       <div className="bg-white rounded-3xl p-5 sm:p-7 border border-slate-200 shadow-card flex flex-col md:flex-row md:items-center justify-between gap-5">
         <div className="space-y-2">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="p-2 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200/60">
-              <Store className="w-5 h-5" />
-            </span>
+            {business.logo ? (
+              <img
+                src={business.logo}
+                alt={business.name}
+                className="w-10 h-10 rounded-xl object-contain bg-white border border-slate-200 shadow-2xs p-1"
+              />
+            ) : (
+              <span className="p-2 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200/60">
+                <Store className="w-5 h-5" />
+              </span>
+            )}
             <VerificationBadge status={business.verificationStatus} size="sm" />
             <DataStatusBadge status={business.dataStatus} size="sm" />
             <button
@@ -1667,6 +1797,15 @@ export default function OwnerDashboardPage() {
               <Smartphone className="w-3.5 h-3.5 text-slate-400" />
               <span>{business.phone}</span>
             </span>
+            {business.email && (
+              <>
+                <span>•</span>
+                <span className="flex items-center gap-1">
+                  <Mail className="w-3.5 h-3.5 text-slate-400" />
+                  <span>{business.email}</span>
+                </span>
+              </>
+            )}
             <span>•</span>
             <span className="text-slate-400">
               {lang === "rw" ? "Icyiciro:" : "Category:"} {business.categoryDisplay}
@@ -2619,6 +2758,120 @@ export default function OwnerDashboardPage() {
             </p>
           </div>
 
+          {/* Business Logo Section (Optional) */}
+          <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200/90 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <span className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                  <ImageIcon className="w-4 h-4 text-emerald-600" />
+                  <span>{lang === "rw" ? "Ikirango cy'Ubucuruzi (Logo - Hitamo)" : "Business Logo (Optional)"}</span>
+                </span>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  {lang === "rw"
+                    ? "Shyiraho ikirango cyawe bwite. Nikimara gushyirwaho, gisimbuza inyuguti isanzwe kikagaragara ku rupapuro rw'ubucuruzi bwawe no mu gushakisha hose muri MOSA."
+                    : "Upload your official business logo. When uploaded, it replaces the default placeholder and appears on your business page, discovery cards, and search results across MOSA."}
+                </p>
+              </div>
+
+              {(business?.logo || profileForm.logo) && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-bold border border-emerald-200 self-start sm:self-auto shrink-0">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>{lang === "rw" ? "Ikirango Kirakora" : "Custom Logo Active"}</span>
+                </span>
+              )}
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-center gap-5 pt-1">
+              {/* Logo Preview */}
+              <div className="relative group shrink-0">
+                {(business?.logo || profileForm.logo) ? (
+                  <div className="relative">
+                    <img
+                      src={business?.logo || profileForm.logo}
+                      alt="Business Logo"
+                      className="w-24 h-24 rounded-2xl object-contain bg-white border-2 border-emerald-500/40 shadow-sm p-1.5"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleRemoveLogo}
+                      disabled={isUploadingLogo}
+                      title="Remove Logo"
+                      className="absolute -top-2 -right-2 p-1.5 rounded-full bg-rose-600 hover:bg-rose-700 text-white shadow-md cursor-pointer transition-colors disabled:opacity-50"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="w-24 h-24 rounded-2xl border-2 border-dashed border-slate-300 bg-white flex flex-col items-center justify-center text-slate-400 gap-1 shadow-inner">
+                    <Store className="w-6 h-6 text-slate-300" />
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">No Logo</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Upload Controls & URL input */}
+              <div className="flex-1 w-full space-y-3">
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <input
+                    ref={logoFileInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleLogoUpload}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => logoFileInputRef.current?.click()}
+                    disabled={isUploadingLogo}
+                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold cursor-pointer transition-colors flex items-center gap-1.5 shadow-xs disabled:opacity-50"
+                  >
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>
+                      {isUploadingLogo
+                        ? (lang === "rw" ? "Birashyirwaho..." : "Uploading...")
+                        : (business?.logo || profileForm.logo
+                            ? (lang === "rw" ? "Hindura Ikirango (Replace Logo)" : "Replace Logo")
+                            : (lang === "rw" ? "Shyiraho Ikirango (Upload Logo)" : "Upload Logo"))}
+                    </span>
+                  </button>
+
+                  {(business?.logo || profileForm.logo) && (
+                    <button
+                      type="button"
+                      onClick={handleRemoveLogo}
+                      disabled={isUploadingLogo}
+                      className="px-3.5 py-2 border border-rose-200 text-rose-600 hover:bg-rose-50 rounded-xl text-xs font-bold cursor-pointer transition-colors flex items-center gap-1.5 disabled:opacity-50"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>{lang === "rw" ? "Kuraho Ikirango" : "Remove Logo"}</span>
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <input
+                    type="url"
+                    placeholder={lang === "rw" ? "Cyangwa shyiramo link y'ikirango (https://...)" : "Or paste logo image URL (https://...)"}
+                    value={logoUrlInput}
+                    onChange={(e) => {
+                      setLogoUrlInput(e.target.value);
+                      setProfileForm((prev) => ({ ...prev, logo: e.target.value }));
+                    }}
+                    className="flex-1 px-3 py-2 bg-white rounded-xl border border-slate-300 text-xs font-mono outline-none focus:border-emerald-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleLogoUrlSave(logoUrlInput)}
+                    disabled={isUploadingLogo || !logoUrlInput.trim()}
+                    className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold cursor-pointer transition-colors disabled:opacity-50"
+                  >
+                    {lang === "rw" ? "Bika Link" : "Save Link"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
             <div>
               <div className="flex items-center justify-between mb-1">
@@ -2796,6 +3049,23 @@ export default function OwnerDashboardPage() {
                 className="w-full p-3 bg-slate-50 rounded-xl border border-slate-300 text-xs font-mono outline-none focus:ring-2 focus:ring-emerald-500"
               />
             </div>
+
+            <div className="sm:col-span-2">
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                  <Mail className="w-3.5 h-3.5 text-slate-500" />
+                  <span>Business Email Address</span>
+                </label>
+                <span className="text-[10px] font-bold text-emerald-600 uppercase bg-emerald-50 px-2 py-0.5 rounded">Public / Direct</span>
+              </div>
+              <input
+                type="email"
+                value={profileForm.email}
+                onChange={(e) => setProfileForm({ ...profileForm, email: e.target.value })}
+                placeholder="contact@yourbusiness.rw"
+                className="w-full p-3 bg-slate-50 rounded-xl border border-slate-300 text-xs font-mono outline-none focus:ring-2 focus:ring-emerald-500"
+              />
+            </div>
           </div>
 
           <div>
@@ -2899,9 +3169,10 @@ export default function OwnerDashboardPage() {
             <button
               type="submit"
               disabled={loading}
-              className="px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md transition-all cursor-pointer"
+              className="px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md transition-all cursor-pointer flex items-center gap-1.5"
             >
-              {loading ? "Saving to Database..." : lang === "rw" ? "Bika Impinduka zose" : "Save & Publish Changes"}
+              <Check className="w-4 h-4" />
+              <span>{loading ? "Saving to Database..." : lang === "rw" ? "Bika Impinduka (Save Changes)" : "Save Changes"}</span>
             </button>
           </div>
         </form>
@@ -3395,8 +3666,8 @@ export default function OwnerDashboardPage() {
                 {loading
                   ? "Saving Location..."
                   : lang === "rw"
-                  ? "Bika Aho Mubarizwa ku Rubuga"
-                  : "Save & Synchronize Location"}
+                  ? "Bika Impinduka (Save Changes)"
+                  : "Save Changes"}
               </span>
             </button>
           </div>
@@ -3478,9 +3749,11 @@ export default function OwnerDashboardPage() {
           <div className="pt-2 text-right">
             <button
               type="submit"
-              className="px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md transition-all cursor-pointer"
+              disabled={loading}
+              className="px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md transition-all cursor-pointer flex items-center gap-1.5"
             >
-              {lang === "rw" ? "Bika Amasaha yose" : "Save Operating Hours"}
+              <Check className="w-4 h-4" />
+              <span>{loading ? "Saving Hours..." : lang === "rw" ? "Bika Impinduka (Save Changes)" : "Save Changes"}</span>
             </button>
           </div>
         </form>
@@ -5675,7 +5948,7 @@ export default function OwnerDashboardPage() {
                   type="submit"
                   className="flex-1 py-2.5 rounded-xl bg-emerald-600 text-white font-bold shadow-md hover:bg-emerald-700"
                 >
-                  Save & Publish Price
+                  {lang === "rw" ? "Bika Impinduka (Save Changes)" : "Save Changes"}
                 </button>
               </div>
             </form>

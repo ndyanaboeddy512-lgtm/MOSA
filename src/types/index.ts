@@ -196,6 +196,8 @@ export interface Business {
   descriptionRw?: string;
   phone: string;
   whatsapp?: string;
+  email?: string;
+  logo?: string;
   dataStatus?: DataStatus;
   source?: string;
   addressNote?: string;

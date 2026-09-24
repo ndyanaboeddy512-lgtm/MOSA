@@ -257,6 +257,31 @@ export async function PATCH(request: Request) {
       });
     }
 
+    // Batch update Products/Services if provided
+    if (fields.products && Array.isArray(fields.products)) {
+      await prisma.$transaction(async (tx) => {
+        for (const prod of fields.products) {
+          if (prod && prod.id) {
+            await tx.product.updateMany({
+              where: { id: prod.id, businessId },
+              data: {
+                name: prod.name,
+                nameRw: prod.nameRw,
+                description: prod.description,
+                price: Number(prod.price) || 0,
+                priceMin: prod.priceMin ? Number(prod.priceMin) : null,
+                priceMax: prod.priceMax ? Number(prod.priceMax) : null,
+                isAvailable: typeof prod.isAvailable === "boolean" ? prod.isAvailable : true,
+                isService: Boolean(prod.isService),
+                isEstimated: Boolean(prod.contactForPrice || prod.isEstimated),
+                unit: prod.unit || "item",
+              },
+            });
+          }
+        }
+      });
+    }
+
     // Prepare profile fields update
     const updateData: any = {};
     const changedFields: string[] = [];
@@ -276,6 +301,8 @@ export async function PATCH(request: Request) {
       "businessType",
       "phone",
       "whatsapp",
+      "email",
+      "logo",
       "isOpenNow",
       "province",
       "district",
@@ -433,7 +460,10 @@ export async function PATCH(request: Request) {
     // Instant Public Page Cache Revalidation
     revalidatePath(`/business/${businessId}`);
     revalidatePath("/explore");
+    revalidatePath("/search");
+    revalidatePath("/");
     revalidatePath("/admin");
+    revalidatePath("/owner/dashboard");
 
     // Recalculate health and confirmation
     const [updatedBusiness, updatedHealth] = await Promise.all([

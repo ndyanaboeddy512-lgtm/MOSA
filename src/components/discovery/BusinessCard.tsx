@@ -59,9 +59,17 @@ export function BusinessCard({ business, variant = "standard", className = "" }:
           )
         ) : (
           <div className="w-full h-full bg-slate-900 flex flex-col items-center justify-center text-center p-6 relative">
-            <div className="w-14 h-14 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-slate-200 font-bold text-2xl shadow-inner mb-2 group-hover:scale-105 transition-transform">
-              {displayName ? displayName.charAt(0).toUpperCase() : "M"}
-            </div>
+            {business.logo ? (
+              <img
+                src={business.logo}
+                alt={displayName}
+                className="w-16 h-16 rounded-2xl object-contain bg-white/10 p-2 border border-white/20 mb-2 shadow-inner group-hover:scale-105 transition-transform"
+              />
+            ) : (
+              <div className="w-14 h-14 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-slate-200 font-bold text-2xl shadow-inner mb-2 group-hover:scale-105 transition-transform">
+                {displayName ? displayName.charAt(0).toUpperCase() : "M"}
+              </div>
+            )}
             <span className="text-[10px] font-bold text-amber-400 tracking-[0.2em] uppercase">
               {displayCategory}
             </span>
@@ -119,11 +127,23 @@ export function BusinessCard({ business, variant = "standard", className = "" }:
             </span>
           </div>
 
-          <Link href={`/business/${business.id}`} className="block">
-            <h3 className="font-bold text-slate-950 text-lg sm:text-xl group-hover:text-emerald-800 transition-colors tracking-tight leading-snug">
-              {displayName}
-            </h3>
-          </Link>
+          <div className="flex items-center gap-3">
+            {business.logo && (
+              <img
+                src={business.logo}
+                alt={`${displayName} logo`}
+                className="w-10 h-10 rounded-xl object-contain bg-white border border-slate-200 shadow-xs shrink-0 p-1"
+                loading="lazy"
+              />
+            )}
+            <div className="flex-1 min-w-0">
+              <Link href={`/business/${business.id}`} className="block">
+                <h3 className="font-bold text-slate-950 text-lg sm:text-xl group-hover:text-emerald-800 transition-colors tracking-tight leading-snug truncate">
+                  {displayName}
+                </h3>
+              </Link>
+            </div>
+          </div>
 
           <p className="text-xs text-slate-500 mt-2 line-clamp-2 leading-relaxed">
             {lang === "rw" && business.descriptionRw ? business.descriptionRw : business.description}
