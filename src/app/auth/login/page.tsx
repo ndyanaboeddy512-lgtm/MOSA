@@ -151,8 +151,11 @@ function LoginContent() {
 
       setRecoveryMethod(data.method || (recoveryIdentifier.includes("@") ? "EMAIL" : "SMS"));
       setRecoverySuccess(data.message);
-      if (data.devOtp) setDevRecoveryCode(data.devOtp);
-      if (data.devToken) setDevRecoveryCode(data.devToken);
+      const fallbackCode = data.code || data.devOtp || data.devToken;
+      if (fallbackCode) {
+        setDevRecoveryCode(fallbackCode);
+        setRecoveryCode(fallbackCode);
+      }
       setRecoveryStep("verify");
     } catch (err: any) {
       setRecoveryError(err.message || "Failed to initiate password recovery.");
@@ -786,9 +789,20 @@ function LoginContent() {
             {recoveryStep === "verify" && (
               <form onSubmit={handleResetPasswordSubmit} className="space-y-4 mt-4">
                 {devRecoveryCode && (
-                  <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-[11px] text-amber-900 font-mono">
-                    <span className="font-bold">Dev Verification Code: </span>
-                    <span className="font-bold text-amber-800 bg-amber-100 px-1.5 py-0.5 rounded">{devRecoveryCode}</span>
+                  <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900 flex items-center justify-between">
+                    <div>
+                      <span className="font-semibold block text-[11px] text-amber-800">
+                        {lang === "rw" ? "Kode yemeza (Iyo SMS itaraza):" : "Verification Code (SMS Fallback):"}
+                      </span>
+                      <span className="font-mono font-bold text-base text-amber-900 tracking-widest">{devRecoveryCode}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setRecoveryCode(devRecoveryCode)}
+                      className="px-2.5 py-1 bg-amber-200 hover:bg-amber-300 text-amber-900 rounded-lg text-xs font-bold transition cursor-pointer"
+                    >
+                      {lang === "rw" ? "Koresha iyi kode" : "Auto-fill"}
+                    </button>
                   </div>
                 )}
 
@@ -803,7 +817,7 @@ function LoginContent() {
                     type="text"
                     value={recoveryCode}
                     onChange={(e) => setRecoveryCode(e.target.value)}
-                    placeholder={recoveryMethod === "EMAIL" ? "Paste token here..." : "e.g. 7294"}
+                    placeholder={recoveryMethod === "EMAIL" ? "Paste token here..." : (lang === "rw" ? "Injiza kode y'imibare 4" : "Enter 4-digit code")}
                     required
                     className="w-full px-3 py-2.5 bg-slate-50 rounded-xl border border-slate-300 font-mono text-sm font-bold text-slate-900 outline-none focus:ring-2 focus:ring-emerald-500"
                   />

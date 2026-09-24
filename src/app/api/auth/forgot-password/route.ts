@@ -86,9 +86,12 @@ export async function POST(request: Request) {
     // Generate and persist 10-minute OTP
     const otp = await createAndSaveOtp(user.phone || targetPhone);
 
+    let smsSuccess = false;
+    let feedbackMessage = "A 4-digit verification code has been dispatched via SMS to your phone.";
+
     // If user has a registered phone, attempt SMS alert
     if (user.phone) {
-      await sendBusinessSMS({
+      const smsResult = await sendBusinessSMS({
         businessId: "system",
         recipientPhone: user.phone,
         templateId: "SECURITY_ALERT",
@@ -96,7 +99,13 @@ export async function POST(request: Request) {
         variables: {
           code: otp,
         },
-      }).catch(() => {});
+      }).catch((err) => ({ success: false, status: "FAILED", error: err.message }));
+
+      smsSuccess = Boolean(smsResult && smsResult.success);
+    }
+
+    if (!smsSuccess) {
+      feedbackMessage = `SMS gateway is not configured. For your account recovery, your verification code is: ${otp}`;
     }
 
     await logAuditEvent({
@@ -104,15 +113,17 @@ export async function POST(request: Request) {
       action: "PASSWORD_RESET_OTP_REQUESTED",
       entityType: "USER",
       entityId: user.id,
-      metadata: { method: "SMS", phone: user.phone },
+      metadata: { method: "SMS", phone: user.phone, smsDispatched: smsSuccess },
     });
 
     return NextResponse.json({
       success: true,
       method: "SMS",
       phone: user.phone || targetPhone,
-      message: "A 4-digit verification code has been dispatched via SMS to your phone.",
-      devOtp: process.env.NODE_ENV !== "production" ? otp : undefined,
+      message: feedbackMessage,
+      smsDispatched: smsSuccess,
+      code: !smsSuccess ? otp : undefined,
+      devOtp: !smsSuccess || process.env.NODE_ENV !== "production" ? otp : undefined,
     });
   } catch (error) {
     console.error("[Forgot Password API Error]:", error);

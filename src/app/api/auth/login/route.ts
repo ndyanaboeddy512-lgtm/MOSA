@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { createAndSaveOtp, comparePassword, createSessionToken, setSessionCookie } from "@/lib/auth";
 import { normalizeRwandaPhone } from "@/lib/sms/normalize";
+import { sendBusinessSMS } from "@/lib/sms";
 import { logAuditEvent } from "@/lib/audit";
 
 export async function POST(request: Request) {
@@ -115,17 +116,31 @@ export async function POST(request: Request) {
     // Generate and persist OTP in database with 10-minute validity
     const otp = await createAndSaveOtp(norm.e164);
 
+    let smsSuccess = false;
+    const smsResult = await sendBusinessSMS({
+      businessId: "system",
+      recipientPhone: norm.e164,
+      templateId: "SECURITY_ALERT",
+      language: "rw",
+      variables: { code: otp },
+    }).catch(() => ({ success: false, status: "FAILED" }));
+
+    smsSuccess = Boolean(smsResult && smsResult.success);
+
     await logAuditEvent({
       action: "OTP_REQUESTED",
       entityType: "AUTH",
       entityId: norm.e164,
-      metadata: { requestedRole: role },
+      metadata: { requestedRole: role, smsDispatched: smsSuccess },
     });
 
     return NextResponse.json({
       success: true,
-      message: "Verification code sent via SMS",
-      otp: process.env.NODE_ENV !== "production" ? otp : undefined,
+      message: smsSuccess 
+        ? "Verification code sent via SMS" 
+        : `SMS Gateway is not configured. Your verification code is: ${otp}`,
+      smsDispatched: smsSuccess,
+      otp: !smsSuccess || process.env.NODE_ENV !== "production" ? otp : undefined,
     });
   } catch (error) {
     console.error("[Auth API Error]:", error);
