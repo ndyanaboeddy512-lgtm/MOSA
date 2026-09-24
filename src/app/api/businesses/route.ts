@@ -8,6 +8,56 @@ import { serializePublicBusiness } from "@/lib/public-serializer";
 import { parseSearchQuery } from "@/lib/search-nlp";
 import { checkNearDuplicates } from "@/lib/location-quality";
 
+function buildLocationOrConditions(locationTerm: string) {
+  const clean = locationTerm.trim();
+  const tokens: string[] = [clean];
+
+  const parenMatch = clean.match(/\(([^)]+)\)/);
+  if (parenMatch && parenMatch[1]) {
+    tokens.push(parenMatch[1].trim());
+  }
+
+  const beforeParen = clean.split("(")[0].trim();
+  if (beforeParen && beforeParen !== clean) {
+    tokens.push(beforeParen);
+  }
+
+  const stopWords = new Set([
+    "area", "st", "street", "rd", "road", "ave", "avenue",
+    "zone", "center", "centre", "strip", "corridor", "alley",
+    "near", "ahegereye", "junction"
+  ]);
+
+  const words = clean
+    .replace(/[(),]/g, " ")
+    .split(/\s+/)
+    .map((w) => w.trim())
+    .filter((w) => w.length >= 3 && !stopWords.has(w.toLowerCase()));
+
+  for (const w of words) {
+    if (!tokens.includes(w)) {
+      tokens.push(w);
+    }
+  }
+
+  const orConditions: any[] = [];
+  for (const token of tokens) {
+    orConditions.push(
+      { cell: { contains: token, mode: "insensitive" } },
+      { addressNote: { contains: token, mode: "insensitive" } },
+      { nearestLandmark: { contains: token, mode: "insensitive" } },
+      { streetName: { contains: token, mode: "insensitive" } },
+      { nearbyPlace: { contains: token, mode: "insensitive" } },
+      { locationDescription: { contains: token, mode: "insensitive" } },
+      { localArea: { name: { contains: token, mode: "insensitive" } } },
+      { localArea: { landmark: { contains: token, mode: "insensitive" } } },
+      { localArea: { addressNote: { contains: token, mode: "insensitive" } } }
+    );
+  }
+
+  return orConditions;
+}
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const category = searchParams.get("category") || undefined;
@@ -154,12 +204,7 @@ export async function GET(request: Request) {
     if (community && community !== "all") {
       where.AND = where.AND || [];
       where.AND.push({
-        OR: [
-          { cell: { contains: community, mode: "insensitive" } },
-          { addressNote: { contains: community, mode: "insensitive" } },
-          { nearestLandmark: { contains: community, mode: "insensitive" } },
-          { localArea: { name: { contains: community, mode: "insensitive" } } },
-        ],
+        OR: buildLocationOrConditions(community),
       });
     }
 
@@ -194,12 +239,7 @@ export async function GET(request: Request) {
       // If landmark was detected
       if (parsedNlp.matchedLandmark) {
         where.AND.push({
-          OR: [
-            { nearestLandmark: { contains: parsedNlp.matchedLandmark, mode: "insensitive" } },
-            { addressNote: { contains: parsedNlp.matchedLandmark, mode: "insensitive" } },
-            { localArea: { name: { contains: parsedNlp.matchedLandmark, mode: "insensitive" } } },
-            { locationDescription: { contains: parsedNlp.matchedLandmark, mode: "insensitive" } },
-          ],
+          OR: buildLocationOrConditions(parsedNlp.matchedLandmark),
         });
       }
 
