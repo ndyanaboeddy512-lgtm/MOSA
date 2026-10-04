@@ -282,8 +282,8 @@ export async function POST(request: Request) {
       await tx.notification.create({
         data: {
           userId: u.id,
-          title: "Application Submitted for Verification / Icyifuzo Cyakiriwe",
-          message: `Your business registration for "${b.name}" has been received by MOSA Admin. It is currently pending verification. You can review your application details in this dashboard.`,
+          title: "Welcome to Your Owner Portal / Murakaza Neza",
+          message: `Your business registration for "${b.name}" has been received and registered. Welcome to your Private Owner Portal! You can manage your catalog, hours, and business details here.`,
         },
       });
 

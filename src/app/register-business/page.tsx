@@ -536,7 +536,7 @@ export default function RegisterBusinessPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!isAllValid) {
-      setErrorMsg("Your application is incomplete. Please resolve missing required fields before submitting to MOSA Admin.");
+      setErrorMsg("Your application is incomplete. Please resolve missing required fields before completing registration.");
       return;
     }
     if (!formData.certifyAccurate) {
@@ -649,14 +649,30 @@ export default function RegisterBusinessPage() {
       }
 
       setSuccess(true);
-      if (data.user) {
-        try {
-          localStorage.setItem("mosa_user_session", JSON.stringify(data.user));
-        } catch {}
+      if (typeof window !== "undefined") {
+        if (data.user) {
+          try {
+            localStorage.setItem("mosa_user_session", JSON.stringify(data.user));
+          } catch {}
+        }
+
+        // Native Device / Browser Password Manager Integration (Android, iOS, Chrome, Safari, Edge)
+        if ("PasswordCredential" in window && navigator.credentials) {
+          try {
+            const cred = new (window as any).PasswordCredential({
+              id: formData.phone.trim(),
+              password: formData.password,
+              name: formData.ownerName.trim(),
+            });
+            await navigator.credentials.store(cred);
+          } catch {
+            // Non-blocking if browser permission denied
+          }
+        }
+
+        // Immediately open owner dashboard without artificial delays
+        window.location.href = data.redirectUrl || "/owner/dashboard";
       }
-      setTimeout(() => {
-        router.push(data.redirectUrl || "/owner/dashboard");
-      }, 2000);
     } catch (err: any) {
       setErrorMsg(err.message || "An unexpected error occurred. Please try again.");
     } finally {
@@ -810,7 +826,26 @@ export default function RegisterBusinessPage() {
         )}
 
         {!success && (
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form onSubmit={handleSubmit} autoComplete="on" className="space-y-6">
+            {/* Hidden Persistent Credential Fields for Mobile & Computer Password Manager Autofill */}
+            <div className="sr-only hidden" aria-hidden="true">
+              <input
+                type="text"
+                name="username"
+                autoComplete="username"
+                value={formData.phone}
+                readOnly
+                tabIndex={-1}
+              />
+              <input
+                type="password"
+                name="password"
+                autoComplete="new-password"
+                value={formData.password}
+                readOnly
+                tabIndex={-1}
+              />
+            </div>
             
             {/* STEP 1: BUSINESS IDENTITY & OWNER ACCOUNT */}
             {step === 1 && (
@@ -998,6 +1033,9 @@ export default function RegisterBusinessPage() {
                       <Phone className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
                       <input
                         type="tel"
+                        name="username"
+                        id="owner-phone"
+                        autoComplete="username tel"
                         required
                         placeholder={t.registration.phonePlaceholder || "e.g. 0788 123 456 or +254 712 345 678"}
                         value={formData.phone}
@@ -1046,6 +1084,8 @@ export default function RegisterBusinessPage() {
                         <MessageCircle className="w-4 h-4 text-emerald-600 absolute left-3.5 top-3" />
                         <input
                           type="tel"
+                          name="whatsapp"
+                          autoComplete="tel"
                           required
                           placeholder="e.g. 0788 123 456 or +256 753 900 043"
                           value={formData.whatsapp}
@@ -1075,6 +1115,9 @@ export default function RegisterBusinessPage() {
                       <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
                       <input
                         type="password"
+                        name="password"
+                        id="owner-password"
+                        autoComplete="new-password"
                         required
                         placeholder={t.registration.passwordHint}
                         value={formData.password}
@@ -1803,10 +1846,10 @@ export default function RegisterBusinessPage() {
                       <span>Application Review</span>
                     </div>
                     <h2 className="text-xl font-extrabold text-slate-900">
-                      {t.registration.reviewTitle || "Review Your Application Before Submission"}
+                      {t.registration.reviewTitle || "Review Your Profile Before Launching"}
                     </h2>
                     <p className="text-xs text-slate-500 mt-1">
-                      {t.registration.reviewSubtitle || "Verify that all required information is accurate. An incomplete application cannot be submitted to MOSA Admin."}
+                      {t.registration.reviewSubtitle || "Verify all required information before opening your Private Owner Portal."}
                     </p>
                   </div>
 
@@ -2020,12 +2063,12 @@ export default function RegisterBusinessPage() {
                       {submitting ? (
                         <>
                           <Loader2 className="w-4 h-4 animate-spin" />
-                          <span>Submitting to MOSA Admin...</span>
+                          <span>Registering & Launching Portal...</span>
                         </>
                       ) : (
                         <>
                           <CheckCircle2 className="w-4 h-4" />
-                          <span>{t.registration.submitToAdminBtn || "Submit Application to MOSA Admin"}</span>
+                          <span>{t.registration.submitToAdminBtn || "Complete Registration & Launch Owner Portal"}</span>
                         </>
                       )}
                     </button>
