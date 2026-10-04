@@ -57,8 +57,8 @@ export const sw = {
   },
   hero: {
     headline: "Gundua kile ambacho jamii yako tayari inacho.",
-    subheadline: "Maduka ya mtaani, mafundi nguo, vinyozi, mafundi gereji na wajasiriamali wadogo—wanapatikana kidijitali kupitia Mawakala wa Jamii.",
-    communityBadge: "Kituo Kikuu: Nyamirambo, Kigali",
+    subheadline: "Biashara zilizothibitishwa, mafundi, na huduma kote ulimwenguni—ikizaliwa Rwanda, zinapatikana kidijitali zikiwa na maeneo na bei halisi.",
+    communityBadge: "Vituo vya Kimataifa • Asili ya Rwanda",
     stats: {
       businesses: "Biashara Ndogo 120+",
       agents: "Mawakala wa Jamii 18",
@@ -78,8 +78,8 @@ export const sw = {
     step4Desc: "Wakazi wa mtaa wanapata wanachohitaji mara moja na kuwasiliana moja kwa moja kwa simu au WhatsApp bila madalali.",
   },
   discoveryFeed: {
-    title: "Mlisho wa Ugunduzi wa Jamii",
-    subtitle: "Taarifa za hivi punde, biashara zilizofichika na ofa za mtaani Nyamirambo",
+    title: "Mlisho wa Ugunduzi Ulimwenguni",
+    subtitle: "Taarifa za hivi punde, biashara zilizothibitishwa, na biashara za mtaani kote ulimwenguni",
     tabs: {
       all: "Ugunduzi Wote",
       newGems: "Hazina Zilizojificha",

@@ -30,7 +30,7 @@ export function BusinessCard({ business, variant = "standard", className = "" }:
 
   const displayName = lang === "rw" && business.nameRw ? business.nameRw : business.name;
   const displayCategory = lang === "rw" && business.categoryDisplayRw ? business.categoryDisplayRw : business.categoryDisplay;
-  const locationLabel = (business as any).localArea?.name || (business as any).addressNote || (business as any).cell || (business as any).sector || "Rwanda";
+  const locationLabel = (business as any).localArea?.name || (business as any).addressNote || (business as any).cell || (business as any).sector || (business as any).district || (business as any).country || "Worldwide";
 
   const hasValidCover = Boolean(business.coverImage && !isLegacyBagPlaceholder(business.coverImage));
   const validPhoto = business.photos?.find((p) => p && !isLegacyBagPlaceholder(p));
@@ -184,7 +184,7 @@ export function BusinessCard({ business, variant = "standard", className = "" }:
               <Tag className="w-3.5 h-3.5 text-amber-600 shrink-0" />
               <span className="text-[11px] font-medium text-slate-600">
                 {lang === "rw" ? "Igiciro Giteganyijwe:" : "Estimated Price:"}{" "}
-                <strong className="text-slate-950 font-bold">{business.priceRangeMin.toLocaleString()} – {business.priceRangeMax.toLocaleString()} Frw</strong>
+                <strong className="text-slate-950 font-bold">{business.priceRangeMin.toLocaleString()} – {business.priceRangeMax.toLocaleString()} {business.products?.[0]?.currency || "Frw"}</strong>
               </span>
             </div>
           )}

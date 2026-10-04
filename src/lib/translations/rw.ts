@@ -57,8 +57,8 @@ export const rw = {
   },
   hero: {
     headline: "Vumbura ibyo umuryango wawe wari usanganywe.",
-    subheadline: "Amaduka, abadozi, za salo z'imisatsi, makanishi, n'abanyabukorikori batuye mu gace k'iwanyu—biboneka ku buryo bw'ikoranabuhanga binyuze mu kumenya aho bakorera n'ibiciro nyabyo.",
-    communityBadge: "Agace k'Icyitegererezo: Nyamirambo, Kigali",
+    subheadline: "Ubucuruzi bwemejwe, abanyamwuga, n'ubukorikori ku isi yose—bwahanzwe mu Rwanda, biboneka ku ikoranabuhanga bifite imyirondoro n'ibiciro by'ukuri.",
+    communityBadge: "Ahantu Hose ku Isi • Amavu n'Amavuko mu Rwanda",
     stats: {
       businesses: "Ubucuruzi Buto 120+",
       agents: "Abakozi b'Umuryango 18",
@@ -78,8 +78,8 @@ export const rw = {
     step4Desc: "Abaturage bahita babona serivisi bakeneye mu masegonda make bakavugana n'ubucuruzi kuri telefone cyangwa WhatsApp.",
   },
   discoveryFeed: {
-    title: "Ibihishurwa n'Umuryango uyu munsi",
-    subtitle: "Amakuru mashya, ubucuruzi bwihishe buvumbuwe, n'ibiciro bidasanzwe i Nyamirambo",
+    title: "Ibyavumbuwe ku Isi Hose",
+    subtitle: "Amakuru mashya, ubucuruzi bwemejwe, n'ibiciro by'ukuri ku isi hose",
     tabs: {
       all: "Ibyavumbuwe Byose",
       newGems: "Ubutunzi Bwihishe",

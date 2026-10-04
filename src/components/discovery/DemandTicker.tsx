@@ -51,7 +51,7 @@ export function DemandTicker() {
   const current = demands[currentIndex] || demands[0];
   if (!current) return null;
   const query = lang === "rw" ? (current.queryTermRw || current.queryTerm) : (current.queryTerm || current.queryTermRw);
-  const sectorName = currentSector === "all" ? "Rwanda" : currentSector;
+  const sectorName = currentSector === "all" ? (lang === "rw" ? "Isi Yose" : "Global Commercial Hubs") : currentSector;
 
   return (
     <div className="bg-gradient-to-r from-amber-500/10 via-emerald-500/10 to-amber-500/10 border border-amber-300/40 rounded-2xl p-3 sm:p-4 mb-6 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">

@@ -95,7 +95,7 @@ export default function HomePage() {
               <span className="tracking-wide">
                 {lang === "rw" ? "Agace k'Ibanze:" : "Active Discovery Hub:"}{" "}
                 <strong className="text-white underline decoration-amber-400/80 decoration-2 font-bold">
-                  {currentSector === "all" ? (lang === "rw" ? "U Rwanda Rwose" : "All Rwanda") : displayLabel}
+                  {currentSector === "all" ? (lang === "rw" ? "Isi Yose (Ahantu Hose)" : "Worldwide (All Locations)") : displayLabel}
                 </strong>
               </span>
               <span className="text-[10px] bg-white/10 px-2 py-0.5 rounded-full text-slate-200 font-bold ml-1 group-hover:bg-amber-400 group-hover:text-slate-950 transition-colors">
@@ -106,8 +106,9 @@ export default function HomePage() {
 
           {/* Master Oversized Headline */}
           <div className="space-y-4">
-            <div className="text-[11px] font-extrabold uppercase tracking-[0.25em] text-emerald-400/90">
-              {lang === "rw" ? "Uruhererekane rw'Ubucuruzi bw'u Rwanda" : "Verifiable Ground-Level Commerce"}
+            <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-white/10 text-emerald-300 border border-white/10 text-[11px] font-bold uppercase tracking-[0.2em] backdrop-blur-md">
+              <Globe className="w-3.5 h-3.5 text-amber-400" />
+              <span>{lang === "rw" ? "Bwahanzwe mu Rwanda • Bwerekejwe ku Isi Yose" : "Born in Rwanda • Built for Global Commerce"}</span>
             </div>
             <h1 className="text-4xl sm:text-6xl md:text-7xl lg:text-8xl font-light tracking-tight max-w-4xl mx-auto leading-[1.05] text-white">
               {t.hero.headline}
@@ -142,16 +143,16 @@ export default function HomePage() {
               </button>
             </form>
 
-            {/* Natural Language Prompt Suggestions */}
+            {/* Natural Language Prompt Suggestions (Global and Heritage) */}
             <div className="flex flex-wrap items-center justify-center gap-2 text-xs text-slate-400 pt-3">
               <span className="font-semibold text-slate-300">
                 {lang === "rw" ? "Gerageza gushakisha:" : "Inquiries:"}
               </span>
               {[
-                { rw: "Amaduka y'imbuto Kimironko", en: "fruit shops in Kimironko" },
-                { rw: "Gusana telefone hafi ya MINAGRI", en: "phone repair near MINAGRI" },
-                { rw: "Abadozi b'i Kacyiru", en: "tailors in Kacyiru" },
-                { rw: "Resitora z'i Nyamirambo", en: "restaurants in Nyamirambo" },
+                { rw: "Amaduka y'imbuto Kimironko", en: "fruit markets in Kimironko" },
+                { rw: "Gusana telefone hafi ya MINAGRI", en: "electronics repair near MINAGRI" },
+                { rw: "Abadozi b'imyenda b'umwimerere", en: "artisan tailors in London" },
+                { rw: "Resitora z'i Nyamirambo", en: "local restaurants in Nairobi" },
               ].map((query, idx) => (
                 <button
                   key={idx}
@@ -211,7 +212,7 @@ export default function HomePage() {
             <div>
               <div className="flex items-center gap-2.5 flex-wrap">
                 <h3 className="font-extrabold text-slate-950 text-base sm:text-lg tracking-tight">
-                  {currentSector === "all" ? (lang === "rw" ? "U Rwanda Rwose (Ahantu Hose)" : "All Rwanda (All Locations)") : displayLabel}
+                  {currentSector === "all" ? (lang === "rw" ? "Isi Yose (Ahantu Hose)" : "Worldwide (All Locations)") : displayLabel}
                 </h3>
                 {currentSector === "Kacyiru" && (
                   <span className="text-[10px] bg-emerald-50 text-emerald-800 border border-emerald-200/70 font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider">
@@ -219,7 +220,7 @@ export default function HomePage() {
                   </span>
                 )}
                 <span className="text-xs bg-slate-100 text-slate-600 px-3 py-0.5 rounded-full font-semibold">
-                  {businesses.length} {lang === "rw" ? "amaduka n'abanyamyuga" : "local businesses"}
+                  {businesses.length} {lang === "rw" ? "amaduka n'abanyamyuga" : "verified businesses"}
                 </span>
               </div>
               <p className="text-xs text-slate-500 mt-1">
@@ -227,7 +228,7 @@ export default function HomePage() {
                   ? (lang === "rw" ? "Uruhererekane rwa Kacyiru: MINAGRI (KG 569 St), Kamutwa, Kibaza na Kamatamu" : "Kacyiru Sector (Gasabo) · Featuring MINAGRI Area (KG 569 St), Kamutwa, Kibaza & Kamatamu")
                   : currentSector === "Nyamirambo"
                   ? (lang === "rw" ? "Uruhererekane rwa Nyamirambo: Biryogo, Cosmos, Tapi Rouge, Mumena na Cyivugiza" : "Nyamirambo Sector (Nyarugenge) · Featuring Biryogo Car-Free Zone, Cosmos & Tapi Rouge")
-                  : (lang === "rw" ? "Vumbura amaduka na serivisi byemejwe mu bice byose by'u Rwanda" : "Discovering verified neighborhood commerce and services across Rwanda")}
+                  : (lang === "rw" ? "Vumbura amaduka na serivisi byemejwe ku isi hose · Bwahanzwe i Kigali" : "Discovering verified neighborhood commerce, artisans, and services globally · Born in Kigali, built for worldwide trade")}
               </p>
             </div>
           </div>
@@ -238,7 +239,7 @@ export default function HomePage() {
                 onClick={resetLocation}
                 className="text-xs font-semibold px-4 py-2 rounded-full border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 transition-colors cursor-pointer"
               >
-                {lang === "rw" ? "Reba Byose (Rwanda)" : "View All Rwanda"}
+                {lang === "rw" ? "Reba Byose (Isi Yose)" : "View Global / All"}
               </button>
             )}
             <button
@@ -312,12 +313,12 @@ export default function HomePage() {
                 </h4>
                 <p className="text-xs text-slate-500 leading-relaxed">
                   {lang === "rw"
-                    ? "Hitamo Intara, Akarere, Umurenge, Akagari n'ikimenyetso kizwi cyane kiri hafi (Landmark)."
-                    : "Select Province, District, Sector, Cell, and a recognizable landmark so visitors never get lost."}
+                    ? "Hitamo Igihugu, Intara/Leta, Akarere/Umujyi, Umurenge/Agace n'ikimenyetso kizwi cyane kiri hafi (Landmark)."
+                    : "Select Country, State/Region, City/District, Locality, and a recognizable physical landmark so customers find you anywhere."}
                 </p>
               </div>
               <div className="mt-5 pt-3 border-t border-slate-100 text-[10px] uppercase font-bold tracking-wider text-emerald-800">
-                {lang === "rw" ? "Agace • Ikimenyetso • Icyerekezo" : "Sector • Landmark • Directions"}
+                {lang === "rw" ? "Igihugu • Agace • Ikimenyetso" : "Country • Area • Landmark"}
               </div>
             </div>
 
@@ -332,12 +333,12 @@ export default function HomePage() {
                 </h4>
                 <p className="text-xs text-slate-500 leading-relaxed">
                   {lang === "rw"
-                    ? "Shyiraho ibicuruzwa cyangwa serivisi z'ingenzi utanga n'ibiciro byazo bisobanutse mu Mafanga y'u Rwanda."
-                    : "List your signature items and transparent selling prices in RWF to build instant consumer trust."}
+                    ? "Shyiraho ibicuruzwa cyangwa serivisi z'ingenzi utanga n'ibiciro byazo bisobanutse mu ifaranga ry'iwanyu (USD, EUR, RWF, KES, NGN)."
+                    : "List your signature items and transparent selling prices in your local currency (USD, EUR, RWF, KES, NGN, GBP) to build instant consumer trust."}
                 </p>
               </div>
               <div className="mt-5 pt-3 border-t border-slate-100 text-[10px] uppercase font-bold tracking-wider text-amber-800">
-                {lang === "rw" ? "Ibiciro Nyabyo • RWF" : "Honest Catalog • RWF"}
+                {lang === "rw" ? "Ibiciro Nyabyo • Multi-Currency" : "Honest Catalog • Multi-Currency"}
               </div>
             </div>
 

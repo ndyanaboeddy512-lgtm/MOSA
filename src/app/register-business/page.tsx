@@ -45,6 +45,22 @@ import {
   getBusinessOperatingModel,
 } from "@/lib/taxonomy";
 
+const CURRENCY_OPTIONS = [
+  { code: "RWF", label: "RWF - Rwandan Franc", symbol: "Frw" },
+  { code: "USD", label: "USD - US Dollar ($)", symbol: "$" },
+  { code: "EUR", label: "EUR - Euro (€)", symbol: "€" },
+  { code: "GBP", label: "GBP - British Pound (£)", symbol: "£" },
+  { code: "KES", label: "KES - Kenyan Shilling", symbol: "KSh" },
+  { code: "UGX", label: "UGX - Ugandan Shilling", symbol: "USh" },
+  { code: "TZS", label: "TZS - Tanzanian Shilling", symbol: "TSh" },
+  { code: "NGN", label: "NGN - Nigerian Naira (₦)", symbol: "₦" },
+  { code: "ZAR", label: "ZAR - South African Rand", symbol: "R" },
+  { code: "GHS", label: "GHS - Ghanaian Cedi (₵)", symbol: "₵" },
+  { code: "CAD", label: "CAD - Canadian Dollar ($)", symbol: "CA$" },
+  { code: "AED", label: "AED - UAE Dirham", symbol: "AED" },
+  { code: "CNY", label: "CNY - Chinese Yuan (¥)", symbol: "¥" },
+];
+
 export default function RegisterBusinessPage() {
   const router = useRouter();
   const { lang, t } = useLanguage();
@@ -193,11 +209,29 @@ export default function RegisterBusinessPage() {
     priceMin?: string;
     priceMax?: string;
     priceType?: "FIXED" | "RANGE" | "ESTIMATED";
+    currency?: string;
     unit?: string;
     mediaUrl?: string;
     mediaType?: "IMAGE" | "VIDEO" | "FILE";
     mediaCaption?: string;
   }>>([]);
+
+  const defaultCurrency = useMemo(() => {
+    const c = (locationData.country || "").toLowerCase().trim();
+    if (c === "kenya") return "KES";
+    if (c === "uganda") return "UGX";
+    if (c === "tanzania") return "TZS";
+    if (c === "nigeria") return "NGN";
+    if (c === "united states" || c === "usa") return "USD";
+    if (c === "united kingdom" || c === "uk") return "GBP";
+    if (c === "south africa") return "ZAR";
+    if (c === "ghana") return "GHS";
+    if (c === "france" || c === "germany" || c === "belgium" || c === "italy" || c === "netherlands") return "EUR";
+    if (c === "united arab emirates" || c === "uae") return "AED";
+    if (c === "canada") return "CAD";
+    if (c === "rwanda" || !c) return "RWF";
+    return "USD";
+  }, [locationData.country]);
 
   // Active item draft form for Step 3
   const [itemDraft, setItemDraft] = useState({
@@ -210,6 +244,7 @@ export default function RegisterBusinessPage() {
     priceMin: "",
     priceMax: "",
     priceType: "FIXED" as "FIXED" | "RANGE" | "ESTIMATED",
+    currency: "RWF",
     unit: "item",
     mediaUrl: "",
     mediaType: "IMAGE" as "IMAGE" | "VIDEO" | "FILE",
@@ -285,6 +320,7 @@ export default function RegisterBusinessPage() {
       priceMin: itemDraft.priceMin.trim() || undefined,
       priceMax: itemDraft.priceMax.trim() || undefined,
       priceType: itemDraft.contactForPrice ? "ESTIMATED" : itemDraft.priceType,
+      currency: itemDraft.currency || defaultCurrency,
       unit: itemDraft.unit.trim() || (itemDraft.isService ? "service" : "item"),
       mediaUrl: itemDraft.mediaUrl.trim() || undefined,
       mediaType: itemDraft.mediaType,
@@ -310,6 +346,7 @@ export default function RegisterBusinessPage() {
       priceMin: "",
       priceMax: "",
       priceType: "FIXED",
+      currency: defaultCurrency,
       unit: operatingModel.model === "SERVICES" ? "service" : "item",
       mediaUrl: "",
       mediaType: "IMAGE",
@@ -330,6 +367,7 @@ export default function RegisterBusinessPage() {
       priceMin: item.priceMin || "",
       priceMax: item.priceMax || "",
       priceType: item.priceType || "FIXED",
+      currency: item.currency || defaultCurrency,
       unit: item.unit || "item",
       mediaUrl: item.mediaUrl || "",
       mediaType: (item.mediaType || "IMAGE") as "IMAGE" | "VIDEO" | "FILE",
@@ -353,6 +391,7 @@ export default function RegisterBusinessPage() {
         priceMin: "",
         priceMax: "",
         priceType: "FIXED",
+        currency: defaultCurrency,
         unit: operatingModel.model === "SERVICES" ? "service" : "item",
         mediaUrl: "",
         mediaType: "IMAGE",
@@ -570,6 +609,7 @@ export default function RegisterBusinessPage() {
           priceMin: itemDraft.priceMin.trim() || undefined,
           priceMax: itemDraft.priceMax.trim() || undefined,
           priceType: itemDraft.contactForPrice ? "ESTIMATED" : itemDraft.priceType,
+          currency: itemDraft.currency || defaultCurrency,
           unit: itemDraft.unit.trim() || (itemDraft.isService ? "service" : "item"),
           mediaUrl: itemDraft.mediaUrl.trim() || undefined,
           mediaType: itemDraft.mediaType,
@@ -595,6 +635,7 @@ export default function RegisterBusinessPage() {
           priceMin: p.priceMin ? Number(p.priceMin) : undefined,
           priceMax: p.priceMax ? Number(p.priceMax) : undefined,
           priceType: p.contactForPrice ? "ESTIMATED" : (p.priceType || (p.priceMin && p.priceMax ? "RANGE" : "FIXED")),
+          currency: p.currency || defaultCurrency,
           unit: p.unit || (p.isService ? "service" : "item"),
           isService: Boolean(p.isService),
           contactForPrice: Boolean(p.contactForPrice),
@@ -1286,6 +1327,7 @@ export default function RegisterBusinessPage() {
                             priceMin: "",
                             priceMax: "",
                             priceType: "FIXED",
+                            currency: defaultCurrency,
                             unit: operatingModel.model === "SERVICES" ? "service" : "item",
                             mediaUrl: "",
                             mediaType: "IMAGE",
@@ -1407,7 +1449,27 @@ export default function RegisterBusinessPage() {
                     </div>
 
                     {!itemDraft.contactForPrice && (
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-1">
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-600 mb-1">Currency</label>
+                          <select
+                            value={itemDraft.currency || defaultCurrency}
+                            onChange={(e) =>
+                              setItemDraft({
+                                ...itemDraft,
+                                currency: e.target.value,
+                              })
+                            }
+                            className="w-full px-2.5 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold outline-none"
+                          >
+                            {CURRENCY_OPTIONS.map((c) => (
+                              <option key={c.code} value={c.code}>
+                                {c.code} ({c.symbol})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
                         <div>
                           <label className="block text-[11px] font-bold text-slate-600 mb-1">Pricing Mode</label>
                           <select
@@ -1429,7 +1491,9 @@ export default function RegisterBusinessPage() {
                         {itemDraft.priceType === "RANGE" ? (
                           <>
                             <div>
-                              <label className="block text-[11px] font-bold text-slate-600 mb-1">Min Price (RWF)</label>
+                              <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                                Min Price ({itemDraft.currency || defaultCurrency})
+                              </label>
                               <input
                                 type="number"
                                 placeholder="e.g. 2000"
@@ -1439,7 +1503,9 @@ export default function RegisterBusinessPage() {
                               />
                             </div>
                             <div>
-                              <label className="block text-[11px] font-bold text-slate-600 mb-1">Max Price (RWF)</label>
+                              <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                                Max Price ({itemDraft.currency || defaultCurrency})
+                              </label>
                               <input
                                 type="number"
                                 placeholder="e.g. 5000"
@@ -1451,17 +1517,19 @@ export default function RegisterBusinessPage() {
                           </>
                         ) : (
                           <div>
-                            <label className="block text-[11px] font-bold text-slate-600 mb-1">Price (RWF) *</label>
+                            <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                              Price ({itemDraft.currency || defaultCurrency}) *
+                            </label>
                             <div className="relative">
                               <input
                                 type="number"
                                 placeholder="e.g. 3500"
                                 value={itemDraft.price}
                                 onChange={(e) => setItemDraft({ ...itemDraft, price: e.target.value })}
-                                className="w-full px-2.5 py-2 pr-12 rounded-xl bg-white border border-slate-200 text-xs font-bold outline-none"
+                                className="w-full px-2.5 py-2 pr-14 rounded-xl bg-white border border-slate-200 text-xs font-bold outline-none"
                               />
                               <span className="text-[10px] text-slate-400 font-bold absolute right-2.5 top-2.5">
-                                RWF
+                                {itemDraft.currency || defaultCurrency}
                               </span>
                             </div>
                           </div>
@@ -1683,11 +1751,11 @@ export default function RegisterBusinessPage() {
                                 </span>
                               ) : p.priceType === "RANGE" && p.priceMin && p.priceMax ? (
                                 <span className="text-xs font-black text-slate-900">
-                                  {Number(p.priceMin).toLocaleString()} – {Number(p.priceMax).toLocaleString()} RWF
+                                  {Number(p.priceMin).toLocaleString()} – {Number(p.priceMax).toLocaleString()} {p.currency || defaultCurrency}
                                 </span>
                               ) : (
                                 <span className="text-xs font-black text-slate-900">
-                                  {Number(p.price).toLocaleString()} RWF
+                                  {Number(p.price).toLocaleString()} {p.currency || defaultCurrency}
                                 </span>
                               )}
                               {!p.contactForPrice && p.unit && (
@@ -1978,8 +2046,10 @@ export default function RegisterBusinessPage() {
                                   <span className="font-bold text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
                                     Contact for price
                                   </span>
+                                ) : p.priceType === "RANGE" && p.priceMin && p.priceMax ? (
+                                  <span className="font-mono font-bold text-emerald-700">{Number(p.priceMin).toLocaleString()} – {Number(p.priceMax).toLocaleString()} {p.currency || defaultCurrency}</span>
                                 ) : (
-                                  <span className="font-mono font-bold text-emerald-700">{Number(p.price).toLocaleString()} RWF</span>
+                                  <span className="font-mono font-bold text-emerald-700">{Number(p.price).toLocaleString()} {p.currency || defaultCurrency}</span>
                                 )}
                               </div>
                             </div>

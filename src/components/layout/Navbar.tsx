@@ -80,7 +80,7 @@ export function Navbar() {
                   {lang === "rw" ? (platformSettings.platformNameRw || platformSettings.platformName) : platformSettings.platformName}
                 </span>
                 <span className="text-[9px] uppercase tracking-[0.2em] text-emerald-800 font-bold mt-1">
-                  {lang === "rw" ? (platformSettings.taglineRw || "RWANDA DISCOVERY") : (platformSettings.tagline || "RWANDA DISCOVERY")}
+                  {lang === "rw" ? (platformSettings.taglineRw || "UBUCURUZI MPUZAMAHANGA") : (platformSettings.tagline || "GLOBAL COMMERCE DIRECTORY")}
                 </span>
               </div>
             </Link>

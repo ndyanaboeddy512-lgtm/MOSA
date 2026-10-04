@@ -13,8 +13,8 @@ export function Footer() {
   const platformName = lang === "rw" ? (platformSettings.platformNameRw || platformSettings.platformName) : platformSettings.platformName;
   const address = lang === "rw" ? (platformSettings.officialAddressRw || platformSettings.officialAddress) : platformSettings.officialAddress;
   const description = lang === "rw"
-    ? (platformSettings.shortDescriptionRw || platformSettings.taglineRw || "MOSA igamije gushyira ahagaragara ubukungu buto bwo mu midugudu no mu tugari tw'u Rwanda, ifasha abacuruzi kwiyandikisha no kuboneka ku buryo bworoshye.")
-    : (platformSettings.shortDescription || platformSettings.tagline || "A Community Commerce Discovery Network bridging Rwanda's vibrant physical micro-economies and digital discovery, empowering local merchants to register and grow.");
+    ? (platformSettings.shortDescriptionRw || platformSettings.taglineRw || "MOSA igamije gushyira ahagaragara ubucuruzi n'abanyamyuga bo mu midugudu no mu mijyi ku isi hose, ihereye mu Rwanda, ifasha abacuruzi kwiyandikisha no kuboneka ku buryo bworoshye.")
+    : (platformSettings.shortDescription || platformSettings.tagline || "A Global Commerce Discovery Network connecting verified local merchants, artisans, and enterprises worldwide. Founded in Rwanda, built for transparent global trade.");
 
   return (
     <footer className="bg-slate-950 text-slate-400 pt-16 sm:pt-20 pb-16 border-t border-slate-900">
@@ -130,7 +130,7 @@ export function Footer() {
         {/* Ethical Governance & Bottom Bar */}
         <div className="pt-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500">
           <p className="tracking-wide">
-            © {new Date().getFullYear()} {platformSettings.copyrightText || "MOSA Network (Rwanda). Built for sustainable, ethical community discovery."}
+            © {new Date().getFullYear()} {platformSettings.copyrightText || "MOSA Global Network. Born in Rwanda, built for verified local commerce worldwide."}
           </p>
           <div className="flex flex-wrap items-center gap-3">
             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-900 border border-slate-800 text-[11px] text-emerald-400 font-medium">

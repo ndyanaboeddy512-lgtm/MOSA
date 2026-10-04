@@ -97,17 +97,17 @@ export default function ExplorePage() {
           </div>
           <h1 className="text-3xl sm:text-5xl font-extrabold text-slate-950 tracking-tight leading-[1.1]">
             {lang === "rw"
-              ? `Vumbura Ubucuruzi bwo muri ${currentSector === "all" ? "Rwanda" : currentSector}`
-              : `Explore ${currentSector === "all" ? "Rwanda" : currentSector} Businesses`}
+              ? `Vumbura Ubucuruzi bwo muri ${currentSector === "all" ? "Isi Yose" : currentSector}`
+              : `Explore ${currentSector === "all" ? "Worldwide" : currentSector} Businesses`}
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 max-w-2xl leading-relaxed">
             {currentSector === "Kacyiru"
               ? (lang === "rw"
                   ? "Ubucuruzi bwo muri Kacyiru (Gasabo): ahazwi cyane ahegereye MINAGRI ku muhanda KG 569 St, Kamutwa, Kibaza na Kamatamu."
-                  : "Verified & demo micro-enterprises across Kacyiru Sector (Gasabo): Kamutwa, MINAGRI Area (KG 569 St), Kibaza & Kamatamu.")
+                  : "Verified micro-enterprises across Kacyiru Sector (Gasabo): Kamutwa, MINAGRI Area (KG 569 St), Kibaza & Kamatamu.")
               : (lang === "rw"
-                  ? "Reba amaduka, amagaraje, ubudozi, n'utubari tw'amata twose twemejwe n'Abakozi b'Umuryango."
-                  : "Discover neighborhood enterprises, tailors, salons, milk bars, and artisans across active cells.")}
+                  ? "Reba amaduka, serivisi, ubudozi, n'inganda nto zose zemejwe n'inzego z'ubucuruzi ku isi hose · Bwahanzwe mu Rwanda."
+                  : "Discover verified neighborhood enterprises, tailors, salons, artisan markets, and specialized trade worldwide · Born in Rwanda.")}
           </p>
         </div>
 
@@ -243,7 +243,7 @@ export default function ExplorePage() {
                 longitude: biz.location?.coordinates?.lng ?? biz.longitude,
                 nearestLandmark: biz.nearestLandmark || biz.location?.nearestLandmark || biz.localArea?.name || biz.addressNote,
                 isVerified: biz.verificationStatus === "AGENT_VERIFIED" || biz.dataStatus === "VERIFIED",
-                priceSnippet: biz.products?.[0] ? `${biz.products[0].name}: ${biz.products[0].price.toLocaleString()} Frw` : undefined,
+                priceSnippet: biz.products?.[0] ? `${biz.products[0].name}: ${biz.products[0].price.toLocaleString()} ${biz.products[0].currency || "Frw"}` : undefined,
                 coverImage: biz.coverImage,
               }))}
               selectedPinId={selectedPin?.id}

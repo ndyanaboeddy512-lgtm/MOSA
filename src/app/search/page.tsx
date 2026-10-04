@@ -342,7 +342,7 @@ function SearchContent() {
                 longitude: biz.location?.coordinates?.lng ?? biz.longitude,
                 nearestLandmark: biz.nearestLandmark || biz.location?.nearestLandmark || biz.localArea?.name || biz.addressNote,
                 isVerified: biz.verificationStatus === "AGENT_VERIFIED" || biz.dataStatus === "VERIFIED",
-                priceSnippet: biz.products?.[0] ? `${biz.products[0].name}: ${biz.products[0].price.toLocaleString()} Frw` : undefined,
+                priceSnippet: biz.products?.[0] ? `${biz.products[0].name}: ${biz.products[0].price.toLocaleString()} ${biz.products[0].currency || "Frw"}` : undefined,
                 coverImage: biz.coverImage,
               }))}
               selectedPinId={selectedPin?.id}

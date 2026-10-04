@@ -57,8 +57,8 @@ export const fr = {
   },
   hero: {
     headline: "Découvrez ce que votre communauté possède déjà.",
-    subheadline: "Boutiques locales, tailleurs, salons de coiffure, mécaniciens et artisans de votre quartier—accessibles numériquement grâce aux Agents Communautaires certifiés.",
-    communityBadge: "Pôle Vedette : Nyamirambo, Kigali",
+    subheadline: "Entreprises vérifiées, corps de métier et artisans du monde entier—né au Rwanda, découvrable avec adresses géolocalisées et prix réels.",
+    communityBadge: "Pôles Mondiaux • Né au Rwanda",
     stats: {
       businesses: "120+ Micro-Entreprises",
       agents: "18 Agents Communautaires",
@@ -78,8 +78,8 @@ export const fr = {
     step4Desc: "Les résidents trouvent exactement ce dont ils ont besoin en quelques secondes et contactent directement l'artisan par téléphone ou WhatsApp.",
   },
   discoveryFeed: {
-    title: "Fil de Découverte Communautaire",
-    subtitle: "Mises à jour en direct, pépites cachées et offres locales vérifiées à Nyamirambo",
+    title: "Fil de Découverte Mondial",
+    subtitle: "Mises à jour en direct, entreprises vérifiées et commerce de proximité dans le monde entier",
     tabs: {
       all: "Toutes les Découvertes",
       newGems: "Pépites Cachées",

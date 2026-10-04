@@ -57,8 +57,8 @@ export const en = {
   },
   hero: {
     headline: "Discover what your community already has.",
-    subheadline: "Local shops, tailors, salons, mechanics, and artisanal services in your neighborhood—digitally discoverable with verified locations and real community pricing.",
-    communityBadge: "Featured Hub: Nyamirambo, Kigali",
+    subheadline: "Verified local enterprises, trusted trades, and artisanal craft worldwide—born in Rwanda, discoverable across communities with verified locations and real pricing.",
+    communityBadge: "Worldwide Hubs • Born in Rwanda",
     stats: {
       businesses: "120+ Micro-Enterprises",
       agents: "18 Community Agents",
@@ -78,8 +78,8 @@ export const en = {
     step4Desc: "Nearby residents find exactly what they need in seconds and connect directly via phone or WhatsApp.",
   },
   discoveryFeed: {
-    title: "Community Discovery Feed",
-    subtitle: "Real-time updates, newly discovered gems, and verified local offers in Nyamirambo",
+    title: "Worldwide Discovery Feed",
+    subtitle: "Real-time updates, verified businesses, and local trade discoveries worldwide",
     tabs: {
       all: "All Discoveries",
       newGems: "Hidden Gems",

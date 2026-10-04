@@ -172,6 +172,42 @@ export const DEFAULT_COMMUNITIES: CommunityOption[] = [
     province: "Kigali City",
     businessCount: 7,
   },
+  {
+    id: "global-nairobi",
+    name: "Westlands Commercial Hub, Nairobi",
+    nameRw: "Westlands, Nairobi",
+    sector: "Westlands",
+    district: "Nairobi",
+    province: "Kenya",
+    businessCount: 12,
+  },
+  {
+    id: "global-london",
+    name: "Shoreditch Artisan District, London",
+    nameRw: "Shoreditch, London",
+    sector: "Shoreditch",
+    district: "Greater London",
+    province: "United Kingdom",
+    businessCount: 15,
+  },
+  {
+    id: "global-lagos",
+    name: "Victoria Island Commercial Zone, Lagos",
+    nameRw: "Victoria Island, Lagos",
+    sector: "Victoria Island",
+    district: "Lagos",
+    province: "Nigeria",
+    businessCount: 18,
+  },
+  {
+    id: "global-newyork",
+    name: "SoHo & Manhattan Retail Hub, New York",
+    nameRw: "SoHo, New York",
+    sector: "SoHo",
+    district: "New York",
+    province: "United States",
+    businessCount: 20,
+  },
 ];
 
 interface LocationState {
@@ -202,12 +238,12 @@ const LocationContext = createContext<LocationState | undefined>(undefined);
 const STORAGE_KEY = "mosa_user_community";
 
 export function LocationProvider({ children }: { children: React.ReactNode }) {
-  // Default to All Rwanda ("all") so all businesses appear by default across MOSA
+  // Default to Worldwide ("all") so all verified businesses appear by default globally
   const [currentSector, setCurrentSector] = useState<string>("all");
   const [currentCell, setCurrentCell] = useState<string | null>(null);
   const [currentLocalArea, setCurrentLocalArea] = useState<string | null>(null);
-  const [currentDistrict, setCurrentDistrict] = useState<string>("Rwanda");
-  const [currentProvince, setCurrentProvince] = useState<string>("Rwanda");
+  const [currentDistrict, setCurrentDistrict] = useState<string>("Worldwide");
+  const [currentProvince, setCurrentProvince] = useState<string>("Worldwide");
   const [isSelectorOpen, setIsSelectorOpen] = useState<boolean>(false);
 
   // Initialize from localStorage if available
@@ -224,12 +260,12 @@ export function LocationProvider({ children }: { children: React.ReactNode }) {
           if (parsed.district) setCurrentDistrict(parsed.district);
           if (parsed.province) setCurrentProvince(parsed.province);
         } else {
-          // Default to all businesses nationwide
+          // Default to all businesses globally
           setCurrentSector("all");
           setCurrentCell(null);
           setCurrentLocalArea(null);
-          setCurrentDistrict("Rwanda");
-          setCurrentProvince("Rwanda");
+          setCurrentDistrict("Worldwide");
+          setCurrentProvince("Worldwide");
         }
       }
     } catch {
@@ -299,13 +335,13 @@ export function LocationProvider({ children }: { children: React.ReactNode }) {
     setCurrentSector("all");
     setCurrentCell(null);
     setCurrentLocalArea(null);
-    setCurrentDistrict("Rwanda");
-    setCurrentProvince("Rwanda");
-    persist({ sector: "all", cell: null, localArea: null, district: "Rwanda", province: "Rwanda" });
+    setCurrentDistrict("Worldwide");
+    setCurrentProvince("Worldwide");
+    persist({ sector: "all", cell: null, localArea: null, district: "Worldwide", province: "Worldwide" });
   };
 
   // Build human friendly display label
-  let displayLabel = "All Rwanda";
+  let displayLabel = "Worldwide (All Locations)";
   if (currentLocalArea) {
     displayLabel = `${currentLocalArea}, ${currentSector}`;
   } else if (currentCell) {

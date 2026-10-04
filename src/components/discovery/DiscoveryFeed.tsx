@@ -105,7 +105,7 @@ export function DiscoveryFeed({ businesses }: DiscoveryFeedProps) {
             <div>
               <div className="flex items-center gap-2 text-emerald-800 text-[10px] font-bold uppercase tracking-[0.2em] mb-2">
                 <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
-                <span>{lang === "rw" ? "Ubukorikori bw'i Nyamirambo" : "Nyamirambo Crafts"}</span>
+                <span>{lang === "rw" ? "Ubukorikori bw'Umwimerere" : "Artisans & Crafts"}</span>
               </div>
               <h4 className="font-bold text-slate-950 text-base tracking-tight leading-snug group-hover:text-emerald-800 transition-colors">
                 {lang === "rw" ? "Amaduka 3 ushobora kuba utari uzi ko ahari" : "3 businesses you may not know about"}
@@ -113,7 +113,7 @@ export function DiscoveryFeed({ businesses }: DiscoveryFeedProps) {
               <p className="text-xs text-slate-500 mt-2 leading-relaxed">
                 {lang === "rw"
                   ? "Reba abanyabukorikori baboha uduseke tw'umwimerere na za salo zigezweho ziri hafi yawe."
-                  : "From traditional Agaseke weavers at Maison des Jeunes to expert phone microsoldering in Biryogo."}
+                  : "From traditional Rwandan Agaseke weavers and bespoke tailors to precision electronics repair specialists worldwide."}
               </p>
             </div>
             <button
@@ -130,15 +130,15 @@ export function DiscoveryFeed({ businesses }: DiscoveryFeedProps) {
             <div>
               <div className="flex items-center gap-2 text-amber-800 text-[10px] font-bold uppercase tracking-[0.2em] mb-2">
                 <FileText className="w-3.5 h-3.5 text-amber-600" />
-                <span>{lang === "rw" ? "Ibiciro Byashyizweho Vuba" : "Digitized From Paper"}</span>
+                <span>{lang === "rw" ? "Ibiciro Byashyizweho Vuba" : "Digitized From Ground Truth"}</span>
               </div>
               <h4 className="font-bold text-slate-950 text-base tracking-tight leading-snug group-hover:text-amber-800 transition-colors">
                 {lang === "rw" ? "Amamenyu n'inyemezabwishyu byemejwe" : "Physical price lists converted to digital"}
               </h4>
               <p className="text-xs text-slate-500 mt-2 leading-relaxed">
                 {lang === "rw"
-                  ? "Abakozi b'umuryango bafashe amafoto y'ibyapa by'ibiciro bya salo n'utubari tw'amata bashyira mu ikoranabuhanga."
-                  : "Fresh boiled cow milk, tailor hems, and motorcycle maintenance prices verified directly on the ground."}
+                  ? "Abakozi b'umuryango bafashe amafoto y'ibyapa by'ibiciro bya salo n'amaduka bashyira mu ikoranabuhanga."
+                  : "Handwritten store chalkboards, service menus, and artisan price lists audited and verified directly on the ground."}
               </p>
             </div>
             <button
@@ -155,15 +155,15 @@ export function DiscoveryFeed({ businesses }: DiscoveryFeedProps) {
             <div>
               <div className="flex items-center gap-2 text-slate-800 text-[10px] font-bold uppercase tracking-[0.2em] mb-2">
                 <TrendingUp className="w-3.5 h-3.5 text-slate-700" />
-                <span>{lang === "rw" ? "Icyuho mu Bucuruzi" : "Local Opportunity"}</span>
+                <span>{lang === "rw" ? "Icyuho mu Bucuruzi" : "Market Opportunities"}</span>
               </div>
               <h4 className="font-bold text-slate-950 text-base tracking-tight leading-snug group-hover:text-slate-800 transition-colors">
                 {lang === "rw" ? "Ibyo abaturage bakeneye kurusha ibihari" : "High resident demand, few providers"}
               </h4>
               <p className="text-xs text-slate-500 mt-2 leading-relaxed">
                 {lang === "rw"
-                  ? "Abaturage benshi bashakishije abanyamashanyarazi n'abadozi b'ikubitiro muri iki cyumweru."
-                  : "38 searches for phone screen repair with only 2 certified shops in Biryogo. Check the demand radar."}
+                  ? "Abaturage benshi bari gushakisha serivisi z'ingenzi zifite abazitanga bake muri iki cyumweru."
+                  : "High unmet search volume for phone screen repair, tailors, and fresh food markets in local commercial centers."}
               </p>
             </div>
             <Link
