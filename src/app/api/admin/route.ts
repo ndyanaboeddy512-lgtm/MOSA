@@ -7,6 +7,8 @@ import { VerificationStatus, ReportStatus, Role } from "@prisma/client";
 import { formatBusinessRecord } from "@/lib/format-business";
 import { sendBusinessSMS } from "@/lib/sms";
 
+export const dynamic = "force-dynamic";
+
 // GET /api/admin - Fetch administrative overview, metrics, and queues
 export async function GET() {
   const auth = await requireAuth([Role.SUPER_ADMIN, Role.COMMUNITY_ADMIN, Role.MODERATOR]);
@@ -299,6 +301,12 @@ export async function GET() {
         source: h.source,
         createdAt: h.createdAt.toISOString(),
       })),
+    }, {
+      headers: {
+        "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+        Pragma: "no-cache",
+        Expires: "0",
+      },
     });
   } catch (error) {
     console.error("[Admin API DB Error]:", error);

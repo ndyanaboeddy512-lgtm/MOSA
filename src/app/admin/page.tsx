@@ -330,7 +330,7 @@ export default function AdminPanelPage() {
   const fetchAdminData = async () => {
     setIsLoading(true);
     try {
-      const res = await fetch("/api/admin");
+      const res = await fetch("/api/admin", { cache: "no-store" });
       if (res.ok) {
         const data = await res.json();
         if (data.metrics) setMetrics(data.metrics);
@@ -338,58 +338,57 @@ export default function AdminPanelPage() {
         if (data.locationCategoryBreakdown) setLocationCategoryBreakdown(data.locationCategoryBreakdown);
         if (data.categorySummary) setCategorySummary(data.categorySummary);
         if (data.businesses && data.businesses.length > 0) {
-          setBusinesses(data.businesses.map((b: any) => ({
-            id: b.id,
-            name: b.name,
-            nameRw: b.nameRw || b.name,
-            category: b.category,
-            categoryDisplay: b.categoryDisplay,
-            mainCategory: b.mainCategory || b.category,
-            subCategory: b.subCategory,
-            businessType: b.businessType,
-            businessTypeDisplay: b.businessTypeDisplay,
-            businessTypeDisplayRw: b.businessTypeDisplayRw,
-            description: b.description || "",
-            descriptionRw: b.descriptionRw || "",
-            latitude: b.latitude,
-            longitude: b.longitude,
-            nearestLandmark: b.nearestLandmark,
-            streetName: b.streetName,
-            nearbyPlace: b.nearbyPlace,
-            locationDescription: b.locationDescription,
-            locationSource: b.locationSource,
-            locationAccuracy: b.locationAccuracy,
-            locationVerificationStatus: b.locationVerificationStatus,
-            location: {
-              district: b.district || "Nyarugenge",
-              sector: b.sector || "Nyamirambo",
-              cell: b.cell || "Biryogo",
-              community: `${b.cell || "Biryogo"}, ${b.sector || "Nyamirambo"}`,
+          setBusinesses(data.businesses.map((b: any) => {
+            const country = b.country || b.location?.country || "Rwanda";
+            const province = b.province || b.location?.province || (country === "Rwanda" ? "Kigali City" : "");
+            const district = b.district || b.location?.district || "";
+            const sector = b.sector || b.location?.sector || "";
+            const cell = b.cell || b.location?.cell || "";
+
+            const locationObj = b.location ? {
+              ...b.location,
+              country: b.location.country || country,
+              province: b.location.province || province,
+              district: b.location.district || district,
+              sector: b.location.sector || sector,
+              cell: b.location.cell || cell,
+              coordinates: Array.isArray(b.location.coordinates)
+                ? b.location.coordinates
+                : [b.latitude || b.location.coordinates?.lat || -1.9706, b.longitude || b.location.coordinates?.lng || 30.0444],
+            } : {
+              country,
+              province,
+              district,
+              sector,
+              cell,
+              community: [cell, sector, district].filter(Boolean).join(", "),
               coordinates: [b.latitude || -1.9706, b.longitude || 30.0444],
-            },
-            contactPhone: b.phone || "+250788000000",
-            phone: b.phone || "+250788000000",
-            verificationStatus: b.verificationStatus,
-            dataStatus: b.dataStatus || "DEMO",
-            source: b.source,
-            localArea: b.localArea,
-            isOpenNow: b.isOpenNow,
-            rating: 4.8,
-            reviewsCount: 12,
-            coverImage: b.coverImage || "https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=800&auto=format&fit=crop&q=60",
-            priceRange: b.priceRange || "MODERATE",
-            priceRangeMin: b.priceRangeMin,
-            priceRangeMax: b.priceRangeMax,
-            tags: [b.category],
-            status: b.status,
-            products: b.products || [],
-            isPotentialDuplicate: b.isPotentialDuplicate || false,
-            owner: b.owner || null,
-            createdAt: b.createdAt,
-            verifications: b.verifications || [],
-            media: b.media || [],
-            updates: b.updates || [],
-          })));
+            };
+
+            return {
+              ...b,
+              country,
+              province,
+              district,
+              sector,
+              cell,
+              location: locationObj,
+              contactPhone: b.phone || "",
+              phone: b.phone || "",
+              dataStatus: b.dataStatus || "DEMO",
+              tags: b.tags || [b.category],
+              rating: b.rating ?? 4.8,
+              reviewsCount: b.reviewsCount ?? 12,
+              coverImage: b.coverImage || "https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=800&auto=format&fit=crop&q=60",
+              priceRange: b.priceRange || "MODERATE",
+              products: b.products || [],
+              isPotentialDuplicate: b.isPotentialDuplicate || false,
+              owner: b.owner || null,
+              verifications: b.verifications || [],
+              media: b.media || [],
+              updates: b.updates || [],
+            };
+          }));
         }
         if (data.captures && data.captures.length > 0) setCaptures(data.captures);
         if (data.reports && data.reports.length > 0) setReports(data.reports);
@@ -1554,7 +1553,7 @@ export default function AdminPanelPage() {
                             </span>
                           </div>
                           <div className="text-[11px] text-slate-500 truncate">
-                            {biz.location?.district} • {biz.phone} • {biz.categoryDisplay || biz.category}
+                            {[biz.location?.country && biz.location?.country !== "Rwanda" ? biz.location?.country : null, biz.location?.district].filter(Boolean).join(" • ")} • {biz.phone} • {biz.categoryDisplay || biz.category}
                           </div>
                         </div>
                         <button
@@ -2359,7 +2358,7 @@ export default function AdminPanelPage() {
                           <strong>Owner:</strong> {biz.owner?.name || "Self-Registered Owner"} • <span className="font-mono text-slate-800">{biz.phone}</span>
                         </div>
                         <div>
-                          <strong>Location:</strong> {biz.nearestLandmark ? `Near ${biz.nearestLandmark}` : "No landmark specified"} • {biz.location?.cell}, {biz.location?.sector}, {biz.location?.district}
+                          <strong>Location:</strong> {(biz.location?.country || biz.country) && (biz.location?.country || biz.country) !== "Rwanda" ? <span className="font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 text-[10px] mr-1">🌍 {biz.location?.country || biz.country}</span> : null}{biz.nearestLandmark ? `Near ${biz.nearestLandmark}` : "No landmark specified"} • {[biz.location?.cell, biz.location?.sector, biz.location?.district, (biz.location?.province && biz.location?.province !== biz.location?.district ? biz.location?.province : null)].filter(Boolean).join(", ")}
                         </div>
                         {biz.products && biz.products.length > 0 && (
                           <div className="text-[11px] text-slate-500 pt-0.5">
@@ -4483,36 +4482,72 @@ export default function AdminPanelPage() {
                 </div>
 
                 {/* Smart Location */}
-                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-2">
-                  <h4 className="font-bold text-slate-900 text-sm flex items-center gap-1.5">
-                    <MapPin className="w-4 h-4 text-emerald-600" />
-                    Smart Location & Ground Discovery
-                  </h4>
-                  <div className="grid grid-cols-2 gap-2 text-slate-700">
+                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-bold text-slate-900 text-sm flex items-center gap-1.5">
+                      <MapPin className="w-4 h-4 text-emerald-600" />
+                      Smart Location & Ground Discovery
+                    </h4>
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                      <Globe className="w-3 h-3 text-emerald-600" />
+                      {reviewingBiz.location?.country || reviewingBiz.country || "Rwanda"}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-slate-700">
                     <div>
-                      <span className="text-slate-400 block text-[10px] uppercase font-semibold">Province / District</span>
-                      <span className="font-medium">{reviewingBiz.location?.province || reviewingBiz.province || "Kigali City"} / {reviewingBiz.location?.district || reviewingBiz.district || "Nyarugenge"}</span>
+                      <span className="text-slate-400 block text-[10px] uppercase font-semibold">Country</span>
+                      <span className="font-semibold text-slate-900 flex items-center gap-1 text-xs">
+                        <Globe className="w-3.5 h-3.5 text-slate-400" />
+                        {reviewingBiz.location?.country || reviewingBiz.country || "Rwanda"}
+                      </span>
                     </div>
                     <div>
-                      <span className="text-slate-400 block text-[10px] uppercase font-semibold">Sector / Cell</span>
-                      <span className="font-medium">{reviewingBiz.location?.sector || reviewingBiz.sector} / {reviewingBiz.location?.cell || reviewingBiz.cell}</span>
+                      <span className="text-slate-400 block text-[10px] uppercase font-semibold">Province / State / Region</span>
+                      <span className="font-medium text-slate-900 text-xs">
+                        {reviewingBiz.location?.province || reviewingBiz.province || (reviewingBiz.country === "Rwanda" ? "Kigali City" : "Not specified")}
+                      </span>
                     </div>
-                    <div className="col-span-2">
+                    <div>
+                      <span className="text-slate-400 block text-[10px] uppercase font-semibold">District / City</span>
+                      <span className="font-medium text-slate-900 text-xs">
+                        {reviewingBiz.location?.district || reviewingBiz.district || "Not specified"}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block text-[10px] uppercase font-semibold">Sector / Locality</span>
+                      <span className="font-medium text-slate-800 text-xs">
+                        {reviewingBiz.location?.sector || reviewingBiz.sector || "Not specified"}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block text-[10px] uppercase font-semibold">Cell / Neighborhood</span>
+                      <span className="font-medium text-slate-800 text-xs">
+                        {reviewingBiz.location?.cell || reviewingBiz.cell || "Not specified"}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block text-[10px] uppercase font-semibold">Community / Area</span>
+                      <span className="font-medium text-slate-800 text-xs">
+                        {reviewingBiz.location?.community || "Standard Area"}
+                      </span>
+                    </div>
+                    <div className="col-span-2 md:col-span-3">
                       <span className="text-slate-400 block text-[10px] uppercase font-semibold">Nearest Landmark</span>
-                      <span className="font-bold text-slate-900 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 inline-block mt-0.5">
+                      <span className="font-bold text-slate-900 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 inline-block mt-0.5 text-xs">
                         📍 {reviewingBiz.nearestLandmark || reviewingBiz.location?.nearestLandmark || "Not Specified"}
                       </span>
                     </div>
                     {(reviewingBiz.location?.addressNote || reviewingBiz.locationDescription) && (
-                      <div className="col-span-2">
-                        <span className="text-slate-400 block text-[10px] uppercase font-semibold">Walking Directions</span>
-                        <p className="text-slate-700 italic mt-0.5">{reviewingBiz.location?.addressNote || reviewingBiz.locationDescription}</p>
+                      <div className="col-span-2 md:col-span-3">
+                        <span className="text-slate-400 block text-[10px] uppercase font-semibold">Physical Address / Walking Directions</span>
+                        <p className="text-slate-700 italic mt-0.5 bg-white p-2 rounded border border-slate-200/60 text-xs">{reviewingBiz.location?.addressNote || reviewingBiz.locationDescription}</p>
                       </div>
                     )}
-                    <div className="col-span-2 flex items-center gap-2 pt-1 border-t border-slate-200/60">
+                    <div className="col-span-2 md:col-span-3 flex items-center gap-2 pt-1 border-t border-slate-200/60 flex-wrap">
                       <span className="text-slate-400 text-[10px] uppercase font-semibold">GPS Coordinates:</span>
-                      <span className="font-mono text-slate-800 font-bold">
-                        {reviewingBiz.location?.coordinates?.lat?.toFixed(5) || reviewingBiz.latitude?.toFixed(5) || "-1.98100"}, {reviewingBiz.location?.coordinates?.lng?.toFixed(5) || reviewingBiz.longitude?.toFixed(5) || "30.04600"}
+                      <span className="font-mono text-slate-800 font-bold text-xs">
+                        {reviewingBiz.location?.coordinates?.lat?.toFixed?.(5) || (Array.isArray(reviewingBiz.location?.coordinates) ? reviewingBiz.location.coordinates[0]?.toFixed?.(5) : null) || reviewingBiz.latitude?.toFixed?.(5) || "-1.98100"}, {reviewingBiz.location?.coordinates?.lng?.toFixed?.(5) || (Array.isArray(reviewingBiz.location?.coordinates) ? reviewingBiz.location.coordinates[1]?.toFixed?.(5) : null) || reviewingBiz.longitude?.toFixed?.(5) || "30.04600"}
                       </span>
                       {reviewingBiz.location?.accuracy && (
                         <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 text-[10px] font-bold">

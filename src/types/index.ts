@@ -214,6 +214,7 @@ export interface Business {
   // Top-level coordinates & administrative names (synced with Prisma model & formatBusinessRecord)
   latitude?: number;
   longitude?: number;
+  country?: string;
   province?: string;
   district?: string;
   sector?: string;

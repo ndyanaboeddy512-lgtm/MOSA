@@ -145,6 +145,7 @@ export function formatBusinessRecord(raw: any): Business {
     location,
     latitude: typeof raw.latitude === "number" ? raw.latitude : (location.coordinates?.lat ?? -1.981),
     longitude: typeof raw.longitude === "number" ? raw.longitude : (location.coordinates?.lng ?? 30.046),
+    country: location.country,
     province: location.province,
     district: location.district,
     sector: location.sector,
