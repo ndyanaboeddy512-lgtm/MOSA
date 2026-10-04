@@ -299,7 +299,7 @@ export const fr = {
       account: "Sécurité & Mots de passe",
     },
     pendingBannerTitle: "Inscription en Attente de Revue Administrative",
-    pendingBannerDesc: "Votre entreprise est enregistrée en toute sécurité dans la base de données Neon PostgreSQL. Elle sera visible sur la carte et la recherche publiques dès sa validation par l'administration MOSA. En attendant, vous disposez d'un accès privé complet pour gérer votre inventaire, votre catalogue, vos horaires et votre suivi financier.",
+    pendingBannerDesc: "Votre entreprise est enregistrée en toute sécurité dans la base de données sécurisée MOSA. Elle sera visible sur la carte et la recherche publiques dès sa validation par l'administration MOSA. En attendant, vous disposez d'un accès privé complet pour gérer votre inventaire, votre catalogue, vos horaires et votre suivi financier.",
     tabs: {
       overview: "Aperçu",
       catalog: "Catalogue & Prix",
@@ -352,6 +352,6 @@ export const fr = {
     lowStock: "Stock Bas",
     outOfStock: "Rupture de Stock",
     adjustStockBtn: "Ajuster le Stock",
-    stockUpdated: "Niveau de stock mis à jour avec succès dans Neon PostgreSQL.",
+    stockUpdated: "Niveau de stock mis à jour avec succès.",
   },
 };

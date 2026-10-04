@@ -26,7 +26,7 @@ export async function GET(request: Request) {
     return NextResponse.json({
       success: true,
       count: missions.length,
-      source: "postgres",
+      source: "live",
       missions: missions.map((m) => ({
         id: m.id,
         title: m.title,

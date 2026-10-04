@@ -74,7 +74,7 @@ export default function BusinessClaimPage({ params }: { params: Promise<{ id: st
     try {
       const res = await verifyOtp(otpCode, email);
       if (res.success) {
-        // Sync claim to Neon PostgreSQL via official claims API
+        // Sync claim via official claims API
         try {
           await fetch("/api/claims", {
             method: "POST",

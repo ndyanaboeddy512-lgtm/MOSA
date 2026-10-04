@@ -299,7 +299,7 @@ export const rw = {
       account: "Umutekano & Amagambobanga",
     },
     pendingBannerTitle: "Ubucuruzi Bwanyu Burimo Gusuzumwa",
-    pendingBannerDesc: "Ubucuruzi bwanyu bwabitswe neza muri PostgreSQL. Buraza kugaragara mu bushakashatsi bwa rubanda nibumara kwemezwa n'ubuyobozi bwa MOSA. Hagati aho, mushobora gukomeza gushyiraho ibiciro, ububiko n'imari hano.",
+    pendingBannerDesc: "Ubucuruzi bwanyu bwabitswe neza mu bubiko butekanye bwa MOSA. Buraza kugaragara mu bushakashatsi bwa rubanda nibumara kwemezwa n'ubuyobozi bwa MOSA. Hagati aho, mushobora gukomeza gushyiraho ibiciro, ububiko n'imari hano.",
     tabs: {
       overview: "Incamake",
       catalog: "Ibicuruzwa & Ibiciro",
@@ -352,6 +352,6 @@ export const rw = {
     lowStock: "Biri Hafi Gushira",
     outOfStock: "Byashize",
     adjustStockBtn: "Hindura Sitoke",
-    stockUpdated: "Sitoke yavuguruwe neza muri PostgreSQL.",
+    stockUpdated: "Sitoke yavuguruwe neza.",
   },
 };

@@ -299,7 +299,7 @@ export const sw = {
       account: "Usalama & Nywila",
     },
     pendingBannerTitle: "Usajili Unasubiri Ukaguzi wa Wasimamizi",
-    pendingBannerDesc: "Biashara yako imehifadhiwa salama katika hifadhidata ya Neon PostgreSQL. Itaonekana kwenye ramani ya umma na utafutaji mara itakapoidhinishwa na wasimamizi wa MOSA. Wakati huo huo, una ufikiaji kamili wa kibinafsi kusimamia stoo, bei, masaa ya kazi na mahesabu ya fedha.",
+    pendingBannerDesc: "Biashara yako imehifadhiwa salama katika mfumo wa wingu wa MOSA. Itaonekana kwenye ramani ya umma na utafutaji mara itakapoidhinishwa na wasimamizi wa MOSA. Wakati huo huo, una ufikiaji kamili wa kibinafsi kusimamia stoo, bei, masaa ya kazi na mahesabu ya fedha.",
     tabs: {
       overview: "Muhtasari",
       catalog: "Orodha & Bei",
@@ -352,6 +352,6 @@ export const sw = {
     lowStock: "Inakaribia Kuisha",
     outOfStock: "Imeisha",
     adjustStockBtn: "Rekebisha Stoo",
-    stockUpdated: "Kiwango cha stoo kimesasishwa kwa mafanikio katika Neon PostgreSQL.",
+    stockUpdated: "Kiwango cha stoo kimesasishwa kwa mafanikio.",
   },
 };

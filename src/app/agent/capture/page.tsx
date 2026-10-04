@@ -131,7 +131,7 @@ export default function PhysicalCapturePage() {
   const handlePublish = async () => {
     if (!parseResult || !targetBusinessId) return;
 
-    // Persist to PostgreSQL database via API
+    // Persist to database via API
     try {
       await fetch("/api/capture/ocr", {
         method: "POST",

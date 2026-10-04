@@ -61,7 +61,7 @@ export async function GET(
       })
       .catch(() => {});
 
-    return NextResponse.json({ success: true, source: "postgres", business: serializePublicBusiness(business) });
+    return NextResponse.json({ success: true, source: "live", business: serializePublicBusiness(business) });
   } catch (error) {
     console.error("[Business GET Error]:", error);
     return NextResponse.json({ error: "Failed to fetch business" }, { status: 500 });

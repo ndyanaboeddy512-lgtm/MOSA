@@ -285,7 +285,7 @@ export function PlatformIdentityTab({ user }: { user: any }) {
       <div className="bg-white rounded-3xl border border-slate-200 p-12 text-center shadow-card">
         <RefreshCw className="w-8 h-8 text-emerald-600 animate-spin mx-auto mb-3" />
         <p className="text-sm font-semibold text-slate-700">Loading MOSA Platform Identity & Controls...</p>
-        <p className="text-xs text-slate-400 mt-1">Connecting to Neon PostgreSQL live settings repository</p>
+        <p className="text-xs text-slate-400 mt-1">Connecting to live settings repository...</p>
       </div>
     );
   }
@@ -302,7 +302,7 @@ export function PlatformIdentityTab({ user }: { user: any }) {
               </span>
               <span className="text-slate-400 text-xs">•</span>
               <span className="text-xs text-emerald-300 font-medium flex items-center gap-1">
-                <ShieldCheck className="w-3.5 h-3.5" /> Live Neon Persistence
+                <ShieldCheck className="w-3.5 h-3.5" /> Live Cloud Persistence
               </span>
             </div>
             <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
@@ -310,7 +310,7 @@ export function PlatformIdentityTab({ user }: { user: any }) {
             </h2>
             <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
               Centrally configure MOSA branding, official contact channels, localized taglines, and public identity controls.
-              Every modification is securely validated, persisted in PostgreSQL, and logged in the immutable audit registry.
+              Every modification is securely validated, persisted in the cloud database, and logged in the immutable audit registry.
             </p>
           </div>
 
@@ -1008,7 +1008,7 @@ export function PlatformIdentityTab({ user }: { user: any }) {
                   <History className="w-3.5 h-3.5 text-emerald-600" />
                   <span>Audit Trail</span>
                 </h5>
-                <span className="text-[10px] text-slate-400">PostgreSQL Immutable</span>
+                <span className="text-[10px] text-slate-400">Immutable Ledger</span>
               </div>
 
               {recentAudits.length === 0 ? (

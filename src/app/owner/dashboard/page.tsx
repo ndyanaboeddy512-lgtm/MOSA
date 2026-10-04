@@ -371,7 +371,7 @@ export default function OwnerDashboardPage() {
   const [accountMsg, setAccountMsg] = useState("");
   const [accountErrorMsg, setAccountErrorMsg] = useState("");
 
-  // Fetch Owner Data directly from Neon PostgreSQL
+  // Fetch Owner Data directly from database
   const loadOwnerData = async () => {
     try {
       setLoading(true);
@@ -757,7 +757,7 @@ export default function OwnerDashboardPage() {
         setQuickPriceProduct(null);
         setSaveSuccessMsg(
           lang === "rw"
-            ? `Igiciro gishya cya ${Number(quickPriceValue).toLocaleString()} Frw cyabitswe muri PostgreSQL no ku rubuga!`
+            ? `Igiciro gishya cya ${Number(quickPriceValue).toLocaleString()} Frw cyabitswe neza no ku rubuga!`
             : `Price for "${quickPriceProduct.name}" updated to ${Number(quickPriceValue).toLocaleString()} RWF in database and live website!`
         );
         setTimeout(() => setSaveSuccessMsg(""), 4000);
@@ -880,7 +880,7 @@ export default function OwnerDashboardPage() {
         if (data.health) setHealthReport(data.health);
         setSaveSuccessMsg(
           lang === "rw"
-            ? "Urakoze! Amakuru y'ubucuruzi bwawe yemejwe neza muri PostgreSQL."
+            ? "Urakoze! Amakuru y'ubucuruzi bwawe yemejwe neza mu buryo butekanye."
             : "Confirmed! Your business information is verified fresh in the database."
         );
         setTimeout(() => setSaveSuccessMsg(""), 4000);
@@ -1088,8 +1088,8 @@ export default function OwnerDashboardPage() {
         setHealthReport(data.health);
         setSaveSuccessMsg(
           lang === "rw"
-            ? "Amasaha yo gukora yavuguruwe neza muri PostgreSQL!"
-            : "Operating hours successfully updated in PostgreSQL and visible publicly!"
+            ? "Amasaha yo gukora yavuguruwe neza mu buryo butekanye!"
+            : "Operating hours successfully updated and visible publicly!"
         );
         setTimeout(() => setSaveSuccessMsg(""), 4000);
       }
@@ -1226,7 +1226,7 @@ export default function OwnerDashboardPage() {
         setSelectedProduct(null);
         setSaveSuccessMsg(
           lang === "rw"
-            ? "Igiciro cyavuguruwe neza muri PostgreSQL no ku rubuga rusange!"
+            ? "Igiciro cyavuguruwe neza no ku rubuga rusange!"
             : `Price for "${data.product.name}" updated to ${data.product.price} RWF in database and public website!`
         );
         setTimeout(() => setSaveSuccessMsg(""), 4000);
@@ -1744,7 +1744,7 @@ export default function OwnerDashboardPage() {
         setAssistantProposals(assistantProposals.filter((p) => p !== proposal));
         setSaveSuccessMsg(
           lang === "rw"
-            ? `Serivisi "${proposal.name}" yemejwe kandi yongewe muri PostgreSQL!`
+            ? `Serivisi "${proposal.name}" yemejwe kandi yongewe muri gahunda!`
             : `Service "${proposal.name}" confirmed and added to your active database catalogue!`
         );
         setTimeout(() => setSaveSuccessMsg(""), 4000);
@@ -1759,9 +1759,11 @@ export default function OwnerDashboardPage() {
       <div className="max-w-4xl mx-auto px-4 py-20 text-center space-y-4">
         <RefreshCw className="w-8 h-8 text-emerald-600 animate-spin mx-auto" />
         <h2 className="text-lg font-bold text-slate-900">
-          {lang === "rw" ? "Gufungura Icyicaro cy'Ubucuruzi..." : "Loading Business Owner Hub from PostgreSQL..."}
+          {lang === "rw" ? "Gufungura Icyicaro cy'Ubucuruzi..." : "Loading Business Owner Hub..."}
         </h2>
-        <p className="text-xs text-slate-500">Connecting to Neon database cluster...</p>
+        <p className="text-xs text-slate-500">
+          {lang === "rw" ? "Guhuza n'ububiko butekanye bwa MOSA..." : "Connecting to secure MOSA cloud network..."}
+        </p>
       </div>
     );
   }
@@ -2096,7 +2098,7 @@ export default function OwnerDashboardPage() {
                   {confirmationStatus?.needsConfirmation
                     ? lang === "rw"
                       ? `Hasize iminsi ${confirmationStatus?.daysSinceLastConfirmation || 60} mudasubiramo amakuru yanyu. Emeza ko ibiciro n'aho mukorera bikiri byo kugira ngo mukomeze kugaragara neza mu gace kanyu.`
-                      : `Your business information hasn't been confirmed for ${confirmationStatus?.daysSinceLastConfirmation || 60} days. Confirming updates your freshness timestamp in PostgreSQL.`
+                      : `Your business information hasn't been confirmed for ${confirmationStatus?.daysSinceLastConfirmation || 60} days. Confirming updates your freshness timestamp in the directory.`
                     : lang === "rw"
                     ? `Amakuru y'ubucuruzi bwawe aheruka kwemezwa: ${confirmationStatus?.lastConfirmedAt ? new Date(confirmationStatus.lastConfirmedAt).toLocaleDateString() : "Vuba"}. Asigaje iminsi ${confirmationStatus?.daysRemaining || 60} kugira ngo yongere kwemezwa.`
                     : `Your business information was confirmed on ${confirmationStatus?.lastConfirmedAt ? new Date(confirmationStatus.lastConfirmedAt).toLocaleDateString() : "recently"}. Next periodic check-in due in ${confirmationStatus?.daysRemaining || 60} days.`}
@@ -2757,7 +2759,7 @@ export default function OwnerDashboardPage() {
                 <Tag className="w-4 h-4 text-emerald-600" />
               </div>
               <div className="text-2xl sm:text-3xl font-black text-slate-900">{business.products.length}</div>
-              <div className="text-[11px] text-slate-500 font-medium mt-1">Prices in PostgreSQL</div>
+              <div className="text-[11px] text-slate-500 font-medium mt-1">{lang === "rw" ? "Ibicuruzwa bibitswe" : "Live catalog prices"}</div>
             </div>
           </div>
 
@@ -2877,7 +2879,9 @@ export default function OwnerDashboardPage() {
           <div className="border-b border-slate-100 pb-4">
             <h3 className="text-lg font-bold text-slate-900">{lang === "rw" ? "Umwirondoro n'Aho Riherereye" : "Business Profile & Geographic Location"}</h3>
             <p className="text-xs text-slate-500">
-              Approved changes immediately persist to Neon PostgreSQL and reflect on the public MOSA directory.
+              {lang === "rw"
+                ? "Impinduka zemejwe zihita zibitswe mu buryo butekanye kandi zikagaragara ku rubuga rwa MOSA."
+                : "Approved changes immediately persist to the secure cloud registry and reflect on the public MOSA directory."}
             </p>
           </div>
 
@@ -4311,8 +4315,8 @@ export default function OwnerDashboardPage() {
               </h3>
               <p className="text-xs text-slate-500 mt-0.5">
                 {lang === "rw"
-                  ? "Vugurura ibiciro cyangwa imiterere y'ububiko ako kanya. Buri gicuruzwa gihita kibikwa muri PostgreSQL kikanagaragara ku rubuga rusange."
-                  : "Update prices and stock availability in real time. Changes persist directly to Neon PostgreSQL and synchronize to your public mini-website."}
+                  ? "Vugurura ibiciro cyangwa imiterere y'ububiko ako kanya. Buri gicuruzwa gihita kibikwa neza kikanagaragara ku rubuga rusange."
+                  : "Update prices and stock availability in real time. Changes persist directly to the secure cloud registry and synchronize to your public mini-website."}
               </p>
               <div className="flex flex-wrap items-center gap-2 mt-2">
                 <span className="text-xs bg-slate-100 text-slate-700 px-2.5 py-0.5 rounded-full font-bold">
@@ -4543,7 +4547,7 @@ export default function OwnerDashboardPage() {
                             : `${item.price.toLocaleString()} Frw`}
                         </div>
                       )}
-                      <div className="text-[10px] text-slate-400">Verified in PostgreSQL</div>
+                      <div className="text-[10px] text-slate-400">{lang === "rw" ? "Byemejwe mu bubiko" : "Verified in live catalog"}</div>
                     </div>
 
                     {/* Low-Digital-Literacy 1-Click Action Controls */}
@@ -5472,8 +5476,8 @@ export default function OwnerDashboardPage() {
                 </h3>
                 <p className="text-xs text-slate-500">
                   {lang === "rw"
-                    ? "Ubutumwa bw'ingenzi buturuka ku buyobozi bwa MOSA, ibyemezo byo kwemeza ubucuruzi, n'isesengura ryabitswe muri PostgreSQL."
-                    : "Official notifications, verification decisions, and operational updates stored in PostgreSQL."}
+                    ? "Ubutumwa bw'ingenzi buturuka ku buyobozi bwa MOSA, ibyemezo byo kwemeza ubucuruzi, n'isesengura ryabitswe mu buryo butekanye."
+                    : "Official notifications, verification decisions, and operational updates stored in your secure workspace."}
                 </p>
               </div>
               {notifications.filter((n) => !n.isRead).length > 0 && (
@@ -5619,8 +5623,8 @@ export default function OwnerDashboardPage() {
               </h3>
               <p className="text-xs text-slate-500">
                 {lang === "rw"
-                  ? "Buri gihindutse ku giciro, umwirondoro cyangwa amakuru bibikwa burundu muri PostgreSQL."
-                  : "Every meaningful price change, profile edit, and confirmation is permanently recorded in PostgreSQL."}
+                  ? "Buri gihindutse ku giciro, umwirondoro cyangwa amakuru bibikwa mu buryo butekanye butazasibama."
+                  : "Every meaningful price change, profile edit, and confirmation is permanently recorded in your tamper-proof ledger."}
               </p>
             </div>
 
@@ -5786,7 +5790,7 @@ export default function OwnerDashboardPage() {
                       });
                       const data = await res.json();
                       if (res.ok && data.success) {
-                        setAccountMsg("Password updated successfully in PostgreSQL database.");
+                        setAccountMsg("Password updated successfully.");
                         setCurrentPassword("");
                         setNewPassword("");
                         setConfirmPassword("");

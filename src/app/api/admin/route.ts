@@ -311,7 +311,7 @@ export async function GET() {
   } catch (error) {
     console.error("[Admin API DB Error]:", error);
     return NextResponse.json({
-      error: "Failed to load administrative dashboard from PostgreSQL database",
+      error: "Failed to load administrative dashboard",
     }, { status: 500 });
   }
 }

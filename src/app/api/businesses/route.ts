@@ -366,7 +366,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       success: true,
-      source: "postgres",
+      source: "live",
       count: formatted.length,
       nlpParsed: parsedNlp,
       businesses: formatted,

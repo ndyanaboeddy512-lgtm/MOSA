@@ -254,7 +254,7 @@ export function OperationsTab({
             <p className="text-xs text-slate-500">
               {lang === "rw"
                 ? "Impinduka zose zakozwe ku bicuruzwa n'ibiciro bibikwa mu buryo bw'umwimerere."
-                : "Immutable change history log recorded in Neon PostgreSQL."}
+                : "Immutable change history log recorded in the secure audit registry."}
             </p>
           </div>
         </div>

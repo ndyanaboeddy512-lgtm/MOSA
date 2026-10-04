@@ -138,8 +138,8 @@ export function FinanceTab({ businessId }: FinanceTabProps) {
       if (res.ok) {
         setSuccessMsg(
           lang === "rw"
-            ? "Igicuruzwa cyanditswe neza mu gitabo cy'imari (Neon PostgreSQL)!"
-            : "Purchase recorded successfully in Neon PostgreSQL!"
+            ? "Igicuruzwa cyanditswe neza mu gitabo cy'imari!"
+            : "Purchase recorded successfully!"
         );
         setPurchaseForm({
           itemName: "",
@@ -328,7 +328,7 @@ export function FinanceTab({ businessId }: FinanceTabProps) {
             <span>SMS Provider Status: {smsResult.status}</span>
           </div>
           <p className="text-amber-800">
-            {smsResult.error || "SMS record persisted to Neon PostgreSQL."}
+            {smsResult.error || "SMS record securely saved to database."}
           </p>
           <div className="text-[11px] text-amber-700 font-mono bg-white/70 p-2 rounded border border-amber-200">
             {smsResult.messageBody}
@@ -558,7 +558,7 @@ export function FinanceTab({ businessId }: FinanceTabProps) {
               className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
             >
               <Plus className="w-4 h-4" />
-              <span>{lang === "rw" ? "Bika mu Gitabo cy'Imari (Neon PostgreSQL)" : "Save Purchase to Neon Database"}</span>
+              <span>{lang === "rw" ? "Bika mu Gitabo cy'Imari" : "Save Purchase to Financial Ledger"}</span>
             </button>
           </form>
         </div>
@@ -658,7 +658,7 @@ export function FinanceTab({ businessId }: FinanceTabProps) {
         </div>
       </div>
 
-      {/* Purchases Ledger Table (Neon PostgreSQL) */}
+      {/* Purchases Ledger Table */}
       <div className="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200 shadow-card">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100 mb-4">
           <div>
@@ -666,7 +666,7 @@ export function FinanceTab({ businessId }: FinanceTabProps) {
               {lang === "rw" ? "Igitabo cy'Ibyaguzwe (Purchases Ledger)" : "Inventory Purchases Ledger"}
             </h3>
             <p className="text-xs text-slate-500">
-              {purchases.length} {lang === "rw" ? "ibicuruzwa byanditswe muri Neon PostgreSQL" : "records stored in Neon PostgreSQL"}
+              {purchases.length} {lang === "rw" ? "ibicuruzwa byanditswe" : "records stored in ledger"}
             </p>
           </div>
           <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-slate-100 text-slate-700">
@@ -731,7 +731,7 @@ export function FinanceTab({ businessId }: FinanceTabProps) {
         )}
       </div>
 
-      {/* Historical Monthly Reports Ledger (Neon PostgreSQL) */}
+      {/* Historical Monthly Reports Ledger */}
       <div className="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200 shadow-card">
         <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
           <div className="flex items-center gap-2">
@@ -742,8 +742,8 @@ export function FinanceTab({ businessId }: FinanceTabProps) {
               </h3>
               <p className="text-xs text-slate-500">
                 {lang === "rw"
-                  ? "Raporo zanditse burundu muri Neon PostgreSQL (September 2026, n'ayandi mezi)."
-                  : "Permanent historical records aggregated directly in Neon PostgreSQL."}
+                  ? "Raporo zanditse burundu mu gitabo cy'amateka."
+                  : "Permanent historical records aggregated securely."}
               </p>
             </div>
           </div>

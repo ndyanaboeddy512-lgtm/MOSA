@@ -1214,7 +1214,7 @@ export default function AdminPanelPage() {
         )
       )}
 
-      {/* Top Banner with Real Neon PostgreSQL Counters */}
+      {/* Top Banner with Real Platform Counters */}
       <div className="bg-slate-900 rounded-3xl p-6 sm:p-8 text-white shadow-elevated mb-8 flex flex-col md:flex-row md:items-center justify-between gap-6 border border-slate-800">
         <div className="space-y-2">
           <div className="flex items-center gap-2">
@@ -1222,7 +1222,7 @@ export default function AdminPanelPage() {
               <Shield className="w-5 h-5" />
             </span>
             <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider">
-              {user?.role.replace("_", " ") || "SUPER ADMIN"} CONSOLE • NEON POSTGRESQL
+              {user?.role.replace("_", " ") || "SUPER ADMIN"} CONSOLE • SECURE ENTERPRISE
             </span>
           </div>
 
@@ -2159,7 +2159,7 @@ export default function AdminPanelPage() {
               <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200">
                 <span className="text-[10px] font-bold uppercase text-slate-400 block">Classified Establishments</span>
                 <span className="text-2xl font-black text-emerald-700">{businesses.length}</span>
-                <span className="text-[10px] text-slate-500 block mt-0.5">100% Normalized in PostgreSQL</span>
+                <span className="text-[10px] text-slate-500 block mt-0.5">100% Normalized in Registry</span>
               </div>
               <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200">
                 <span className="text-[10px] font-bold uppercase text-slate-400 block">Economic Sectors</span>
@@ -2967,7 +2967,7 @@ export default function AdminPanelPage() {
         <div className="bg-white rounded-3xl border border-slate-200 shadow-card p-6 space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="font-bold text-slate-900 text-base">
-              PostgreSQL Immutable Audit Trail ({auditLogs.length})
+              Immutable Audit Trail ({auditLogs.length})
             </h3>
             <span className="text-xs text-slate-500 font-medium">Permanent Event Log</span>
           </div>
@@ -3460,7 +3460,7 @@ export default function AdminPanelPage() {
                 </div>
                 <div className="flex justify-between py-1.5 border-b border-slate-100">
                   <span className="text-slate-500">Environment:</span>
-                  <span className="font-bold text-slate-700">Neon PostgreSQL (Production)</span>
+                  <span className="font-bold text-slate-700">Production Cloud (Encrypted)</span>
                 </div>
               </div>
 
@@ -3830,7 +3830,7 @@ export default function AdminPanelPage() {
                     {editingAnnouncementId ? "Edit Partner Announcement" : "Create Partner Announcement"}
                   </h3>
                   <p className="text-xs text-slate-500">
-                    Broadcast official notifications to targeted business owner dashboards in PostgreSQL.
+                    Broadcast official notifications to targeted business owner dashboards.
                   </p>
                 </div>
               </div>

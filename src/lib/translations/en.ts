@@ -299,7 +299,7 @@ export const en = {
       account: "Security & Passwords",
     },
     pendingBannerTitle: "Registration Pending Administrative Review",
-    pendingBannerDesc: "Your business is securely recorded in the Neon PostgreSQL database. It will become visible on the public discovery map and search once verified by MOSA administration. Meanwhile, you have full private access to manage inventory, catalog items, operating hours, and financial tracking.",
+    pendingBannerDesc: "Your business is securely recorded in the MOSA cloud database. It will become visible on the public discovery map and search once verified by MOSA administration. Meanwhile, you have full private access to manage inventory, catalog items, operating hours, and financial tracking.",
     tabs: {
       overview: "Overview",
       catalog: "Catalogue & Prices",
