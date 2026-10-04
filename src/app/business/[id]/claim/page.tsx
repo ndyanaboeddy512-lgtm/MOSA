@@ -17,7 +17,7 @@ export default function BusinessClaimPage({ params }: { params: Promise<{ id: st
   const [business, setBusiness] = useState<Business | null>(null);
   const [step, setStep] = useState<"contact" | "otp" | "success">("contact");
   const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("+250788");
+  const [phone, setPhone] = useState("");
   const [otpCode, setOtpCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");

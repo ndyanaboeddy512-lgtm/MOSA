@@ -123,11 +123,6 @@ export function Footer() {
                   <span>{t.nav.ownerPortal}</span>
                 </Link>
               </li>
-              <li>
-                <Link href="/admin" className="hover:text-white transition-colors">
-                  {t.nav.admin}
-                </Link>
-              </li>
             </ul>
           </div>
         </div>

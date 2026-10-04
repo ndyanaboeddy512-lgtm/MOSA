@@ -39,8 +39,8 @@ export default function HomePage() {
         const params = new URLSearchParams();
         if (selectedCategory !== "all") params.set("category", selectedCategory);
         if (currentSector && currentSector !== "all") params.set("sector", currentSector);
-        if (currentCell) params.set("cell", currentCell);
-        if (currentLocalArea) params.set("community", currentLocalArea);
+        if (currentCell && currentCell !== "all") params.set("cell", currentCell);
+        if (currentLocalArea && currentLocalArea !== "all") params.set("community", currentLocalArea);
         
         const res = await fetch(`/api/businesses?${params.toString()}`);
         if (res.ok) {
@@ -94,7 +94,9 @@ export default function HomePage() {
               <MapPin className="w-3.5 h-3.5 text-amber-400" />
               <span className="tracking-wide">
                 {lang === "rw" ? "Agace k'Ibanze:" : "Active Discovery Hub:"}{" "}
-                <strong className="text-white underline decoration-amber-400/80 decoration-2 font-bold">{displayLabel}</strong>
+                <strong className="text-white underline decoration-amber-400/80 decoration-2 font-bold">
+                  {currentSector === "all" ? (lang === "rw" ? "U Rwanda Rwose" : "All Rwanda") : displayLabel}
+                </strong>
               </span>
               <span className="text-[10px] bg-white/10 px-2 py-0.5 rounded-full text-slate-200 font-bold ml-1 group-hover:bg-amber-400 group-hover:text-slate-950 transition-colors">
                 {lang === "rw" ? "Hindura" : "Switch"} ▾
@@ -209,7 +211,7 @@ export default function HomePage() {
             <div>
               <div className="flex items-center gap-2.5 flex-wrap">
                 <h3 className="font-extrabold text-slate-950 text-base sm:text-lg tracking-tight">
-                  {currentSector === "all" ? "All Rwanda (Ahantu Hose)" : displayLabel}
+                  {currentSector === "all" ? (lang === "rw" ? "U Rwanda Rwose (Ahantu Hose)" : "All Rwanda (All Locations)") : displayLabel}
                 </h3>
                 {currentSector === "Kacyiru" && (
                   <span className="text-[10px] bg-emerald-50 text-emerald-800 border border-emerald-200/70 font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider">
@@ -225,32 +227,25 @@ export default function HomePage() {
                   ? (lang === "rw" ? "Uruhererekane rwa Kacyiru: MINAGRI (KG 569 St), Kamutwa, Kibaza na Kamatamu" : "Kacyiru Sector (Gasabo) · Featuring MINAGRI Area (KG 569 St), Kamutwa, Kibaza & Kamatamu")
                   : currentSector === "Nyamirambo"
                   ? (lang === "rw" ? "Uruhererekane rwa Nyamirambo: Biryogo, Cosmos, Tapi Rouge, Mumena na Cyivugiza" : "Nyamirambo Sector (Nyarugenge) · Featuring Biryogo Car-Free Zone, Cosmos & Tapi Rouge")
-                  : (lang === "rw" ? "Irembo ry'ubucuruzi bwo mu bice bitandukanye by'u Rwanda" : "Discovering verified neighborhood commerce across Rwanda")}
+                  : (lang === "rw" ? "Vumbura amaduka na serivisi byemejwe mu bice byose by'u Rwanda" : "Discovering verified neighborhood commerce and services across Rwanda")}
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
-            {currentSector === "Kacyiru" ? (
+            {currentSector !== "all" && (
               <button
-                onClick={() => setSector("Nyamirambo")}
-                className="text-xs font-semibold px-4 py-2 rounded-full border border-slate-200/80 hover:border-slate-300 hover:bg-slate-50 text-slate-700 transition-colors cursor-pointer"
-              >
-                Switch to Nyamirambo
-              </button>
-            ) : (
-              <button
-                onClick={() => setSector("Kacyiru")}
+                onClick={resetLocation}
                 className="text-xs font-semibold px-4 py-2 rounded-full border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 transition-colors cursor-pointer"
               >
-                Switch to Kacyiru
+                {lang === "rw" ? "Reba Byose (Rwanda)" : "View All Rwanda"}
               </button>
             )}
             <button
               onClick={openSelector}
               className="text-xs font-bold px-4 py-2 rounded-full bg-slate-950 hover:bg-slate-800 text-white transition-colors cursor-pointer"
             >
-              {lang === "rw" ? "Hitamo Ahandi" : "All Locations"} ▾
+              {lang === "rw" ? "Hitamo Agace" : "Filter Location"} ▾
             </button>
           </div>
         </div>
@@ -297,7 +292,7 @@ export default function HomePage() {
                 <p className="text-xs text-slate-500 leading-relaxed">
                   {lang === "rw"
                     ? "Andika izina ry'iduka, icyiciro ukoreramo, izina ryawe na nimero ya telefone yo guhamagaraho."
-                    : "Enter your shop name, category, your name, and your direct Rwanda mobile number for customers."}
+                    : "Enter your shop name, category, your name, and your direct mobile phone number for customers."}
                 </p>
               </div>
               <div className="mt-5 pt-3 border-t border-slate-100 text-[10px] uppercase font-bold tracking-wider text-slate-400">

@@ -92,6 +92,7 @@ export async function POST(request: Request) {
           priceType: normPriceType,
           unit: unit || (isService ? "service" : "item"),
           category: category || null,
+          currency: body.currency ? String(body.currency).toUpperCase().trim() : "RWF",
           isAvailable: Boolean(isAvailable),
           isEstimated: Boolean(isEstimated || isContactForPrice || normPriceType === "ESTIMATED" || normPriceType === "RANGE"),
           isService: isService,
@@ -219,6 +220,7 @@ export async function PATCH(request: Request) {
     if (fields.isService !== undefined) updateData.isService = Boolean(fields.isService);
     if (fields.sortOrder !== undefined) updateData.sortOrder = Number(fields.sortOrder);
     if (fields.isArchived !== undefined) updateData.isArchived = Boolean(fields.isArchived);
+    if (fields.currency !== undefined) updateData.currency = String(fields.currency).toUpperCase().trim();
 
     if (fields.contactForPrice) {
       updateData.price = 0;

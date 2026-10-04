@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { normalizeRwandaPhone } from "@/lib/sms/normalize";
+import { normalizePhoneNumber } from "@/lib/sms/normalize";
 import { createSessionToken, setSessionCookie, hashPassword } from "@/lib/auth";
 import { logAuditEvent } from "@/lib/audit";
 import { sendBusinessSMS } from "@/lib/sms";
@@ -70,11 +70,11 @@ export async function POST(request: Request) {
 
     // 1.2 Structured Location Validation
     if (!sector || typeof sector !== "string" || !sector.trim()) {
-      return NextResponse.json({ error: "Structured Sector is required" }, { status: 400 });
+      return NextResponse.json({ error: "Structured Sector / Locality is required" }, { status: 400 });
     }
 
     if (!cell || typeof cell !== "string" || !cell.trim()) {
-      return NextResponse.json({ error: "Structured Cell is required" }, { status: 400 });
+      return NextResponse.json({ error: "Structured Cell / Neighborhood is required" }, { status: 400 });
     }
 
     if (!phone || typeof phone !== "string") {
@@ -85,11 +85,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Nearest walking landmark is required for ground discovery" }, { status: 400 });
     }
 
-    // 2. Normalize Rwanda Phone Number
-    const phoneNorm = normalizeRwandaPhone(phone);
+    // 2. Normalize Phone Number (Supports Rwanda local & International formats)
+    const phoneNorm = normalizePhoneNumber(phone);
     if (!phoneNorm.isValid || !phoneNorm.e164) {
       return NextResponse.json(
-        { error: phoneNorm.error || "Invalid Rwandan phone number. Enter a valid MTN (078/079) or Airtel (072/073) number." },
+        { error: phoneNorm.error || "Invalid phone number format. Please enter a valid number." },
         { status: 400 }
       );
     }
@@ -98,10 +98,10 @@ export async function POST(request: Request) {
     // Optional WhatsApp normalization
     let cleanWhatsapp: string | null = null;
     if (whatsapp && typeof whatsapp === "string" && whatsapp.trim()) {
-      const waNorm = normalizeRwandaPhone(whatsapp);
+      const waNorm = normalizePhoneNumber(whatsapp);
       if (!waNorm.isValid || !waNorm.e164) {
         return NextResponse.json(
-          { error: waNorm.error || "Invalid WhatsApp phone number. Enter a valid Rwandan phone number." },
+          { error: waNorm.error || "Invalid WhatsApp phone number format." },
           { status: 400 }
         );
       }
@@ -247,6 +247,7 @@ export async function POST(request: Request) {
                 priceMin: minP,
                 priceMax: maxP,
                 priceType: normPriceType,
+                currency: p.currency ? String(p.currency).toUpperCase().trim() : "RWF",
                 isService: isService,
                 isEstimated: Boolean(p.isEstimated || isContactForPrice),
                 category: p.category || b.category,

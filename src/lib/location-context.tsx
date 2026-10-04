@@ -202,12 +202,12 @@ const LocationContext = createContext<LocationState | undefined>(undefined);
 const STORAGE_KEY = "mosa_user_community";
 
 export function LocationProvider({ children }: { children: React.ReactNode }) {
-  // Default to Kacyiru (Gasabo District, Kigali City)
-  const [currentSector, setCurrentSector] = useState<string>("Kacyiru");
+  // Default to All Rwanda ("all") so all businesses appear by default across MOSA
+  const [currentSector, setCurrentSector] = useState<string>("all");
   const [currentCell, setCurrentCell] = useState<string | null>(null);
   const [currentLocalArea, setCurrentLocalArea] = useState<string | null>(null);
-  const [currentDistrict, setCurrentDistrict] = useState<string>("Gasabo");
-  const [currentProvince, setCurrentProvince] = useState<string>("Kigali City");
+  const [currentDistrict, setCurrentDistrict] = useState<string>("Rwanda");
+  const [currentProvince, setCurrentProvince] = useState<string>("Rwanda");
   const [isSelectorOpen, setIsSelectorOpen] = useState<boolean>(false);
 
   // Initialize from localStorage if available
@@ -216,11 +216,21 @@ export function LocationProvider({ children }: { children: React.ReactNode }) {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (parsed.sector) setCurrentSector(parsed.sector);
-        if (parsed.cell !== undefined) setCurrentCell(parsed.cell);
-        if (parsed.localArea !== undefined) setCurrentLocalArea(parsed.localArea);
-        if (parsed.district) setCurrentDistrict(parsed.district);
-        if (parsed.province) setCurrentProvince(parsed.province);
+        // Only load if explicitly chosen and not the legacy "Kacyiru" default
+        if (parsed.sector && parsed.sector !== "all" && parsed.sector !== "Kacyiru") {
+          setCurrentSector(parsed.sector);
+          if (parsed.cell !== undefined) setCurrentCell(parsed.cell);
+          if (parsed.localArea !== undefined) setCurrentLocalArea(parsed.localArea);
+          if (parsed.district) setCurrentDistrict(parsed.district);
+          if (parsed.province) setCurrentProvince(parsed.province);
+        } else {
+          // Default to all businesses nationwide
+          setCurrentSector("all");
+          setCurrentCell(null);
+          setCurrentLocalArea(null);
+          setCurrentDistrict("Rwanda");
+          setCurrentProvince("Rwanda");
+        }
       }
     } catch {
       // Ignore parse errors
@@ -295,7 +305,7 @@ export function LocationProvider({ children }: { children: React.ReactNode }) {
   };
 
   // Build human friendly display label
-  let displayLabel = "Rwanda";
+  let displayLabel = "All Rwanda";
   if (currentLocalArea) {
     displayLabel = `${currentLocalArea}, ${currentSector}`;
   } else if (currentCell) {

@@ -36,7 +36,7 @@ export function BusinessCard({ business, variant = "standard", className = "" }:
   const isVideo = hasValidCover && isVideoMedia(business.coverImage);
 
   return (
-    <div className={`bg-white rounded-3xl border border-slate-200/80 overflow-hidden shadow-[0_4px_20px_rgba(0,0,0,0.03)] hover:shadow-[0_20px_40px_rgba(0,0,0,0.08)] transition-all duration-300 flex flex-col ${isFeatured ? "md:flex-row md:col-span-2 lg:col-span-2 xl:col-span-2" : ""} group hover:-translate-y-1 ${className}`}>
+    <div className={`bg-white rounded-3xl border border-slate-200/80 overflow-hidden shadow-[0_4px_20px_rgba(0,0,0,0.03)] hover:shadow-[0_20px_40px_rgba(0,0,0,0.08)] transition-all duration-300 flex flex-col ${isFeatured ? "md:flex-row md:col-span-2 lg:col-span-2 xl:col-span-2" : ""} group hover:-translate-y-1 content-protected ${className}`}>
       {/* Cover Media & Status Badges */}
       <div className={`relative ${isFeatured ? "aspect-[16/11] md:aspect-auto md:w-7/12 min-h-[260px] md:min-h-[340px]" : "aspect-[16/11] w-full"} bg-slate-950 overflow-hidden`}>
         {hasValidCover ? (
@@ -178,8 +178,8 @@ export function BusinessCard({ business, variant = "standard", className = "" }:
                     <span className="font-bold text-slate-950 shrink-0 text-xs">
                       {prod.isEstimated || prod.priceType === "ESTIMATED" ? "~" : ""}
                       {prod.priceMin && prod.priceMax
-                        ? `${prod.priceMin.toLocaleString()} - ${prod.priceMax.toLocaleString()} Frw`
-                        : `${prod.price.toLocaleString()} Frw`}
+                        ? `${prod.priceMin.toLocaleString()} - ${prod.priceMax.toLocaleString()} ${prod.currency || "Frw"}`
+                        : `${prod.price.toLocaleString()} ${prod.currency || "Frw"}`}
                       {(prod.isEstimated || prod.priceType === "ESTIMATED") && <span className="text-[10px] text-slate-400 ml-1 font-normal">(Est.)</span>}
                     </span>
                   </div>
@@ -202,18 +202,26 @@ export function BusinessCard({ business, variant = "standard", className = "" }:
                 <Phone className="w-3.5 h-3.5 text-slate-700" />
               </a>
             )}
-            {business.whatsapp && (
-              <a
-                href={`https://wa.me/${business.whatsapp}?text=Muraho,%20nabonye%20ubucuruzi%20bwanyu%20kuri%20MOSA.`}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={(e) => handleContactClick(e, "whatsapp")}
-                className="p-2.5 rounded-full bg-emerald-50 hover:bg-emerald-100 border border-emerald-200/70 text-emerald-800 transition-colors"
-                title={`${t.common.whatsapp} ${displayName}`}
-              >
-                <MessageCircle className="w-3.5 h-3.5 text-emerald-700" />
-              </a>
-            )}
+            {business.whatsapp && (() => {
+              const cleanWa = business.whatsapp.replace(/\D/g, "");
+              const waText = encodeURIComponent(
+                lang === "rw"
+                  ? "Muraho, nabonye ubucuruzi bwanyu kuri MOSA."
+                  : "Hello, I found your business on MOSA."
+              );
+              return (
+                <a
+                  href={`https://wa.me/${cleanWa}?text=${waText}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => handleContactClick(e, "whatsapp")}
+                  className="p-2.5 rounded-full bg-emerald-50 hover:bg-emerald-100 border border-emerald-200/70 text-emerald-800 transition-colors"
+                  title={`${t.common.whatsapp} ${displayName}`}
+                >
+                  <MessageCircle className="w-3.5 h-3.5 text-emerald-700" />
+                </a>
+              );
+            })()}
           </div>
 
           <Link

@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { MapPin, Navigation, Plus, Minus, Compass, ExternalLink, CheckCircle2 } from "lucide-react";
+import { MapPin, Navigation, Plus, Minus, Compass, ExternalLink, CheckCircle2, Crosshair, Loader2 } from "lucide-react";
 import { getGoogleMapsDirectionsUrl } from "@/lib/location-quality";
 
 export interface MosaMapPin {
@@ -72,10 +72,39 @@ export function MosaMap({
   const [mapCenter, setMapCenter] = useState(center);
   const [activePin, setActivePin] = useState<MosaMapPin | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [isPinDragging, setIsPinDragging] = useState(false);
   const [dragStart, setDragStart] = useState<{ x: number; y: number } | null>(null);
+  const dragMovedRef = useRef(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 600, height: 400 });
+
+  const [isLocating, setIsLocating] = useState(false);
+
+  const handleLocateMe = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (typeof window === "undefined" || !navigator.geolocation) return;
+    setIsLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const userCoords = {
+          lat: Number(pos.coords.latitude.toFixed(6)),
+          lng: Number(pos.coords.longitude.toFixed(6)),
+        };
+        setMapCenter(userCoords);
+        setCurrentZoom(15);
+        setIsLocating(false);
+        if (draggablePin && onCoordinateChange) {
+          onCoordinateChange(userCoords);
+        }
+      },
+      (err) => {
+        console.warn("[MosaMap] Geolocation error:", err);
+        setIsLocating(false);
+      },
+      { enableHighAccuracy: true, timeout: 8000 }
+    );
+  };
 
   // Keep center updated when prop changes
   useEffect(() => {
@@ -106,20 +135,60 @@ export function MosaMap({
     return () => window.removeEventListener("resize", updateSize);
   }, []);
 
+  const mouseDownPosRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+
   // Compute center point in Web Mercator
   const centerPoint = latLngToPoint(mapCenter.lat, mapCenter.lng, currentZoom);
+
+  // Global mousemove/mouseup for smooth pin dragging anywhere on window
+  useEffect(() => {
+    if (!isPinDragging) return;
+
+    const handleWindowMouseMove = (e: MouseEvent) => {
+      if (!containerRef.current || !onCoordinateChange) return;
+      const rect = containerRef.current.getBoundingClientRect();
+      const clickX = e.clientX - rect.left;
+      const clickY = e.clientY - rect.top;
+      const offsetX = clickX - dimensions.width / 2;
+      const offsetY = clickY - dimensions.height / 2;
+      const clickedPoint = {
+        x: centerPoint.x + offsetX,
+        y: centerPoint.y + offsetY,
+      };
+      const newCoords = pointToLatLng(clickedPoint.x, clickedPoint.y, currentZoom);
+      onCoordinateChange(newCoords);
+    };
+
+    const handleWindowMouseUp = () => {
+      setIsPinDragging(false);
+    };
+
+    window.addEventListener("mousemove", handleWindowMouseMove);
+    window.addEventListener("mouseup", handleWindowMouseUp);
+    return () => {
+      window.removeEventListener("mousemove", handleWindowMouseMove);
+      window.removeEventListener("mouseup", handleWindowMouseUp);
+    };
+  }, [isPinDragging, centerPoint, currentZoom, dimensions, onCoordinateChange]);
 
   // Pan handlers
   const handleMouseDown = (e: React.MouseEvent) => {
     if (!interactive) return;
+    mouseDownPosRef.current = { x: e.clientX, y: e.clientY };
+    dragMovedRef.current = false;
     setIsDragging(true);
     setDragStart({ x: e.clientX, y: e.clientY });
   };
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    if (!isDragging || !dragStart || !interactive) return;
+    if (!interactive || isPinDragging) return;
+    if (!isDragging || !dragStart) return;
+
     const dx = e.clientX - dragStart.x;
     const dy = e.clientY - dragStart.y;
+    if (Math.hypot(dx, dy) > 4) {
+      dragMovedRef.current = true;
+    }
     setDragStart({ x: e.clientX, y: e.clientY });
 
     const newCenterPoint = {
@@ -128,15 +197,73 @@ export function MosaMap({
     };
     const newLatLng = pointToLatLng(newCenterPoint.x, newCenterPoint.y, currentZoom);
     setMapCenter(newLatLng);
-  }, [isDragging, dragStart, centerPoint, currentZoom, interactive]);
+  }, [isDragging, isPinDragging, dragStart, centerPoint, currentZoom, interactive]);
 
   const handleMouseUp = () => {
     setIsDragging(false);
+    setIsPinDragging(false);
+    setDragStart(null);
+  };
+
+  // Touch handlers for mobile
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (!interactive || e.touches.length !== 1) return;
+    const touch = e.touches[0];
+    mouseDownPosRef.current = { x: touch.clientX, y: touch.clientY };
+    dragMovedRef.current = false;
+    setIsDragging(true);
+    setDragStart({ x: touch.clientX, y: touch.clientY });
+  };
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (!interactive || e.touches.length !== 1) return;
+    const touch = e.touches[0];
+
+    if (isPinDragging) {
+      if (!containerRef.current || !onCoordinateChange) return;
+      const rect = containerRef.current.getBoundingClientRect();
+      const clickX = touch.clientX - rect.left;
+      const clickY = touch.clientY - rect.top;
+      const offsetX = clickX - dimensions.width / 2;
+      const offsetY = clickY - dimensions.height / 2;
+      const clickedPoint = {
+        x: centerPoint.x + offsetX,
+        y: centerPoint.y + offsetY,
+      };
+      const newCoords = pointToLatLng(clickedPoint.x, clickedPoint.y, currentZoom);
+      onCoordinateChange(newCoords);
+      return;
+    }
+
+    if (!isDragging || !dragStart) return;
+    const dx = touch.clientX - dragStart.x;
+    const dy = touch.clientY - dragStart.y;
+    if (Math.hypot(dx, dy) > 4) {
+      dragMovedRef.current = true;
+    }
+    setDragStart({ x: touch.clientX, y: touch.clientY });
+
+    const newCenterPoint = {
+      x: centerPoint.x - dx,
+      y: centerPoint.y - dy,
+    };
+    const newLatLng = pointToLatLng(newCenterPoint.x, newCenterPoint.y, currentZoom);
+    setMapCenter(newLatLng);
+  }, [isDragging, isPinDragging, dragStart, centerPoint, currentZoom, interactive, dimensions, onCoordinateChange]);
+
+  const handleTouchEnd = () => {
+    setIsDragging(false);
+    setIsPinDragging(false);
     setDragStart(null);
   };
 
   // Click on map to place or adjust draggable pin
   const handleMapClick = (e: React.MouseEvent) => {
+    const dist = Math.hypot(
+      e.clientX - mouseDownPosRef.current.x,
+      e.clientY - mouseDownPosRef.current.y
+    );
+    if (dist > 6) return; // Ignore drags/pans
     if (!draggablePin || !onCoordinateChange || !containerRef.current) return;
     const rect = containerRef.current.getBoundingClientRect();
     const clickX = e.clientX - rect.left;
@@ -201,9 +328,12 @@ export function MosaMap({
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseUp}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
       onClick={handleMapClick}
       className={`relative w-full ${heightClassName} rounded-3xl overflow-hidden bg-slate-900 select-none border border-slate-700 shadow-xl ${
-        interactive ? (isDragging ? "cursor-grabbing" : "cursor-grab") : ""
+        interactive ? (isDragging || isPinDragging ? "cursor-grabbing" : "cursor-grab") : ""
       }`}
     >
       {/* Raster Tiles Layer */}
@@ -233,7 +363,7 @@ export function MosaMap({
       <div className="absolute top-3 left-3 right-3 z-20 flex items-center justify-between gap-2 pointer-events-none">
         <div className="bg-slate-900/85 backdrop-blur-md px-3 py-1.5 rounded-full border border-slate-700 text-[11px] font-bold text-white flex items-center gap-1.5 shadow-md">
           <Compass className="w-3.5 h-3.5 text-emerald-400 animate-spin-slow" />
-          <span>MOSA Ground Map • Rwanda</span>
+          <span>MOSA Ground Discovery Map</span>
         </div>
 
         {accuracyRadiusMeters ? (
@@ -272,15 +402,26 @@ export function MosaMap({
                 top: `${pos.top}px`,
                 transform: "translate(-50%, -100%)",
               }}
-              className="z-30 pointer-events-none flex flex-col items-center group cursor-pointer"
+              className="z-30 pointer-events-none flex flex-col items-center group select-none"
             >
-              <div className="bg-amber-400 text-slate-950 font-black text-[10px] px-2 py-0.5 rounded-full shadow-lg border border-amber-300 mb-1 animate-bounce">
-                Drag or Click to Set Pin
+              <div className="bg-amber-400 text-slate-950 font-black text-[10px] px-2.5 py-0.5 rounded-full shadow-lg border border-amber-300 mb-1 animate-bounce pointer-events-none">
+                {isPinDragging ? "Dragging Pin..." : "Drag or Click to Set Pin"}
               </div>
-              <div className="w-8 h-8 rounded-full bg-amber-400 border-2 border-slate-950 flex items-center justify-center shadow-elevated">
-                <MapPin className="w-5 h-5 text-slate-950 fill-amber-300" />
+              <div 
+                onMouseDown={(e) => {
+                  e.stopPropagation();
+                  setIsPinDragging(true);
+                }}
+                onTouchStart={(e) => {
+                  e.stopPropagation();
+                  setIsPinDragging(true);
+                }}
+                className="w-9 h-9 rounded-full bg-amber-400 border-2 border-slate-950 flex items-center justify-center shadow-elevated pointer-events-auto cursor-grab active:cursor-grabbing hover:scale-115 active:scale-125 transition-transform"
+                title="Drag or click to position pin"
+              >
+                <MapPin className="w-5 h-5 text-slate-950 fill-amber-300 pointer-events-none" />
               </div>
-              <div className="w-2 h-2 rounded-full bg-slate-950 -mt-1" />
+              <div className="w-2.5 h-2.5 rounded-full bg-slate-950 -mt-1 pointer-events-none" />
             </div>
           );
         })()
@@ -422,6 +563,20 @@ export function MosaMap({
             title="Zoom Out"
           >
             <Minus className="w-4 h-4" />
+          </button>
+          <div className="h-px bg-slate-700 w-full" />
+          <button
+            type="button"
+            onClick={handleLocateMe}
+            disabled={isLocating}
+            className="p-2 text-cyan-400 hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
+            title="Locate My Position"
+          >
+            {isLocating ? (
+              <Loader2 className="w-4 h-4 animate-spin text-cyan-300" />
+            ) : (
+              <Crosshair className="w-4 h-4" />
+            )}
           </button>
           <div className="h-px bg-slate-700 w-full" />
           <button

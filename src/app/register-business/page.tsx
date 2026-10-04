@@ -67,10 +67,10 @@ export default function RegisterBusinessPage() {
   const [formData, setFormData] = useState({
     name: "",
     nameRw: "",
-    mainCategory: "retail",
-    subCategory: "food_groceries",
+    mainCategory: "retail_shops",
+    subCategory: "food_grocery",
     businessType: "grocery_shop",
-    category: "retail",
+    category: "retail_shops",
     description: "",
     ownerName: "",
     phone: "",
@@ -361,13 +361,16 @@ export default function RegisterBusinessPage() {
     }
   };
 
-  // Rwanda phone validator helper
-  const isValidRwandaPhone = (num: string) => {
-    const cleaned = num.replace(/\s+/g, "").replace(/-/g, "");
-    return (
-      /^(\+?250)?(78|79|72|73)\d{7}$/.test(cleaned) ||
-      /^0(78|79|72|73)\d{7}$/.test(cleaned)
-    );
+  // Universal phone validator: supports Rwanda local formats and international E.164 formats worldwide
+  const isValidPhoneNumber = (num: string) => {
+    const cleaned = num.replace(/[\s\-\(\)\.]+/g, "");
+    if (!cleaned) return false;
+    // Rwanda formats: 078/079/072/073 or +250...
+    if (/^(\+?250)?(78|79|72|73)\d{7}$/.test(cleaned) || /^0(78|79|72|73)\d{7}$/.test(cleaned)) {
+      return true;
+    }
+    // Universal international E.164 format (+ followed by 7 to 15 digits) or general phone numbers
+    return /^\+?[1-9]\d{6,14}$/.test(cleaned);
   };
 
   // Step 1 Validation
@@ -385,14 +388,14 @@ export default function RegisterBusinessPage() {
     }
     if (!formData.phone.trim()) {
       errors.phone = t.registration.errors.phoneRequired;
-    } else if (!isValidRwandaPhone(formData.phone)) {
-      errors.phone = "Enter a valid Rwandan mobile number (MTN 078/079 or Airtel 072/073)";
+    } else if (!isValidPhoneNumber(formData.phone)) {
+      errors.phone = "Enter a valid phone number (e.g. 0788 123 456 or international +254 712 345 678)";
     }
     if (formData.hasDifferentWhatsapp) {
       if (!formData.whatsapp.trim()) {
         errors.whatsapp = "WhatsApp number is required when enabled";
-      } else if (!isValidRwandaPhone(formData.whatsapp)) {
-        errors.whatsapp = "Enter a valid Rwandan WhatsApp mobile number";
+      } else if (!isValidPhoneNumber(formData.whatsapp)) {
+        errors.whatsapp = "Enter a valid WhatsApp number (e.g. 0788 123 456 or +254 712 345 678)";
       }
     }
     if (!formData.password || formData.password.length < 6) {
@@ -486,13 +489,13 @@ export default function RegisterBusinessPage() {
       {
         id: "owner",
         label: "Owner Name & Valid Phone",
-        valid: Boolean(formData.ownerName.trim() && isValidRwandaPhone(formData.phone)),
+        valid: Boolean(formData.ownerName.trim() && isValidPhoneNumber(formData.phone)),
         step: 1,
       },
       {
         id: "whatsapp",
         label: "WhatsApp Contact",
-        valid: !formData.hasDifferentWhatsapp || isValidRwandaPhone(formData.whatsapp),
+        valid: !formData.hasDifferentWhatsapp || isValidPhoneNumber(formData.whatsapp),
         step: 1,
       },
       {
@@ -798,7 +801,7 @@ export default function RegisterBusinessPage() {
               {t.registration.successTitle}
             </h3>
             <p className="text-xs text-emerald-200 max-w-md mx-auto">
-              Your application has been received and submitted to the MOSA Admin Command Center with status Pending Verification. Redirecting to your Private Owner Portal...
+              Your application has been received and registered with status Pending Verification. Redirecting to your Private Owner Portal...
             </p>
             <div className="flex justify-center pt-2">
               <Loader2 className="w-5 h-5 text-amber-400 animate-spin" />
@@ -996,7 +999,7 @@ export default function RegisterBusinessPage() {
                       <input
                         type="tel"
                         required
-                        placeholder={t.registration.phonePlaceholder || "0788 123 456"}
+                        placeholder={t.registration.phonePlaceholder || "e.g. 0788 123 456 or +254 712 345 678"}
                         value={formData.phone}
                         onChange={(e) => {
                           setFormData({ ...formData, phone: e.target.value });
@@ -1013,7 +1016,7 @@ export default function RegisterBusinessPage() {
                       </span>
                     ) : (
                       <span className="text-[11px] text-slate-500 mt-1 block">
-                        {t.registration.phoneHint}
+                        {t.registration.phoneHint || "Enter your business phone (local or international format with country code)"}
                       </span>
                     )}
                   </div>
@@ -1044,7 +1047,7 @@ export default function RegisterBusinessPage() {
                         <input
                           type="tel"
                           required
-                          placeholder="e.g., 0789 999 888"
+                          placeholder="e.g. 0788 123 456 or +256 753 900 043"
                           value={formData.whatsapp}
                           onChange={(e) => {
                             setFormData({ ...formData, whatsapp: e.target.value });

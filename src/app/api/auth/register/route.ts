@@ -35,7 +35,7 @@ export async function POST(request: Request) {
 
     const norm = normalizeRwandaPhone(phone);
     if (!norm.isValid || !norm.e164) {
-      return NextResponse.json({ error: norm.error || "A valid Rwandan phone number is required" }, { status: 400 });
+      return NextResponse.json({ error: norm.error || "A valid phone number is required" }, { status: 400 });
     }
 
     const pwdCheck = validatePasswordStrength(password);

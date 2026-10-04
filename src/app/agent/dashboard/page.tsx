@@ -38,7 +38,7 @@ export default function AgentDashboardPage() {
   const [bizName, setBizName] = useState("");
   const [bizNameRw, setBizNameRw] = useState("");
   const [bizCategory, setBizCategory] = useState("salon_barber");
-  const [bizPhone, setBizPhone] = useState("+250788");
+  const [bizPhone, setBizPhone] = useState("");
   const [bizSector, setBizSector] = useState("Kacyiru");
   const [bizCell, setBizCell] = useState("Kamutwa");
   const [bizCommunity, setBizCommunity] = useState("MINAGRI Area (KG 569 St)");

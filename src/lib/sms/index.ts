@@ -116,7 +116,7 @@ export async function sendBusinessSMS(payload: SMSMessagePayload): Promise<SMSSe
       status: "FAILED",
       provider: "NONE",
       messageBody,
-      error: phoneNorm.error || `Invalid Rwandan phone number: ${recipientPhone}`,
+      error: phoneNorm.error || `Invalid phone number: ${recipientPhone}`,
     };
   }
   const canonicalPhone = phoneNorm.e164;

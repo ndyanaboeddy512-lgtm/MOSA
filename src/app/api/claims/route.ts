@@ -40,10 +40,10 @@ export async function POST(request: Request) {
       );
     }
 
-    // Validate and normalize Rwanda phone number
+    // Validate and normalize phone number
     const normPhone = normalizeRwandaPhone(claimPhone);
     if (!normPhone.isValid || !normPhone.e164) {
-      return NextResponse.json({ error: normPhone.error || "A valid Rwandan phone number is required" }, { status: 400 });
+      return NextResponse.json({ error: normPhone.error || "A valid phone number is required" }, { status: 400 });
     }
 
     const business = await prisma.business.findUnique({

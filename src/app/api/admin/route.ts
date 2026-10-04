@@ -844,26 +844,31 @@ export async function PATCH(request: Request) {
 
     if (action === "DELETE_BUSINESS" && businessId) {
       await prisma.$transaction(async (tx) => {
-        await tx.product.deleteMany({ where: { businessId } });
-        await tx.businessMedia.deleteMany({ where: { businessId } });
-        await tx.verificationRecord.deleteMany({ where: { businessId } });
-        await tx.businessClaim.deleteMany({ where: { businessId } });
-        await tx.business.delete({ where: { id: businessId } });
+        // Soft-archive to ensure every record, verification history, and relationship is preserved
+        await tx.business.update({
+          where: { id: businessId },
+          data: { status: "ARCHIVED" },
+        });
+
+        await tx.product.updateMany({
+          where: { businessId },
+          data: { isArchived: true, isAvailable: false },
+        });
 
         await tx.auditLog.create({
           data: {
             actorId: adminUser.id,
-            action: "ADMIN_BUSINESS_DELETED",
+            action: "ADMIN_BUSINESS_ARCHIVED",
             entityType: "BUSINESS",
             entityId: businessId,
-            metadata: JSON.stringify({ deletedBy: adminUser.name }),
+            metadata: JSON.stringify({ archivedBy: adminUser.name, note: "Soft-archived to preserve platform data integrity" }),
           },
         });
       });
 
       revalidatePath("/admin");
       revalidatePath("/explore");
-      return NextResponse.json({ success: true, deletedId: businessId });
+      return NextResponse.json({ success: true, deletedId: businessId, archived: true });
     }
 
     return NextResponse.json({ error: "Invalid action or parameters" }, { status: 400 });

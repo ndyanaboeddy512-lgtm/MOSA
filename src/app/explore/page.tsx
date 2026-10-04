@@ -59,7 +59,7 @@ export default function ExplorePage() {
         const params = new URLSearchParams();
         if (selectedCategory !== "all") params.set("category", selectedCategory);
         if (currentSector && currentSector !== "all") params.set("sector", currentSector);
-        if (currentCell) params.set("cell", currentCell);
+        if (currentCell && currentCell !== "all") params.set("cell", currentCell);
         if (selectedDataStatus !== "all") params.set("dataStatus", selectedDataStatus);
 
         const res = await fetch(`/api/businesses?${params.toString()}`);
@@ -226,6 +226,8 @@ export default function ExplorePage() {
                       lat: selectedPin.location?.coordinates?.lat ?? selectedPin.latitude,
                       lng: selectedPin.location?.coordinates?.lng ?? selectedPin.longitude,
                     }
+                  : currentSector === "all"
+                  ? { lat: -1.953, lng: 30.075 }
                   : currentSector === "Kacyiru"
                   ? { lat: -1.942, lng: 30.088 }
                   : { lat: -1.981, lng: 30.046 }
@@ -302,7 +304,7 @@ export default function ExplorePage() {
                     {selectedPin.products.slice(0, 3).map((p) => (
                       <div key={p.id} className="flex items-center justify-between text-xs">
                         <span className="text-slate-700 truncate">{p.name}</span>
-                        <span className="font-bold text-slate-900">{p.price.toLocaleString()} Frw</span>
+                        <span className="font-bold text-slate-900">{p.price.toLocaleString()} {p.currency || "Frw"}</span>
                       </div>
                     ))}
                   </div>
@@ -319,7 +321,7 @@ export default function ExplorePage() {
                   )}
                   {selectedPin.whatsapp && (
                     <a
-                      href={`https://wa.me/${selectedPin.whatsapp}`}
+                      href={`https://wa.me/${selectedPin.whatsapp.replace(/\D/g, '')}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="flex-1 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold text-center transition-colors"

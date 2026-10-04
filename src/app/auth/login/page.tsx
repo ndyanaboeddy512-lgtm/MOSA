@@ -12,7 +12,6 @@ import {
   Sparkles, 
   ArrowRight, 
   CheckCircle2, 
-  ShieldCheck, 
   Eye, 
   EyeOff, 
   KeyRound, 
@@ -65,7 +64,7 @@ function LoginContent() {
   // Register State
   const [regName, setRegName] = useState("");
   const [regEmail, setRegEmail] = useState("");
-  const [regPhone, setRegPhone] = useState("+250788");
+  const [regPhone, setRegPhone] = useState("");
   const [regPassword, setRegPassword] = useState("");
   const [regRole, setRegRole] = useState<Role>("BUSINESS_OWNER");
   const [regCommunity, setRegCommunity] = useState("Biryogo");
@@ -317,22 +316,6 @@ function LoginContent() {
 
       {/* Main Container */}
       <div className="bg-white rounded-3xl p-5 sm:p-7 border border-slate-200 shadow-card space-y-5">
-        {/* Admin Access Notice */}
-        {(redirectParam?.startsWith("/admin") || reasonParam === "admin_required") && (
-          <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200 text-xs text-amber-900 flex items-start gap-2.5">
-            <ShieldCheck className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-            <div>
-              <span className="font-bold block">
-                {lang === "rw" ? "Ubuyobozi Bukuru Busabwa" : "Admin Command Center Authentication"}
-              </span>
-              <span>
-                {lang === "rw"
-                  ? "Injira ukoresheje konti y'ubuyobozi kugira ngo ugere mu buyobozi bukuru bwa MOSA."
-                  : "Please sign in with administrator credentials to enter the MOSA Command Center."}
-              </span>
-            </div>
-          </div>
-        )}
 
         {/* Navigation Tabs */}
         <div className="grid grid-cols-3 gap-1 p-1 bg-slate-100 rounded-2xl text-xs font-bold text-center">
@@ -412,7 +395,7 @@ function LoginContent() {
                 <Phone className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
               </div>
               <p className="text-[10px] text-slate-400 mt-1">
-                {lang === "rw" ? "Yakira 078..., 079..., 072..., 073..., +250... cyangwa imeli" : "Accepts 078..., 079..., 072..., 073..., +250..., or email"}
+                {lang === "rw" ? "Yakira telefone iyo ari yo yose (078..., +250..., +256..., +254..., +1...) cyangwa imeli" : "Accepts any phone (local or international +256..., +254..., +1...) or email"}
               </p>
             </div>
 
@@ -467,7 +450,7 @@ function LoginContent() {
                   setShowForgotPassword(true);
                   setErrorMsg("");
                   setSuccessMsg("");
-                  if (phone && phone !== "+250788") {
+                  if (phone) {
                     setRecoveryIdentifier(phone);
                   }
                 }}
@@ -724,7 +707,6 @@ function LoginContent() {
               {[
                 { role: "BUSINESS_OWNER" as Role, name: "Business Owner", desc: "Kevine Mukashyaka (Salon Owner)" },
                 { role: "COMMUNITY_AGENT" as Role, name: "Community Agent", desc: "Emmanuel Hakizimana (Biryogo Scout)" },
-                { role: "SUPER_ADMIN" as Role, name: "Platform Admin", desc: "Diane Uwera (Command Center Lead)" },
                 { role: "CUSTOMER" as Role, name: "Customer", desc: "Jean-Paul Mugisha (Resident)" },
               ].map((item) => (
                 <button

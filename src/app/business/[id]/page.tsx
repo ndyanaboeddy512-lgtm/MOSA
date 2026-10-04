@@ -46,11 +46,13 @@ import {
   Check,
   Building2,
   Mail,
+  Maximize2,
 } from "lucide-react";
 import { LocationCard } from "@/components/discovery/LocationCard";
 import { getGoogleMapsDirectionsUrl } from "@/lib/location-quality";
 import { getBusinessOperatingModel } from "@/lib/taxonomy";
 import { isVideoMedia, isLegacyBagPlaceholder } from "@/lib/media-upload";
+import { useLightbox } from "@/lib/lightbox-context";
 
 export default function BusinessDetailPage({
   params,
@@ -61,6 +63,7 @@ export default function BusinessDetailPage({
   const router = useRouter();
   const { lang, t } = useLanguage();
   const { user } = useAuth();
+  const { openLightbox } = useLightbox();
 
   const [business, setBusiness] = useState<Business | null>(null);
   const [reviews, setReviews] = useState<UserReview[]>([]);
@@ -265,7 +268,7 @@ export default function BusinessDetailPage({
   const rawWhatsApp = (business.whatsapp || business.phone || "").replace(/[^0-9]/g, "");
   const formattedWhatsApp = rawWhatsApp.startsWith("0")
     ? "250" + rawWhatsApp.slice(1)
-    : (rawWhatsApp.startsWith("250") ? rawWhatsApp : "250" + rawWhatsApp);
+    : (rawWhatsApp.length === 9 ? "250" + rawWhatsApp : rawWhatsApp);
 
   const hasValidCover = Boolean(business.coverImage && !isLegacyBagPlaceholder(business.coverImage));
   const isCoverVideo = hasValidCover && isVideoMedia(business.coverImage);
@@ -298,7 +301,7 @@ export default function BusinessDetailPage({
   };
 
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 content-protected">
       {/* Native Google / Chrome Discoverability JSON-LD LocalBusiness Schema */}
       <script
         type="application/ld+json"
@@ -331,7 +334,16 @@ export default function BusinessDetailPage({
               <img
                 src={business.coverImage!}
                 alt={displayName}
-                className="w-full h-full object-cover group-hover:scale-102 transition-transform duration-700 ease-out"
+                data-testid="business-cover-image"
+                onClick={() =>
+                  openLightbox({
+                    src: business.coverImage!,
+                    alt: displayName,
+                    caption: `${displayName} — Cover Photo`,
+                    allowDownload: true,
+                  })
+                }
+                className="w-full h-full object-cover group-hover:scale-102 transition-transform duration-700 ease-out cursor-zoom-view"
               />
             )
           ) : (
@@ -341,7 +353,15 @@ export default function BusinessDetailPage({
                 <img
                   src={business.logo}
                   alt={displayName}
-                  className="relative z-10 w-24 h-24 rounded-3xl object-contain bg-white/10 p-2 border border-white/20 shadow-2xl mb-3"
+                  onClick={() =>
+                    openLightbox({
+                      src: business.logo!,
+                      alt: displayName,
+                      caption: `${displayName} — Official Logo`,
+                      allowDownload: true,
+                    })
+                  }
+                  className="relative z-10 w-24 h-24 rounded-3xl object-contain bg-white/10 p-2 border border-white/20 shadow-2xl mb-3 cursor-zoom-view hover:scale-105 transition-transform"
                 />
               ) : (
                 <div className="relative z-10 w-20 h-20 rounded-3xl bg-white/5 border border-white/10 flex items-center justify-center text-white font-extrabold text-4xl shadow-xl mb-3">
@@ -354,11 +374,31 @@ export default function BusinessDetailPage({
             </div>
           )}
           <div className="absolute inset-0 bg-gradient-to-t from-slate-950/95 via-slate-950/40 to-transparent pointer-events-none" />
+          
+          {hasValidCover && !isCoverVideo && (
+            <button
+              type="button"
+              data-testid="view-cover-btn"
+              onClick={() =>
+                openLightbox({
+                  src: business.coverImage!,
+                  alt: displayName,
+                  caption: `${displayName} — Cover Photo`,
+                  allowDownload: true,
+                })
+              }
+              className="absolute top-4 right-4 z-20 px-3 py-1.5 rounded-full bg-black/60 hover:bg-black/80 backdrop-blur-md text-white text-xs font-bold flex items-center gap-1.5 border border-white/20 shadow-lg cursor-pointer transition-all hover:scale-105"
+              aria-label="View full cover photo"
+            >
+              <Maximize2 className="w-3.5 h-3.5 text-emerald-400" />
+              <span>{lang === "rw" ? "Reba Ifoto" : "View Photo"}</span>
+            </button>
+          )}
         </div>
 
         {/* Floating Profile Info */}
-        <div className="absolute bottom-0 left-0 right-0 p-6 sm:p-10 text-white flex flex-col md:flex-row md:items-end justify-between gap-6">
-          <div className="space-y-3 max-w-2xl">
+        <div className="absolute bottom-0 left-0 right-0 p-6 sm:p-10 text-white flex flex-col md:flex-row md:items-end justify-between gap-6 pointer-events-none">
+          <div className="space-y-3 max-w-2xl pointer-events-auto">
             <div className="flex flex-wrap items-center gap-2.5">
               <VerificationBadge status={business.verificationStatus} size="md" />
               <span className="text-xs font-semibold px-3 py-1 bg-white/10 backdrop-blur-md rounded-full text-slate-200 border border-white/15">
@@ -376,7 +416,15 @@ export default function BusinessDetailPage({
                 <img
                   src={business.logo}
                   alt={displayName}
-                  className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl object-contain bg-white border-2 border-white/30 shadow-xl shrink-0 p-1"
+                  onClick={() =>
+                    openLightbox({
+                      src: business.logo!,
+                      alt: displayName,
+                      caption: `${displayName} — Official Logo`,
+                      allowDownload: true,
+                    })
+                  }
+                  className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl object-contain bg-white border-2 border-white/30 shadow-xl shrink-0 p-1 cursor-zoom-view hover:scale-105 transition-transform"
                 />
               )}
               <h1 className="text-3xl sm:text-5xl md:text-6xl font-black tracking-tight text-white leading-tight">
@@ -398,7 +446,7 @@ export default function BusinessDetailPage({
           </div>
 
           {/* Direct Action Dock */}
-          <div className="flex items-center gap-2.5 shrink-0 flex-wrap">
+          <div className="flex items-center gap-2.5 shrink-0 flex-wrap pointer-events-auto">
             <a
               href={getGoogleMapsDirectionsUrl(
                 business.location?.coordinates?.lat ?? business.latitude,
@@ -426,9 +474,13 @@ export default function BusinessDetailPage({
             {(business.whatsapp || business.phone) && (
               <a
                 href={`https://wa.me/${formattedWhatsApp}?text=${encodeURIComponent(
-                  operatingModel.hasBookings
-                    ? `Muraho, nabonye serivisi zanyu kuri MOSA, ndifuza gufata gahunda kuri ${displayName}.`
-                    : `Muraho, nabonye ibicuruzwa byanyu kuri MOSA, ndifuza gutumiza/kubaza kuri ${displayName}.`
+                  lang === "rw"
+                    ? (operatingModel.hasBookings
+                        ? `Muraho, nabonye serivisi zanyu kuri MOSA, ndifuza gufata gahunda kuri ${displayName}.`
+                        : `Muraho, nabonye ibicuruzwa byanyu kuri MOSA, ndifuza gutumiza/kubaza kuri ${displayName}.`)
+                    : (operatingModel.hasBookings
+                        ? `Hello, I saw your services on MOSA and would like to make a booking at ${displayName}.`
+                        : `Hello, I saw your items on MOSA and would like to inquire/order at ${displayName}.`)
                 )}`}
                 target="_blank"
                 rel="noopener noreferrer"
@@ -555,7 +607,15 @@ export default function BusinessDetailPage({
                         <img
                           src={update.imageUrl}
                           alt={update.title}
-                          className="mt-3 rounded-2xl w-full h-36 object-cover border border-slate-100"
+                          className="mt-3 rounded-2xl w-full h-36 object-cover border border-slate-100 cursor-zoom-view hover:opacity-95 transition-opacity"
+                          onClick={() =>
+                            openLightbox({
+                              src: update.imageUrl!,
+                              alt: update.title,
+                              caption: `${update.title} — ${displayName}`,
+                              allowDownload: true,
+                            })
+                          }
                         />
                       )}
 
@@ -601,43 +661,74 @@ export default function BusinessDetailPage({
               <div className="divide-y divide-slate-100">
                 {business.products.map((item) => {
                   const isContactForPrice = item.price === 0 || (!item.price && !item.priceMin);
+                  const itemCurrency = (item as any).currency || "Frw";
                   const priceLabel = isContactForPrice
                     ? (lang === "rw" ? "Baza Igiciro" : "Contact for price")
                     : item.priceType === "RANGE" && item.priceMin && item.priceMax
-                    ? `${item.priceMin.toLocaleString()} – ${item.priceMax.toLocaleString()} Frw`
-                    : `${item.price.toLocaleString()} Frw`;
+                    ? `${item.priceMin.toLocaleString()} – ${item.priceMax.toLocaleString()} ${itemCurrency}`
+                    : `${item.price.toLocaleString()} ${itemCurrency}`;
 
-                  const waText = item.isService || operatingModel.hasBookings
-                    ? (isContactForPrice
-                        ? `Muraho, ndifuza kubaza igiciro no gufata gahunda ya serivisi: ${item.name} kuri ${displayName}.`
-                        : `Muraho, ndifuza gufata gahunda ya: ${item.name} (${priceLabel}) kuri ${displayName}.`)
-                    : (isContactForPrice
-                        ? `Muraho, ndifuza kubaza igiciro cy'igicuruzwa: ${item.name} kuri ${displayName}.`
-                        : `Muraho, ndifuza gutumiza: ${item.name} (${priceLabel}) kuri ${displayName}.`);
+                  const waText = lang === "rw"
+                    ? (item.isService || operatingModel.hasBookings
+                        ? (isContactForPrice
+                            ? `Muraho, ndifuza kubaza igiciro no gufata gahunda ya serivisi: ${item.name} kuri ${displayName}.`
+                            : `Muraho, ndifuza gufata gahunda ya: ${item.name} (${priceLabel}) kuri ${displayName}.`)
+                        : (isContactForPrice
+                            ? `Muraho, ndifuza kubaza igiciro cy'igicuruzwa: ${item.name} kuri ${displayName}.`
+                            : `Muraho, ndifuza gutumiza: ${item.name} (${priceLabel}) kuri ${displayName}.`))
+                    : (item.isService || operatingModel.hasBookings
+                        ? (isContactForPrice
+                            ? `Hello, I'd like to ask about the price and book service: ${item.name} at ${displayName}.`
+                            : `Hello, I'd like to book: ${item.name} (${priceLabel}) at ${displayName}.`)
+                        : (isContactForPrice
+                            ? `Hello, I'd like to inquire about: ${item.name} at ${displayName}.`
+                            : `Hello, I would like to order: ${item.name} (${priceLabel}) at ${displayName}.`));
 
                   return (
                     <div key={item.id} className="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 group">
                       <div className="flex items-start gap-3.5">
                         {item.mediaUrl && (
-                          <div className="relative w-16 h-16 sm:w-20 sm:h-20 shrink-0 rounded-2xl overflow-hidden bg-slate-100 border border-slate-200">
+                          <button
+                            type="button"
+                            aria-label={`View enlarged ${item.isService ? "service" : "product"} image: ${item.name}`}
+                            data-testid={`item-thumb-${item.isService ? "service" : "product"}-${item.id}`}
+                            data-item-type={item.isService ? "service" : "product"}
+                            onClick={() => {
+                              if (item.mediaType !== "VIDEO") {
+                                openLightbox({
+                                  src: item.mediaUrl!,
+                                  alt: item.mediaCaption || item.name,
+                                  caption: `${item.name} (${item.isService ? (lang === "rw" ? "Serivisi" : "Service") : (lang === "rw" ? "Igicuruzwa" : "Product")} • ${priceLabel}) — ${displayName}`,
+                                  allowDownload: true,
+                                });
+                              }
+                            }}
+                            className="relative w-16 h-16 sm:w-20 sm:h-20 shrink-0 rounded-2xl overflow-hidden bg-slate-100 border border-slate-200 cursor-zoom-view group/thumb p-0 text-left focus:outline-hidden focus:ring-2 focus:ring-emerald-500 shadow-xs hover:shadow-md transition-shadow"
+                          >
                             {item.mediaType === "VIDEO" ? (
-                              <div className="w-full h-full bg-slate-900 flex flex-col items-center justify-center text-emerald-400 group-hover:scale-105 transition-transform">
+                              <div className="w-full h-full bg-slate-900 flex flex-col items-center justify-center text-emerald-400 group-hover/thumb:scale-105 transition-transform">
                                 <Video className="w-6 h-6" />
                                 <span className="text-[8px] font-black uppercase tracking-wider text-white mt-0.5">Video</span>
                               </div>
                             ) : item.mediaType === "FILE" ? (
-                              <div className="w-full h-full bg-slate-100 flex flex-col items-center justify-center text-slate-700 group-hover:scale-105 transition-transform">
+                              <div className="w-full h-full bg-slate-100 flex flex-col items-center justify-center text-slate-700 group-hover/thumb:scale-105 transition-transform">
                                 <FileText className="w-6 h-6 text-emerald-600" />
                                 <span className="text-[8px] font-black uppercase tracking-wider text-slate-600 mt-0.5">File</span>
                               </div>
                             ) : (
-                              <img
-                                src={item.mediaUrl}
-                                alt={item.mediaCaption || item.name}
-                                className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                              />
+                              <>
+                                <img
+                                  src={item.mediaUrl}
+                                  alt={item.mediaCaption || item.name}
+                                  data-testid={`item-image-${item.isService ? "service" : "product"}`}
+                                  className="w-full h-full object-cover group-hover/thumb:scale-105 transition-transform duration-300"
+                                />
+                                <div className="absolute inset-0 bg-black/0 group-hover/thumb:bg-black/25 flex items-center justify-center transition-colors">
+                                  <Maximize2 className="w-4 h-4 text-white opacity-0 group-hover/thumb:opacity-100 transition-opacity drop-shadow-sm" />
+                                </div>
+                              </>
                             )}
-                          </div>
+                          </button>
                         )}
 
                         <div className="space-y-1">
@@ -1462,7 +1553,7 @@ export default function BusinessDetailPage({
                     type="tel"
                     value={applicantPhone}
                     onChange={(e) => setApplicantPhone(e.target.value)}
-                    placeholder="078... or 079..."
+                    placeholder="e.g. 0788 123 456 or +256 753 900 043"
                     required
                     className="w-full p-2.5 bg-slate-50 rounded-xl border border-slate-200 text-xs outline-none focus:ring-2 focus:ring-indigo-500"
                   />

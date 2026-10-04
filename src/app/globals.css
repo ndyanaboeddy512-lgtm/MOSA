@@ -8,6 +8,10 @@
     --foreground: #0f172a;
   }
   
+  html {
+    transition: font-size 0.15s ease-out;
+  }
+
   body {
     background-color: var(--background);
     color: var(--foreground);
@@ -32,4 +36,52 @@ button:active, a:active {
 .no-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;
+}
+
+/* ========================================================
+   Content Protection & Media Stability
+   ======================================================== */
+
+/* Prevent casual drag-and-drop of images */
+img, video {
+  -webkit-user-drag: none;
+  -khtml-user-drag: none;
+  -moz-user-drag: none;
+  -o-user-drag: none;
+  user-drag: none;
+}
+
+/* Ensure SVG icons do not shrink or distort when text scales up */
+svg {
+  flex-shrink: 0;
+}
+
+/* Prevent image distortion */
+img {
+  image-rendering: auto;
+}
+
+/* Public casual copy deterrence - protects public display content */
+.content-protected {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
+/* CRITICAL: Ensure inputs, textareas, and contenteditables remain fully selectable & editable */
+input,
+textarea,
+select,
+[contenteditable="true"],
+.selectable-text {
+  -webkit-user-select: text !important;
+  -moz-user-select: text !important;
+  -ms-user-select: text !important;
+  user-select: text !important;
+}
+
+/* Visual cursor affordance for inspectable images */
+.cursor-zoom-view {
+  cursor: zoom-in;
 }

@@ -15,7 +15,7 @@ export interface NormalizedPhone {
   error?: string;
 }
 
-export function normalizeRwandaPhone(input: string): NormalizedPhone {
+function parseRwandaPhone(input: string): NormalizedPhone {
   if (!input || typeof input !== 'string') {
     return { isValid: false, raw: input, error: 'Phone number is required' };
   }
@@ -76,4 +76,57 @@ export function maskPhone(phone: string): string {
   const start = clean.slice(0, 6);
   const end = clean.slice(-4);
   return start + '****' + end;
+}
+
+/**
+ * Universal Phone Normalizer
+ * Standardizes phone numbers to E.164 canonical format (+...)
+ * Seamlessly accepts both Rwandan mobile formats and international numbers worldwide.
+ */
+export function normalizePhoneNumber(input: string): NormalizedPhone {
+  if (!input || typeof input !== 'string') {
+    return { isValid: false, raw: input, error: 'Phone number is required' };
+  }
+
+  const trimmed = input.trim();
+  const digitsOnly = trimmed.replace(/[\s\-\(\)\.]/g, '');
+
+  // 1. If it looks like a Rwandan local number (078/079/072/073 or +250...)
+  if (
+    digitsOnly.startsWith('07') ||
+    (digitsOnly.startsWith('7') && digitsOnly.length === 9) ||
+    digitsOnly.startsWith('2507') ||
+    digitsOnly.startsWith('+2507')
+  ) {
+    const rwResult = parseRwandaPhone(input);
+    if (rwResult.isValid) {
+      return rwResult;
+    }
+  }
+
+  // 2. International E.164 format (+ followed by 7-15 digits) or general digits
+  const e164Regex = /^\+?[1-9]\d{6,14}$/;
+  if (e164Regex.test(digitsOnly)) {
+    const e164 = digitsOnly.startsWith('+') ? digitsOnly : `+${digitsOnly}`;
+    return {
+      isValid: true,
+      raw: input,
+      e164,
+      carrier: 'International',
+    };
+  }
+
+  return {
+    isValid: false,
+    raw: input,
+    error: 'Invalid phone number format. Please enter a valid local number (078/079/072/073) or international number with country code (e.g. +256..., +254..., or +1...).',
+  };
+}
+
+/**
+ * Backwards-compatible normalizeRwandaPhone:
+ * Now delegates to normalizePhoneNumber so existing calls allow international users.
+ */
+export function normalizeRwandaPhone(input: string): NormalizedPhone {
+  return normalizePhoneNumber(input);
 }
