@@ -304,11 +304,14 @@ export async function PATCH(request: Request) {
       "email",
       "logo",
       "isOpenNow",
-      "province",
       "district",
       "sector",
       "cell",
       "localAreaId",
+      "provinceId",
+      "districtId",
+      "sectorId",
+      "cellId",
       "addressNote",
       "nearestLandmark",
       "streetName",
@@ -326,6 +329,43 @@ export async function PATCH(request: Request) {
       if (fields[key] !== undefined && fields[key] !== (existing as any)[key]) {
         updateData[key] = fields[key];
         changedFields.push(key);
+      }
+    }
+
+    // Handle Global Country & Province / State / Region
+    const targetCountry = fields.country !== undefined ? String(fields.country).trim() : undefined;
+    const targetProvince = fields.province !== undefined ? String(fields.province).trim() : undefined;
+
+    if (targetCountry !== undefined || targetProvince !== undefined) {
+      const currentAddressNote = (fields.addressNote !== undefined ? fields.addressNote : existing.addressNote) || "";
+      const cleanBaseNote = currentAddressNote.replace(/\[Country:[^\]]+\]\s*/i, "").trim();
+      const effectiveCountry = targetCountry !== undefined ? targetCountry : (currentAddressNote.match(/\[Country:\s*([^\|\]]+)/i)?.[1]?.trim() || "Rwanda");
+      const effectiveProvince = targetProvince !== undefined ? targetProvince : (currentAddressNote.match(/(?:Province|Region|State):\s*([^\|\]]+)/i)?.[1]?.trim() || "");
+
+      if (effectiveCountry && effectiveCountry.toLowerCase() !== "rwanda") {
+        const prefix = `[Country: ${effectiveCountry}${effectiveProvince ? ` | Region: ${effectiveProvince}` : ""}]`;
+        updateData.addressNote = cleanBaseNote ? `${prefix} ${cleanBaseNote}` : prefix;
+        changedFields.push("country");
+        if (effectiveProvince) changedFields.push("province");
+      } else {
+        // Rwanda business: clean prefix from addressNote
+        updateData.addressNote = cleanBaseNote || null;
+        if (targetProvince) {
+          const provMatch = await prisma.geographicProvince.findFirst({
+            where: {
+              OR: [
+                { name: { contains: targetProvince, mode: "insensitive" } },
+                { nameRw: { contains: targetProvince, mode: "insensitive" } },
+                { code: { equals: targetProvince, mode: "insensitive" } },
+              ],
+            },
+          });
+          if (provMatch) {
+            updateData.provinceId = provMatch.id;
+            changedFields.push("provinceId");
+          }
+        }
+        changedFields.push("country");
       }
     }
 
@@ -474,6 +514,10 @@ export async function PATCH(request: Request) {
           businessHours: true,
           offers: { where: { status: "ACTIVE" } },
           localArea: true,
+          districtRel: true,
+          sectorRel: true,
+          cellRel: true,
+          provinceRel: true,
         },
       }),
       calculateAndPersistBusinessHealth(businessId),

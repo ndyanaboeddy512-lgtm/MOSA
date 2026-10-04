@@ -4,14 +4,13 @@ import React from "react";
 import Link from "next/link";
 import { useLanguage } from "@/lib/i18n";
 import { usePlatformSettings } from "@/lib/platform-context";
-import { ShieldCheck, HeartHandshake, MapPin, Mail, Phone, MessageSquare } from "lucide-react";
+import { ShieldCheck, HeartHandshake, Mail, Phone, MessageSquare } from "lucide-react";
 
 export function Footer() {
   const { lang, t } = useLanguage();
   const { settings: platformSettings } = usePlatformSettings();
 
   const platformName = lang === "rw" ? (platformSettings.platformNameRw || platformSettings.platformName) : platformSettings.platformName;
-  const address = lang === "rw" ? (platformSettings.officialAddressRw || platformSettings.officialAddress) : platformSettings.officialAddress;
   const description = lang === "rw"
     ? (platformSettings.shortDescriptionRw || platformSettings.taglineRw || "MOSA igamije gushyira ahagaragara ubucuruzi n'abanyamyuga bo mu midugudu no mu mijyi ku isi hose, ihereye mu Rwanda, ifasha abacuruzi kwiyandikisha no kuboneka ku buryo bworoshye.")
     : (platformSettings.shortDescription || platformSettings.tagline || "A Global Commerce Discovery Network connecting verified local merchants, artisans, and enterprises worldwide. Founded in Rwanda, built for transparent global trade.");
@@ -47,13 +46,9 @@ export function Footer() {
               {description}
             </p>
             
-            {/* Contact details with architectural layout */}
-            <div className="pt-2 space-y-2 text-xs text-slate-400">
-              <div className="flex items-center gap-2.5">
-                <MapPin className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                <span>{address}</span>
-              </div>
-              <div className="flex flex-wrap items-center gap-5 pt-1">
+            {/* Digital contact channels */}
+            <div className="pt-2 text-xs text-slate-400">
+              <div className="flex flex-wrap items-center gap-5">
                 {platformSettings.officialEmail && (
                   <a
                     href={`mailto:${platformSettings.officialEmail}`}

@@ -73,6 +73,16 @@ import {
   getBusinessOperatingModel,
 } from "@/lib/taxonomy";
 
+import { SUPPORTED_COUNTRIES } from "@/components/location/SmartLocationForm";
+
+const RWANDA_PROVINCES: Record<string, string[]> = {
+  "City of Kigali": ["Nyarugenge", "Gasabo", "Kicukiro"],
+  "Northern Province": ["Musanze", "Gicumbi", "Rulindo", "Burera", "Gakenke"],
+  "Southern Province": ["Huye", "Muhanga", "Nyanza", "Ruhango", "Gisagara", "Kamonyi", "Nyamagabe", "Nyaruguru"],
+  "Eastern Province": ["Rwamagana", "Bugesera", "Kayonza", "Gatsibo", "Nyagatare", "Kirehe", "Ngoma"],
+  "Western Province": ["Rubavu", "Rusizi", "Karongi", "Rutsiro", "Nyamasheke", "Nyabihu", "Ngororero"],
+};
+
 const DAYS_OF_WEEK = [
   { day: "Monday", dayRw: "Kuwa Mbere" },
   { day: "Tuesday", dayRw: "Kuwa Kabiri" },
@@ -280,6 +290,9 @@ export default function OwnerDashboardPage() {
     whatsapp: "",
     email: "",
     logo: "",
+    country: "Rwanda",
+    province: "City of Kigali",
+    district: "Nyarugenge",
     sector: "",
     cell: "",
     addressNote: "",
@@ -317,8 +330,16 @@ export default function OwnerDashboardPage() {
 
   // Location & Navigation Form state
   const [locationForm, setLocationForm] = useState({
+    country: "Rwanda",
+    province: "City of Kigali",
+    provinceId: "",
+    district: "Nyarugenge",
+    districtId: "",
     sector: "Nyamirambo",
+    sectorId: "",
     cell: "Biryogo",
+    cellId: "",
+    village: "",
     nearestLandmark: "",
     streetName: "",
     nearbyPlace: "",
@@ -384,6 +405,9 @@ export default function OwnerDashboardPage() {
             whatsapp: data.business.whatsapp || "",
             email: data.business.email || "",
             logo: data.business.logo || "",
+            country: data.business.location?.country || "Rwanda",
+            province: data.business.location?.province || "City of Kigali",
+            district: data.business.location?.district || data.business.district || "Nyarugenge",
             sector: data.business.location?.sector || data.business.sector || "Nyamirambo",
             cell: data.business.location?.cell || data.business.cell || "Biryogo",
             addressNote: data.business.location?.addressNote || data.business.addressNote || "",
@@ -392,8 +416,16 @@ export default function OwnerDashboardPage() {
 
           // Sync location form
           setLocationForm({
+            country: data.business.location?.country || "Rwanda",
+            province: data.business.location?.province || "City of Kigali",
+            provinceId: data.business.provinceId || "",
+            district: data.business.location?.district || data.business.district || "Nyarugenge",
+            districtId: data.business.districtId || "",
             sector: data.business.location?.sector || data.business.sector || "Nyamirambo",
+            sectorId: data.business.sectorId || "",
             cell: data.business.location?.cell || data.business.cell || "Biryogo",
+            cellId: data.business.cellId || "",
+            village: data.business.location?.village || "",
             nearestLandmark: data.business.nearestLandmark || data.business.location?.nearestLandmark || "",
             streetName: data.business.streetName || data.business.location?.streetName || "",
             nearbyPlace: data.business.nearbyPlace || data.business.location?.nearbyPlace || "",
@@ -883,6 +915,16 @@ export default function OwnerDashboardPage() {
         if (data.business?.logo) {
           setLogoUrlInput(data.business.logo);
         }
+        if (data.business?.location) {
+          setLocationForm((prev) => ({
+            ...prev,
+            country: data.business.location?.country || prev.country,
+            province: data.business.location?.province || prev.province,
+            district: data.business.location?.district || prev.district,
+            sector: data.business.location?.sector || prev.sector,
+            cell: data.business.location?.cell || prev.cell,
+          }));
+        }
         if (data.reviewRequired) {
           setSaveSuccessMsg(
             lang === "rw"
@@ -909,8 +951,8 @@ export default function OwnerDashboardPage() {
   };
 
   // Handle Location & Directions Update
-  const handleLocationSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleLocationSubmit = async (e?: React.FormEvent) => {
+    if (e && e.preventDefault) e.preventDefault();
     if (!business) return;
 
     try {
@@ -921,8 +963,16 @@ export default function OwnerDashboardPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           businessId: business.id,
+          country: locationForm.country,
+          province: locationForm.province,
+          provinceId: locationForm.provinceId || undefined,
+          district: locationForm.district,
+          districtId: locationForm.districtId || undefined,
           sector: locationForm.sector,
+          sectorId: locationForm.sectorId || undefined,
           cell: locationForm.cell,
+          cellId: locationForm.cellId || undefined,
+          village: locationForm.village || undefined,
           nearestLandmark: locationForm.nearestLandmark,
           streetName: locationForm.streetName,
           nearbyPlace: locationForm.nearbyPlace,
@@ -938,6 +988,24 @@ export default function OwnerDashboardPage() {
         const data = await res.json();
         setBusiness(data.business);
         setHealthReport(data.health);
+        if (data.business?.location) {
+          setLocationForm((prev) => ({
+            ...prev,
+            country: data.business.location?.country || prev.country,
+            province: data.business.location?.province || prev.province,
+            district: data.business.location?.district || prev.district,
+            sector: data.business.location?.sector || prev.sector,
+            cell: data.business.location?.cell || prev.cell,
+          }));
+          setProfileForm((prev) => ({
+            ...prev,
+            country: data.business.location?.country || prev.country,
+            province: data.business.location?.province || prev.province,
+            district: data.business.location?.district || prev.district,
+            sector: data.business.location?.sector || prev.sector,
+            cell: data.business.location?.cell || prev.cell,
+          }));
+        }
         setSaveSuccessMsg(
           lang === "rw"
             ? "Aho ubucuruzi buherereye n'amabwiriza byabitswe neza kandi byahise bigaragara ku rubuga rwa MOSA!"
@@ -2721,6 +2789,61 @@ export default function OwnerDashboardPage() {
       {/* SECTION 2: MY BUSINESS (PROFILE, LOCATION, HOURS) */}
       {activeSection === "my_business" && (
         <div className="space-y-6">
+          {/* Admin Issue / Corrections Requested Alert Banner */}
+          {business?.status === "NEEDS_CORRECTION" && (
+            <div className="p-5 rounded-3xl bg-gradient-to-r from-amber-500/15 via-orange-500/10 to-amber-500/5 border-2 border-amber-500/50 shadow-sm space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                <div className="flex items-start gap-3">
+                  <div className="p-2.5 rounded-2xl bg-amber-500 text-slate-950 shrink-0 mt-0.5 shadow-xs">
+                    <AlertTriangle className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-black text-amber-950 text-sm sm:text-base">
+                        {lang === "rw" ? "Ubutumwa bw'Umusuzumi wa MOSA (Corrections Requested)" : "MOSA Admin Requested Corrections"}
+                      </span>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-amber-500 text-slate-950">
+                        Action Required
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-700 mt-1">
+                      {lang === "rw"
+                        ? "Ubuyobozi bwa MOSA bwasuzumye amakuru y'ubucuruzi bwawe maze basaba ko mukosora amakuru runaka (nko ku rubuga, aho mukorera, cyangwa ibiciro). Kosora amakuru mu ifishi iri hasi maze ukande 'Ongera Wohereze'."
+                        : "The MOSA admin team reviewed your business and requested revisions. Please correct the details below (e.g. location, phone, or prices) and click Resubmit to send back for verification."}
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => handleResubmitApplication("Owner revised and corrected details per admin request.")}
+                  disabled={isResubmitting}
+                  className="px-4 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-black text-xs shadow-md transition-all flex items-center justify-center gap-1.5 shrink-0 cursor-pointer disabled:opacity-50"
+                >
+                  {isResubmitting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                  <span>{lang === "rw" ? "Ongera Wohereze" : "Resubmit to Admin"}</span>
+                </button>
+              </div>
+
+              {/* Exact Admin Notes */}
+              <div className="p-3.5 rounded-xl bg-white border border-amber-300 text-xs shadow-xs">
+                <span className="font-bold text-amber-950 block mb-1">
+                  💬 {lang === "rw" ? "Ubutumwa buvuye ku buyobozi bwa MOSA:" : "Admin Feedback Message:"}
+                </span>
+                <p className="text-slate-800 font-medium whitespace-pre-wrap leading-relaxed">
+                  {verifications.find((v: any) => v.type === "CORRECTIONS_REQUESTED")?.notes || verifications[0]?.notes || "Please check and complete your business information."}
+                </p>
+              </div>
+
+              {resubmitSuccessMsg && (
+                <div className="p-3 rounded-xl bg-emerald-100 text-emerald-900 font-bold text-xs flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                  <span>{resubmitSuccessMsg}</span>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Sub-navigation for My Business */}
           <div className="flex items-center gap-2 border-b border-slate-200 pb-3 overflow-x-auto scrollbar-none">
             {[
@@ -3097,40 +3220,175 @@ export default function OwnerDashboardPage() {
 
           {/* Location Hierarchy */}
           <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200 space-y-4">
-            <h4 className="font-bold text-slate-900 text-xs uppercase tracking-wider flex items-center gap-1.5">
-              <MapPin className="w-4 h-4 text-emerald-600" />
-              <span>7-Tier Geographic Location Hierarchy</span>
-            </h4>
+            <div className="flex items-center justify-between">
+              <h4 className="font-bold text-slate-900 text-xs uppercase tracking-wider flex items-center gap-1.5">
+                <MapPin className="w-4 h-4 text-emerald-600" />
+                <span>{lang === "rw" ? "Aho Mubarizwa ku Isi (Global Location Hierarchy)" : "Business Location & Administrative Hierarchy"}</span>
+              </h4>
+              <span className="text-[10px] font-bold text-slate-500 uppercase">
+                {profileForm.country || "Global"}
+              </span>
+            </div>
 
+            {/* Row 1: Country, Province/State, District/City */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
-                <label className="text-[11px] font-bold text-slate-600">Sector</label>
+                <label className="text-[11px] font-bold text-slate-700 block mb-1">
+                  {lang === "rw" ? "Igihugu (Country) *" : "Country *"}
+                </label>
+                <select
+                  value={profileForm.country}
+                  onChange={(e) => {
+                    const nextCountry = e.target.value;
+                    setProfileForm((prev) => ({
+                      ...prev,
+                      country: nextCountry,
+                      province: nextCountry === "Rwanda" ? "City of Kigali" : prev.province,
+                      district: nextCountry === "Rwanda" ? "Nyarugenge" : prev.district,
+                    }));
+                    setLocationForm((prev) => ({
+                      ...prev,
+                      country: nextCountry,
+                      province: nextCountry === "Rwanda" ? "City of Kigali" : prev.province,
+                      district: nextCountry === "Rwanda" ? "Nyarugenge" : prev.district,
+                    }));
+                  }}
+                  className="w-full p-2.5 bg-white rounded-xl border border-slate-300 text-xs font-semibold outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer"
+                >
+                  {SUPPORTED_COUNTRIES.map((c) => (
+                    <option key={c.code} value={c.name}>
+                      {c.flag} {c.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="text-[11px] font-bold text-slate-700 block mb-1">
+                  {profileForm.country === "Rwanda"
+                    ? (lang === "rw" ? "Intara / Umujyi *" : "Province / City *")
+                    : (lang === "rw" ? "Intara / Leta (State/Region) *" : "State / Region / Province *")}
+                </label>
+                {profileForm.country === "Rwanda" ? (
+                  <select
+                    value={profileForm.province}
+                    onChange={(e) => {
+                      const nextProv = e.target.value;
+                      const defaultDist = RWANDA_PROVINCES[nextProv]?.[0] || "";
+                      setProfileForm((prev) => ({ ...prev, province: nextProv, district: defaultDist }));
+                      setLocationForm((prev) => ({ ...prev, province: nextProv, district: defaultDist }));
+                    }}
+                    className="w-full p-2.5 bg-white rounded-xl border border-slate-300 text-xs font-semibold outline-none focus:ring-2 focus:ring-emerald-500"
+                  >
+                    {Object.keys(RWANDA_PROVINCES).map((prov) => (
+                      <option key={prov} value={prov}>{prov}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    type="text"
+                    value={profileForm.province}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setProfileForm((prev) => ({ ...prev, province: val }));
+                      setLocationForm((prev) => ({ ...prev, province: val }));
+                    }}
+                    placeholder="e.g. Nairobi, California, London"
+                    required
+                    className="w-full p-2.5 bg-white rounded-xl border border-slate-300 text-xs font-semibold outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                )}
+              </div>
+
+              <div>
+                <label className="text-[11px] font-bold text-slate-700 block mb-1">
+                  {profileForm.country === "Rwanda"
+                    ? (lang === "rw" ? "Akarere (District) *" : "District *")
+                    : (lang === "rw" ? "Umujyi / Akarere (City/District) *" : "City / District / Town *")}
+                </label>
+                {profileForm.country === "Rwanda" && RWANDA_PROVINCES[profileForm.province] ? (
+                  <select
+                    value={profileForm.district}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setProfileForm((prev) => ({ ...prev, district: val }));
+                      setLocationForm((prev) => ({ ...prev, district: val }));
+                    }}
+                    className="w-full p-2.5 bg-white rounded-xl border border-slate-300 text-xs font-semibold outline-none focus:ring-2 focus:ring-emerald-500"
+                  >
+                    {RWANDA_PROVINCES[profileForm.province]?.map((dist) => (
+                      <option key={dist} value={dist}>{dist}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    type="text"
+                    value={profileForm.district}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setProfileForm((prev) => ({ ...prev, district: val }));
+                      setLocationForm((prev) => ({ ...prev, district: val }));
+                    }}
+                    placeholder="e.g. Westlands, San Francisco, Westminster"
+                    required
+                    className="w-full p-2.5 bg-white rounded-xl border border-slate-300 text-xs font-semibold outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                )}
+              </div>
+            </div>
+
+            {/* Row 2: Sector/Locality, Cell/Neighborhood, Landmark Note */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div>
+                <label className="text-[11px] font-bold text-slate-600 block mb-1">
+                  {profileForm.country === "Rwanda"
+                    ? (lang === "rw" ? "Umurenge (Sector) *" : "Sector *")
+                    : (lang === "rw" ? "Agace / Umurenge (Locality/Area) *" : "Locality / Area / Sector *")}
+                </label>
                 <input
                   type="text"
                   value={profileForm.sector}
-                  onChange={(e) => setProfileForm({ ...profileForm, sector: e.target.value })}
-                  className="w-full p-2.5 bg-white rounded-xl border border-slate-300 text-xs font-semibold outline-none"
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setProfileForm((prev) => ({ ...prev, sector: val }));
+                    setLocationForm((prev) => ({ ...prev, sector: val }));
+                  }}
+                  required
+                  placeholder={profileForm.country === "Rwanda" ? "e.g. Nyamirambo" : "e.g. Parklands, Mission"}
+                  className="w-full p-2.5 bg-white rounded-xl border border-slate-300 text-xs font-semibold outline-none focus:ring-2 focus:ring-emerald-500"
                 />
               </div>
 
               <div>
-                <label className="text-[11px] font-bold text-slate-600">Cell</label>
+                <label className="text-[11px] font-bold text-slate-600 block mb-1">
+                  {profileForm.country === "Rwanda"
+                    ? (lang === "rw" ? "Akagari (Cell) *" : "Cell *")
+                    : (lang === "rw" ? "Umudugudu / Igipangu (Neighborhood/Cell) *" : "Neighborhood / Suburb / Cell *")}
+                </label>
                 <input
                   type="text"
                   value={profileForm.cell}
-                  onChange={(e) => setProfileForm({ ...profileForm, cell: e.target.value })}
-                  className="w-full p-2.5 bg-white rounded-xl border border-slate-300 text-xs font-semibold outline-none"
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setProfileForm((prev) => ({ ...prev, cell: val }));
+                    setLocationForm((prev) => ({ ...prev, cell: val }));
+                  }}
+                  required
+                  placeholder={profileForm.country === "Rwanda" ? "e.g. Biryogo" : "e.g. 2nd Avenue, Block B"}
+                  className="w-full p-2.5 bg-white rounded-xl border border-slate-300 text-xs font-semibold outline-none focus:ring-2 focus:ring-emerald-500"
                 />
               </div>
 
               <div>
-                <label className="text-[11px] font-bold text-slate-600">Local Area / Landmark Note</label>
+                <label className="text-[11px] font-bold text-slate-600 block mb-1">
+                  {lang === "rw" ? "Icyicaro / Ikirango (Local Landmark Note)" : "Local Area / Landmark Note"}
+                </label>
                 <input
                   type="text"
                   value={profileForm.addressNote}
-                  onChange={(e) => setProfileForm({ ...profileForm, addressNote: e.target.value })}
-                  placeholder="e.g. KG 569 St near MINAGRI"
-                  className="w-full p-2.5 bg-white rounded-xl border border-slate-300 text-xs outline-none"
+                  onChange={(e) => setProfileForm((prev) => ({ ...prev, addressNote: e.target.value }))}
+                  placeholder="e.g. Near Market Plaza, KG 569 St"
+                  className="w-full p-2.5 bg-white rounded-xl border border-slate-300 text-xs outline-none focus:ring-2 focus:ring-emerald-500"
                 />
               </div>
             </div>
@@ -3153,7 +3411,7 @@ export default function OwnerDashboardPage() {
             </div>
           </div>
 
-          <div className="flex items-center justify-between pt-2">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
             <label className="flex items-center gap-2 cursor-pointer">
               <input
                 type="checkbox"
@@ -3166,14 +3424,38 @@ export default function OwnerDashboardPage() {
               </span>
             </label>
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md transition-all cursor-pointer flex items-center gap-1.5"
-            >
-              <Check className="w-4 h-4" />
-              <span>{loading ? "Saving to Database..." : lang === "rw" ? "Bika Impinduka (Save Changes)" : "Save Changes"}</span>
-            </button>
+            {business?.status === "NEEDS_CORRECTION" ? (
+              <div className="flex items-center gap-2">
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="px-4 py-2.5 rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-50 font-bold text-xs transition-colors cursor-pointer"
+                >
+                  {loading ? "Saving..." : "Save Draft"}
+                </button>
+                <button
+                  type="button"
+                  onClick={async (e) => {
+                    await handleProfileSubmit(e);
+                    await handleResubmitApplication("Profile updated as requested by MOSA admin.");
+                  }}
+                  disabled={loading || isResubmitting}
+                  className="px-6 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-black text-xs shadow-md transition-all cursor-pointer flex items-center gap-1.5"
+                >
+                  {isResubmitting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                  <span>Save & Resubmit to MOSA Admin</span>
+                </button>
+              </div>
+            ) : (
+              <button
+                type="submit"
+                disabled={loading}
+                className="px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md transition-all cursor-pointer flex items-center gap-1.5"
+              >
+                <Check className="w-4 h-4" />
+                <span>{loading ? "Saving to Database..." : lang === "rw" ? "Bika Impinduka (Save Changes)" : "Save Changes"}</span>
+              </button>
+            )}
           </div>
         </form>
       )}
@@ -3440,33 +3722,260 @@ export default function OwnerDashboardPage() {
             </a>
           </div>
 
-          {/* Administrative Hierarchy (Read/Quick Edit) */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="text-xs font-bold text-slate-700 mb-1 block">
-                {lang === "rw" ? "Umurenge (Sector)" : "Sector"}
-              </label>
-              <input
-                type="text"
-                value={locationForm.sector}
-                onChange={(e) => setLocationForm({ ...locationForm, sector: e.target.value })}
-                required
-                className="w-full p-3 bg-slate-50 rounded-xl border border-slate-300 text-xs font-semibold outline-none focus:ring-2 focus:ring-emerald-500"
-              />
+          {/* Administrative Hierarchy (Global Country + Province/State + District/City + Sector/Locality + Cell/Neighborhood + Village/Postal) */}
+          <div className="p-5 bg-slate-50 rounded-2xl border border-slate-200 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+              <h4 className="font-bold text-slate-900 text-xs uppercase tracking-wider flex items-center gap-1.5">
+                <Compass className="w-4 h-4 text-emerald-600" />
+                <span>
+                  {locationForm.country === "Rwanda"
+                    ? (lang === "rw" ? "Imiterere y'Ubutegetsi mu Rwanda" : "Rwanda Administrative Hierarchy")
+                    : `${locationForm.country || "Global"} Administrative Location`}
+                </span>
+              </h4>
+              <span className="text-[11px] text-slate-500">
+                {locationForm.country === "Rwanda"
+                  ? (lang === "rw" ? "Intara → Akarere → Umurenge → Akagari → Umudugudu" : "Province → District → Sector → Cell → Village")
+                  : "State/Region → City/District → Locality → Neighborhood → Postal"}
+              </span>
             </div>
 
+            {/* Country Selector */}
             <div>
               <label className="text-xs font-bold text-slate-700 mb-1 block">
-                {lang === "rw" ? "Akagari (Cell)" : "Cell"}
+                {lang === "rw" ? "Igihugu (Country) *" : "Country / Region *"}
               </label>
-              <input
-                type="text"
-                value={locationForm.cell}
-                onChange={(e) => setLocationForm({ ...locationForm, cell: e.target.value })}
-                required
-                className="w-full p-3 bg-slate-50 rounded-xl border border-slate-300 text-xs font-semibold outline-none focus:ring-2 focus:ring-emerald-500"
-              />
+              <select
+                value={locationForm.country}
+                onChange={(e) => {
+                  const nextCountry = e.target.value;
+                  setLocationForm((prev) => ({
+                    ...prev,
+                    country: nextCountry,
+                    province: nextCountry === "Rwanda" ? "City of Kigali" : prev.province,
+                    district: nextCountry === "Rwanda" ? "Nyarugenge" : prev.district,
+                  }));
+                  setProfileForm((prev) => ({
+                    ...prev,
+                    country: nextCountry,
+                    province: nextCountry === "Rwanda" ? "City of Kigali" : prev.province,
+                    district: nextCountry === "Rwanda" ? "Nyarugenge" : prev.district,
+                  }));
+                }}
+                className="w-full sm:w-80 p-3 bg-white rounded-xl border border-slate-300 text-xs font-bold outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer shadow-2xs"
+              >
+                {SUPPORTED_COUNTRIES.map((c) => (
+                  <option key={c.code} value={c.name}>
+                    {c.flag} {c.name}
+                  </option>
+                ))}
+              </select>
             </div>
+
+            {locationForm.country === "Rwanda" ? (
+              <>
+                {/* Rwanda Row 1: Province & District */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs font-bold text-slate-700 mb-1 block">
+                      {lang === "rw" ? "Intara / Umujyi (Province) *" : "Province / City *"}
+                    </label>
+                    <select
+                      value={locationForm.province}
+                      onChange={(e) => {
+                        const nextProv = e.target.value;
+                        const defaultDist = RWANDA_PROVINCES[nextProv]?.[0] || "";
+                        setLocationForm((prev) => ({ ...prev, province: nextProv, district: defaultDist }));
+                        setProfileForm((prev) => ({ ...prev, province: nextProv, district: defaultDist }));
+                      }}
+                      className="w-full p-3 bg-white rounded-xl border border-slate-300 text-xs font-semibold outline-none focus:ring-2 focus:ring-emerald-500"
+                    >
+                      {Object.keys(RWANDA_PROVINCES).map((prov) => (
+                        <option key={prov} value={prov}>{prov}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-bold text-slate-700 mb-1 block">
+                      {lang === "rw" ? "Akarere (District) *" : "District *"}
+                    </label>
+                    {RWANDA_PROVINCES[locationForm.province] ? (
+                      <select
+                        value={locationForm.district}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setLocationForm((prev) => ({ ...prev, district: val }));
+                          setProfileForm((prev) => ({ ...prev, district: val }));
+                        }}
+                        className="w-full p-3 bg-white rounded-xl border border-slate-300 text-xs font-semibold outline-none focus:ring-2 focus:ring-emerald-500"
+                      >
+                        {RWANDA_PROVINCES[locationForm.province]?.map((dist) => (
+                          <option key={dist} value={dist}>{dist}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input
+                        type="text"
+                        value={locationForm.district}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setLocationForm((prev) => ({ ...prev, district: val }));
+                          setProfileForm((prev) => ({ ...prev, district: val }));
+                        }}
+                        required
+                        className="w-full p-3 bg-white rounded-xl border border-slate-300 text-xs font-semibold outline-none focus:ring-2 focus:ring-emerald-500"
+                      />
+                    )}
+                  </div>
+                </div>
+
+                {/* Rwanda Row 2: Sector, Cell, Village */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div>
+                    <label className="text-xs font-bold text-slate-700 mb-1 block">
+                      {lang === "rw" ? "Umurenge (Sector) *" : "Sector *"}
+                    </label>
+                    <input
+                      type="text"
+                      value={locationForm.sector}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setLocationForm((prev) => ({ ...prev, sector: val }));
+                        setProfileForm((prev) => ({ ...prev, sector: val }));
+                      }}
+                      required
+                      placeholder="e.g. Nyamirambo, Kacyiru, Remera"
+                      className="w-full p-3 bg-white rounded-xl border border-slate-300 text-xs font-semibold outline-none focus:ring-2 focus:ring-emerald-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-bold text-slate-700 mb-1 block">
+                      {lang === "rw" ? "Akagari (Cell) *" : "Cell *"}
+                    </label>
+                    <input
+                      type="text"
+                      value={locationForm.cell}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setLocationForm((prev) => ({ ...prev, cell: val }));
+                        setProfileForm((prev) => ({ ...prev, cell: val }));
+                      }}
+                      required
+                      placeholder="e.g. Biryogo, Kamutwa, Nyarutarama"
+                      className="w-full p-3 bg-white rounded-xl border border-slate-300 text-xs font-semibold outline-none focus:ring-2 focus:ring-emerald-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-bold text-slate-700 mb-1 block">
+                      {lang === "rw" ? "Umudugudu (Village)" : "Village (Umudugudu)"}
+                    </label>
+                    <input
+                      type="text"
+                      value={locationForm.village}
+                      onChange={(e) => setLocationForm((prev) => ({ ...prev, village: e.target.value }))}
+                      placeholder="e.g. Inyange, Isangano, Kamutwa I"
+                      className="w-full p-3 bg-white rounded-xl border border-slate-300 text-xs font-semibold outline-none focus:ring-2 focus:ring-emerald-500"
+                    />
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                {/* Global Row 1: State/Region & City/District */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs font-bold text-slate-700 mb-1 block">
+                      {lang === "rw" ? "Intara / Leta (State/Province/Region) *" : "State / Province / Region *"}
+                    </label>
+                    <input
+                      type="text"
+                      value={locationForm.province}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setLocationForm((prev) => ({ ...prev, province: val }));
+                        setProfileForm((prev) => ({ ...prev, province: val }));
+                      }}
+                      required
+                      placeholder="e.g. Nairobi, California, Lagos State, Greater London"
+                      className="w-full p-3 bg-white rounded-xl border border-slate-300 text-xs font-semibold outline-none focus:ring-2 focus:ring-emerald-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-bold text-slate-700 mb-1 block">
+                      {lang === "rw" ? "Umujyi / Akarere (City/District/Town) *" : "City / District / Town *"}
+                    </label>
+                    <input
+                      type="text"
+                      value={locationForm.district}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setLocationForm((prev) => ({ ...prev, district: val }));
+                        setProfileForm((prev) => ({ ...prev, district: val }));
+                      }}
+                      required
+                      placeholder="e.g. Westlands, San Francisco, Ikeja, Westminster"
+                      className="w-full p-3 bg-white rounded-xl border border-slate-300 text-xs font-semibold outline-none focus:ring-2 focus:ring-emerald-500"
+                    />
+                  </div>
+                </div>
+
+                {/* Global Row 2: Locality/Area, Neighborhood/Cell, Postal Code */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div>
+                    <label className="text-xs font-bold text-slate-700 mb-1 block">
+                      {lang === "rw" ? "Agace / Umurenge (Locality/Area) *" : "Locality / Sector / Area *"}
+                    </label>
+                    <input
+                      type="text"
+                      value={locationForm.sector}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setLocationForm((prev) => ({ ...prev, sector: val }));
+                        setProfileForm((prev) => ({ ...prev, sector: val }));
+                      }}
+                      required
+                      placeholder="e.g. Parklands, Mission District, Victoria Island"
+                      className="w-full p-3 bg-white rounded-xl border border-slate-300 text-xs font-semibold outline-none focus:ring-2 focus:ring-emerald-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-bold text-slate-700 mb-1 block">
+                      {lang === "rw" ? "Umudugudu / Igipangu (Neighborhood/Cell) *" : "Neighborhood / Suburb / Cell *"}
+                    </label>
+                    <input
+                      type="text"
+                      value={locationForm.cell}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setLocationForm((prev) => ({ ...prev, cell: val }));
+                        setProfileForm((prev) => ({ ...prev, cell: val }));
+                      }}
+                      required
+                      placeholder="e.g. 2nd Avenue, Block 4, Chinatown"
+                      className="w-full p-3 bg-white rounded-xl border border-slate-300 text-xs font-semibold outline-none focus:ring-2 focus:ring-emerald-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-bold text-slate-700 mb-1 block">
+                      {lang === "rw" ? "Kode y'Iposita (Postal / Zip Code)" : "Postal / Zip Code (Optional)"}
+                    </label>
+                    <input
+                      type="text"
+                      value={locationForm.village}
+                      onChange={(e) => setLocationForm((prev) => ({ ...prev, village: e.target.value }))}
+                      placeholder="e.g. 00100, 94102, SW1A 1AA"
+                      className="w-full p-3 bg-white rounded-xl border border-slate-300 text-xs font-semibold outline-none focus:ring-2 focus:ring-emerald-500"
+                    />
+                  </div>
+                </div>
+              </>
+            )}
           </div>
 
           {/* Human Reference Points */}
@@ -3646,8 +4155,8 @@ export default function OwnerDashboardPage() {
             </p>
           </div>
 
-          {/* Submit Button */}
-          <div className="flex items-center justify-between pt-2">
+          {/* Submit Button & Resubmit Action */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
             <button
               type="button"
               onClick={() => setActiveSection("overview")}
@@ -3656,20 +4165,47 @@ export default function OwnerDashboardPage() {
               {lang === "rw" ? "Reka / Subira Inyuma" : "Cancel"}
             </button>
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md transition-all cursor-pointer flex items-center gap-1.5"
-            >
-              <Check className="w-4 h-4" />
-              <span>
-                {loading
-                  ? "Saving Location..."
-                  : lang === "rw"
-                  ? "Bika Impinduka (Save Changes)"
-                  : "Save Changes"}
-              </span>
-            </button>
+            <div className="flex items-center gap-2">
+              {business?.status === "NEEDS_CORRECTION" ? (
+                <>
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="px-4 py-2.5 rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-50 font-bold text-xs transition-colors cursor-pointer"
+                  >
+                    {loading ? "Saving..." : "Save Draft"}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={async (e) => {
+                      await handleLocationSubmit(e);
+                      await handleResubmitApplication("Updated location details as requested by MOSA admin.");
+                    }}
+                    disabled={loading || isResubmitting}
+                    className="px-6 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-black text-xs shadow-md transition-all cursor-pointer flex items-center gap-2"
+                  >
+                    {isResubmitting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                    <span>Save & Resubmit to MOSA Admin</span>
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md transition-all cursor-pointer flex items-center gap-1.5"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>
+                    {loading
+                      ? "Saving Location..."
+                      : lang === "rw"
+                      ? "Bika Impinduka (Save Changes)"
+                      : "Save Changes"}
+                  </span>
+                </button>
+              )}
+            </div>
           </div>
         </form>
       )}

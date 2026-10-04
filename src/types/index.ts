@@ -112,7 +112,7 @@ export interface AgentAssignment {
 }
 
 export interface RwandaLocation {
-  country: "Rwanda";
+  country: string;      // e.g. "Rwanda", "Kenya", "United States", etc.
   province: string;      // e.g. "Kigali City"
   district: string;      // e.g. "Nyarugenge", "Gasabo"
   sector: string;        // e.g. "Nyamirambo", "Kacyiru"

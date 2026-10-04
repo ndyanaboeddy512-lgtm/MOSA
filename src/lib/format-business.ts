@@ -21,15 +21,33 @@ export function formatBusinessRecord(raw: any): Business {
   const locationSource = raw.locationSource || raw.location?.source || (locationAccuracy ? "GPS_DEVICE" : "ADMIN_MANUAL");
   const locationVerificationStatus = raw.locationVerificationStatus || raw.location?.verificationStatus || (locationAccuracy ? "AGENT_CAPTURED" : (raw.verificationStatus === "AGENT_VERIFIED" ? "AGENT_VERIFIED" : "UNVERIFIED"));
 
+  // Extract Country and Province cleanly (supports Rwanda & International locations)
+  let detectedCountry = raw.location?.country || raw.country || raw.community?.country;
+  let detectedProvince = raw.location?.province || raw.provinceRel?.name || raw.province;
+  let cleanAddressNote = raw.addressNote || raw.location?.addressNote || "";
+
+  if (cleanAddressNote.includes("[Country:")) {
+    const cMatch = cleanAddressNote.match(/\[Country:\s*([^\|\]]+)/i);
+    const pMatch = cleanAddressNote.match(/(?:Province|Region|State):\s*([^\|\]]+)/i);
+    if (cMatch) detectedCountry = cMatch[1].trim();
+    if (pMatch) detectedProvince = pMatch[1].trim();
+    cleanAddressNote = cleanAddressNote.replace(/\[Country:[^\]]+\]\s*/i, "").trim();
+  }
+
+  if (!detectedCountry) detectedCountry = "Rwanda";
+  if (!detectedProvince) {
+    detectedProvince = raw.provinceRel?.name || (raw.district === "Gasabo" ? "City of Kigali" : (raw.district ? `${raw.district} Province` : "City of Kigali"));
+  }
+
   // Build safe RwandaLocation
   const location: RwandaLocation = {
-    country: "Rwanda",
-    province: raw.location?.province || raw.provinceRel?.name || (raw.district === "Gasabo" ? "Kigali City" : "Kigali City"),
-    district: raw.district || raw.districtRel?.name || raw.location?.district || (raw.sector === "Kacyiru" ? "Gasabo" : "Nyarugenge"),
+    country: detectedCountry,
+    province: detectedProvince,
+    district: raw.district || raw.districtRel?.name || raw.location?.district || "Nyarugenge",
     sector: raw.sector || raw.sectorRel?.name || raw.location?.sector || "Nyamirambo",
-    cell: raw.cell || raw.cellRel?.name || raw.location?.cell || (raw.sector === "Kacyiru" ? "Kamutwa" : "Biryogo"),
-    community: raw.location?.community || raw.localArea?.name || raw.addressNote || raw.cell || "Nyamirambo",
-    addressNote: raw.addressNote || raw.location?.addressNote || "",
+    cell: raw.cell || raw.cellRel?.name || raw.location?.cell || "Biryogo",
+    community: raw.location?.community || raw.localArea?.name || cleanAddressNote || raw.cell || "Nyamirambo",
+    addressNote: cleanAddressNote,
     nearestLandmark,
     streetName,
     nearbyPlace,

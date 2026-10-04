@@ -120,6 +120,14 @@ export async function POST(request: Request) {
     const resolvedSectorId = body.sectorId || null;
     const resolvedCellId = body.cellId || null;
 
+    const regCountry = body.country && typeof body.country === "string" ? body.country.trim() : "Rwanda";
+    const regProvince = province && typeof province === "string" ? province.trim() : null;
+    let computedAddressNote = localArea?.trim() || null;
+    if (regCountry && regCountry.toLowerCase() !== "rwanda") {
+      const prefix = `[Country: ${regCountry}${regProvince ? ` | Region: ${regProvince}` : ""}]`;
+      computedAddressNote = computedAddressNote ? `${prefix} ${computedAddressNote}` : prefix;
+    }
+
     // 3-7. Atomic Transaction: User Account + Business + Products + AuditLog
       const { user, business } = await prisma.$transaction(async (tx) => {
       let u = await tx.user.findUnique({
@@ -181,7 +189,7 @@ export async function POST(request: Request) {
           sector: sector?.trim() || "Nyamirambo",
           cell: cell?.trim() || "Biryogo",
           district: district?.trim() || "Nyarugenge",
-          addressNote: localArea?.trim() || null,
+          addressNote: computedAddressNote,
           nearestLandmark: nearestLandmark?.trim() || null,
           streetName: streetName?.trim() || null,
           nearbyPlace: nearbyPlace?.trim() || null,
