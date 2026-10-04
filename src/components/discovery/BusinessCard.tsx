@@ -33,16 +33,28 @@ export function BusinessCard({ business, variant = "standard", className = "" }:
   const locationLabel = (business as any).localArea?.name || (business as any).addressNote || (business as any).cell || (business as any).sector || "Rwanda";
 
   const hasValidCover = Boolean(business.coverImage && !isLegacyBagPlaceholder(business.coverImage));
-  const isVideo = hasValidCover && isVideoMedia(business.coverImage);
+  const validPhoto = business.photos?.find((p) => p && !isLegacyBagPlaceholder(p));
+  const validProductWithMedia = business.products?.find((p) => p.mediaUrl && !isLegacyBagPlaceholder(p.mediaUrl));
+
+  // Visual content priority cascade:
+  // 1. Explicit business cover image or video
+  // 2. Verified business gallery photo
+  // 3. Featured product or service item photo
+  const visualMediaUrl = hasValidCover
+    ? business.coverImage
+    : (validPhoto || validProductWithMedia?.mediaUrl || null);
+
+  const isVideo = Boolean(visualMediaUrl && isVideoMedia(visualMediaUrl));
+  const visualSourceProduct = !hasValidCover && !validPhoto && validProductWithMedia ? validProductWithMedia : null;
 
   return (
     <div className={`bg-white rounded-3xl border border-slate-200/80 overflow-hidden shadow-[0_4px_20px_rgba(0,0,0,0.03)] hover:shadow-[0_20px_40px_rgba(0,0,0,0.08)] transition-all duration-300 flex flex-col ${isFeatured ? "md:flex-row md:col-span-2 lg:col-span-2 xl:col-span-2" : ""} group hover:-translate-y-1 content-protected ${className}`}>
       {/* Cover Media & Status Badges */}
       <div className={`relative ${isFeatured ? "aspect-[16/11] md:aspect-auto md:w-7/12 min-h-[260px] md:min-h-[340px]" : "aspect-[16/11] w-full"} bg-slate-950 overflow-hidden`}>
-        {hasValidCover ? (
+        {visualMediaUrl ? (
           isVideo ? (
             <video
-              src={business.coverImage!}
+              src={visualMediaUrl}
               autoPlay
               loop
               muted
@@ -51,7 +63,7 @@ export function BusinessCard({ business, variant = "standard", className = "" }:
             />
           ) : (
             <img
-              src={business.coverImage!}
+              src={visualMediaUrl}
               alt={displayName}
               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
               loading="lazy"
@@ -94,6 +106,23 @@ export function BusinessCard({ business, variant = "standard", className = "" }:
             {business.isOpenNow ? t.common.openNow : t.common.closedNow}
           </span>
         </div>
+
+        {/* Visual Source Pill when showing a Product or Service image */}
+        {visualSourceProduct && !business.featuredOffer && (
+          <div className="absolute bottom-3 left-3.5 right-3.5 flex items-center gap-1.5 pointer-events-none">
+            <span className="bg-slate-950/85 backdrop-blur-md text-slate-200 border border-white/15 text-[10px] font-medium px-2.5 py-1 rounded-full flex items-center gap-1.5 shadow-sm max-w-full truncate">
+              <Tag className="w-3 h-3 text-amber-400 shrink-0" />
+              <span className="truncate">
+                <span className="text-amber-400 font-semibold">
+                  {visualSourceProduct.isService
+                    ? (lang === "rw" ? "Serivisi:" : "Service:")
+                    : (lang === "rw" ? "Igicuruzwa:" : "Product:")}
+                </span>{" "}
+                {lang === "rw" && visualSourceProduct.nameRw ? visualSourceProduct.nameRw : visualSourceProduct.name}
+              </span>
+            </span>
+          </div>
+        )}
 
         {/* Featured Offer Banner if present */}
         {business.featuredOffer && (
@@ -172,9 +201,19 @@ export function BusinessCard({ business, variant = "standard", className = "" }:
               <div className="space-y-1.5">
                 {business.products.slice(0, 2).map((prod) => (
                   <div key={prod.id} className="flex items-center justify-between text-xs py-0.5">
-                    <span className="text-slate-600 truncate pr-2 text-xs">
-                      {lang === "rw" && prod.nameRw ? prod.nameRw : prod.name}
-                    </span>
+                    <div className="flex items-center gap-1.5 min-w-0 pr-2">
+                      {prod.mediaUrl && !isLegacyBagPlaceholder(prod.mediaUrl) && (
+                        <img
+                          src={prod.mediaUrl}
+                          alt={prod.name}
+                          className="w-5 h-5 rounded-md object-cover border border-slate-200/90 shrink-0 bg-slate-100"
+                          loading="lazy"
+                        />
+                      )}
+                      <span className="text-slate-600 truncate text-xs">
+                        {lang === "rw" && prod.nameRw ? prod.nameRw : prod.name}
+                      </span>
+                    </div>
                     <span className="font-bold text-slate-950 shrink-0 text-xs">
                       {prod.isEstimated || prod.priceType === "ESTIMATED" ? "~" : ""}
                       {prod.priceMin && prod.priceMax

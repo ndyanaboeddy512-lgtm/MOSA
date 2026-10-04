@@ -320,8 +320,46 @@ export async function GET(request: Request) {
         reviews: true,
         businessHours: true,
         localArea: true,
+        media: true,
       },
       orderBy: { updatedAt: "desc" },
+    });
+
+    // Default commercial ranking: prominently prioritize verified businesses,
+    // businesses with real ground visual content (coverImage, media, or product/service photos),
+    // and recently updated records, strictly avoiding social-media likes or popularity counters.
+    businesses.sort((a, b) => {
+      const getScore = (biz: typeof a) => {
+        let score = 0;
+        // 1. Data lifecycle status
+        if (biz.dataStatus === "VERIFIED") score += 1000;
+        else if (biz.dataStatus === "RESEARCHED") score += 500;
+
+        // 2. Specific verification badges
+        if (biz.verificationStatus === "BUSINESS_VERIFIED") score += 400;
+        else if (biz.verificationStatus === "AGENT_VERIFIED") score += 300;
+        else if (biz.verificationStatus === "HIGH_CONFIDENCE") score += 200;
+        else if (biz.verificationStatus === "COMMUNITY_VERIFIED") score += 100;
+
+        // 3. Ground visual content (cover photo or media or product/service photos)
+        const hasCover = Boolean(biz.coverImage && !biz.coverImage.includes("photo-1544816155-12df9643f363"));
+        const hasMedia = Array.isArray(biz.media) && biz.media.length > 0;
+        const hasProductMedia = Array.isArray(biz.products) && biz.products.some((p: any) => p.mediaUrl);
+        if (hasCover) score += 100;
+        else if (hasMedia || hasProductMedia) score += 80;
+
+        // 4. Product catalog presence
+        if (Array.isArray(biz.products) && biz.products.length > 0) score += 20;
+
+        return score;
+      };
+
+      const scoreA = getScore(a);
+      const scoreB = getScore(b);
+      if (scoreA !== scoreB) {
+        return scoreB - scoreA;
+      }
+      return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
     });
 
     const formatted = businesses.map(serializePublicBusiness);
