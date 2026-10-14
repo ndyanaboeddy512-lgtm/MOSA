@@ -54,9 +54,11 @@ import {
   CheckSquare,
   Square,
   BellRing,
-  Sliders
+  Sliders,
+  CreditCard
 } from "lucide-react";
 import { PlatformIdentityTab } from "@/components/admin/PlatformIdentityTab";
+import { RegistrationPaymentsTab } from "@/components/admin/RegistrationPaymentsTab";
 import { SmartLocationForm, SmartLocationFormData } from "@/components/location/SmartLocationForm";
 import { calculateLocationCompleteness } from "@/lib/location-quality";
 import { RWANDA_HIERARCHY } from "@/lib/rwanda-geo";
@@ -124,7 +126,7 @@ export default function AdminPanelPage() {
   const { user, switchDemoRole } = useAuth();
 
   const [activeTab, setActiveTab] = useState<
-    "overview" | "verification" | "businesses" | "moderation" | "users" | "ecosystem" | "settings" | "intelligence" | "pending_applications" | "claims" | "sms" | "history" | "captures" | "reports" | "demands" | "audit" | "announcements" | "identity"
+    "overview" | "verification" | "businesses" | "payments" | "moderation" | "users" | "ecosystem" | "settings" | "intelligence" | "pending_applications" | "claims" | "sms" | "history" | "captures" | "reports" | "demands" | "audit" | "announcements" | "identity"
   >("overview");
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [claims, setClaims] = useState<any[]>([]);
@@ -1365,6 +1367,7 @@ export default function AdminPanelPage() {
             highlight: businesses.filter((b: any) => b.status === "PENDING" || b.status === "NEEDS_CORRECTION").length > 0
           },
           { id: "businesses", label: "Businesses", count: businesses.length, icon: StoreIcon },
+          { id: "payments", label: "Registration & Payments", count: null, icon: CreditCard },
           { 
             id: "announcements", 
             label: "Partner Announcements", 
@@ -3503,6 +3506,9 @@ export default function AdminPanelPage() {
           </div>
         </div>
       )}
+
+      {/* Registration Payments & Revenue Tab */}
+      {activeTab === "payments" && <RegistrationPaymentsTab />}
 
       {/* Partner Announcements Automation Tab */}
       {activeTab === "announcements" && (

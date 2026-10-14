@@ -62,7 +62,7 @@ export async function setSessionCookie(token: string, rememberMe: boolean = true
   const cookieStore = await cookies();
   const cookieOptions: any = {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    secure: process.env.NODE_ENV === "production" && process.env.SECURE_COOKIES === "true",
     sameSite: "lax",
     path: "/",
   };

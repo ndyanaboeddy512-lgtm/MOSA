@@ -146,6 +146,12 @@ export async function POST(request: Request) {
           { status: 400 }
         );
       }
+      if (existingUser.status !== "ACTIVE") {
+        return NextResponse.json(
+          { error: "Your account is deactivated or inactive" },
+          { status: 403 }
+        );
+      }
       targetEmail = existingUser.email.toLowerCase().trim();
     }
 

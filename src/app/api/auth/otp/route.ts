@@ -73,6 +73,13 @@ export async function POST(request: Request) {
       }
     }
 
+    if (user.status !== "ACTIVE") {
+      return NextResponse.json(
+        { error: "Your account is deactivated or inactive" },
+        { status: 403 }
+      );
+    }
+
     // Generate signed JWT token
     const token = await createSessionToken({
       userId: user.id,

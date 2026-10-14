@@ -60,6 +60,8 @@ import {
   FileText,
   Camera,
   Mail,
+  Printer,
+  CreditCard,
 } from "lucide-react";
 import { MosaMap } from "@/components/discovery/MosaMap";
 import { calculateLocationCompleteness, getGoogleMapsDirectionsUrl } from "@/lib/location-quality";
@@ -371,6 +373,46 @@ export default function OwnerDashboardPage() {
   const [accountMsg, setAccountMsg] = useState("");
   const [accountErrorMsg, setAccountErrorMsg] = useState("");
 
+  // Partner Account Deletion State
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
+  const [deleteAccountError, setDeleteAccountError] = useState("");
+
+  // Registration Payment & Legal Receipt State
+  const [registrationReceipt, setRegistrationReceipt] = useState<any>(null);
+  const [registrationPayment, setRegistrationPayment] = useState<any>(null);
+  const [ownerReceiptModalOpen, setOwnerReceiptModalOpen] = useState(false);
+
+  const handleDeleteAccount = async () => {
+    if (deleteConfirmText.trim().toUpperCase() !== "DELETE") {
+      setDeleteAccountError(lang === "rw" ? "Nyamuneka andika 'DELETE' kugira ngo wemeze." : "Please type 'DELETE' to confirm account deletion.");
+      return;
+    }
+    setIsDeletingAccount(true);
+    setDeleteAccountError("");
+    try {
+      const res = await fetch("/api/owner/account", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirmation: "DELETE" }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        if (typeof window !== "undefined") {
+          localStorage.removeItem("mosa_user_session");
+        }
+        window.location.href = "/auth/login?deleted=true";
+      } else {
+        setDeleteAccountError(data.error || "Failed to delete account. Please try again.");
+      }
+    } catch (err: any) {
+      setDeleteAccountError(err.message || "Network error while deleting account.");
+    } finally {
+      setIsDeletingAccount(false);
+    }
+  };
+
   // Fetch Owner Data directly from database
   const loadOwnerData = async () => {
     try {
@@ -384,6 +426,12 @@ export default function OwnerDashboardPage() {
           setHealthReport(data.health);
           setConfirmationStatus(data.confirmationStatus);
           setReminders(data.reminders || []);
+          if (data.registrationReceipt) {
+            setRegistrationReceipt(data.registrationReceipt);
+          }
+          if (data.registrationPayment) {
+            setRegistrationPayment(data.registrationPayment);
+          }
           if (data.business.coverImage) {
             setCoverUrlInput(data.business.coverImage);
           }
@@ -1945,7 +1993,7 @@ export default function OwnerDashboardPage() {
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
                   <span className="font-black text-amber-950 text-base">
-                    {lang === "rw" ? "Gusubiramo Amakuru Birakenewe" : "Corrections Requested by MOSA Admin"}
+                    {lang === "rw" ? "Gusubiramo Amakuru Birakenewe" : "Corrections Requested by MOSA Verification Team"}
                   </span>
                   <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-amber-500 text-slate-950">
                     Action Required
@@ -1968,12 +2016,12 @@ export default function OwnerDashboardPage() {
             </button>
           </div>
 
-          {/* Admin Feedback Box */}
+          {/* Verification Feedback Box */}
           {verifications && verifications.length > 0 && (
             <div className="p-4 rounded-2xl bg-white border border-amber-300 text-xs shadow-xs">
               <div className="font-bold text-amber-950 mb-1 flex items-center gap-1.5">
                 <span className="text-sm">💬</span>
-                <span>{lang === "rw" ? "Ubutumwa bw'Umusuzumi wa MOSA (Admin Feedback):" : "Admin Verification Feedback:"}</span>
+                <span>{lang === "rw" ? "Ubutumwa bw'Umusuzumi wa MOSA:" : "Verification Feedback:"}</span>
               </div>
               <p className="text-slate-800 font-medium whitespace-pre-wrap leading-relaxed">
                 {verifications.find((v: any) => v.type === "CORRECTIONS_REQUESTED")?.notes || verifications[0]?.notes || "Please review and complete your business information."}
@@ -1989,6 +2037,61 @@ export default function OwnerDashboardPage() {
           )}
         </div>
       )}
+
+      {/* Registration Payment & Official Legal Receipt Banner */}
+      {registrationReceipt ? (
+        <div className="p-4 rounded-2xl bg-white border border-emerald-200/90 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 border border-emerald-100">
+              <FileText className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-slate-900 text-xs sm:text-sm">
+                  {lang === "rw" ? "Ubwishyu bwo Kwiyandikisha Bwemejwe" : "Official Registration Payment Confirmed"}
+                </span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800">
+                  PAID ({registrationReceipt.amountPaid?.toLocaleString()} {registrationReceipt.currency})
+                </span>
+              </div>
+              <p className="text-slate-500 text-[11px] font-mono mt-0.5">
+                Receipt #{registrationReceipt.receiptNumber} • Issued {new Date(registrationReceipt.issuedAt).toLocaleDateString()}
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setOwnerReceiptModalOpen(true)}
+            className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-xs transition cursor-pointer shrink-0"
+          >
+            <Printer className="w-3.5 h-3.5" />
+            <span>{lang === "rw" ? "Reba Inyemezabwishyu" : "View & Print Official Receipt"}</span>
+          </button>
+        </div>
+      ) : registrationPayment?.status === "PENDING" ? (
+        <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
+              <CreditCard className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="font-bold text-xs sm:text-sm">
+                Registration Payment Pending ({registrationPayment.feeAmount?.toLocaleString()} {registrationPayment.currency})
+              </div>
+              <p className="text-amber-800 text-[11px] font-mono mt-0.5">
+                Ref: {registrationPayment.paymentReference} • Channel: {registrationPayment.provider}
+              </p>
+            </div>
+          </div>
+          <Link
+            href="/register-business"
+            className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs flex items-center gap-1 transition shrink-0"
+          >
+            <span>Complete Payment</span>
+          </Link>
+        </div>
+      ) : null}
 
       {/* 7 Task-Oriented Business Navigation Sections */}
       <div className="bg-white rounded-3xl border border-slate-200 p-2 sm:p-3 shadow-card">
@@ -2021,7 +2124,7 @@ export default function OwnerDashboardPage() {
             { 
               id: "notifications", 
               label: lang === "rw" ? "Ubutumwa" : "Notifications", 
-              sub: lang === "rw" ? "Ubuyobozi bwa MOSA" : "Admin Alerts & Demand", 
+              sub: lang === "rw" ? "Ubutumwa bw'Urubuga" : "Platform Alerts & Demand", 
               icon: Bell, 
               count: notifications.filter((n) => !n.isRead).length + (business.status === "NEEDS_CORRECTION" ? 1 : 0) 
             },
@@ -2802,7 +2905,7 @@ export default function OwnerDashboardPage() {
                   <div>
                     <div className="flex items-center gap-2">
                       <span className="font-black text-amber-950 text-sm sm:text-base">
-                        {lang === "rw" ? "Ubutumwa bw'Umusuzumi wa MOSA (Corrections Requested)" : "MOSA Admin Requested Corrections"}
+                        {lang === "rw" ? "Ubutumwa bw'Umusuzumi wa MOSA (Corrections Requested)" : "MOSA Verification Team Requested Corrections"}
                       </span>
                       <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-amber-500 text-slate-950">
                         Action Required
@@ -2811,26 +2914,26 @@ export default function OwnerDashboardPage() {
                     <p className="text-xs text-slate-700 mt-1">
                       {lang === "rw"
                         ? "Ubuyobozi bwa MOSA bwasuzumye amakuru y'ubucuruzi bwawe maze basaba ko mukosora amakuru runaka (nko ku rubuga, aho mukorera, cyangwa ibiciro). Kosora amakuru mu ifishi iri hasi maze ukande 'Ongera Wohereze'."
-                        : "The MOSA admin team reviewed your business and requested revisions. Please correct the details below (e.g. location, phone, or prices) and click Resubmit to send back for verification."}
+                        : "The MOSA verification team reviewed your business and requested revisions. Please correct the details below (e.g. location, phone, or prices) and click Resubmit to send back for verification."}
                     </p>
                   </div>
                 </div>
 
                 <button
                   type="button"
-                  onClick={() => handleResubmitApplication("Owner revised and corrected details per admin request.")}
+                  onClick={() => handleResubmitApplication("Owner revised and corrected details per verification request.")}
                   disabled={isResubmitting}
                   className="px-4 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-black text-xs shadow-md transition-all flex items-center justify-center gap-1.5 shrink-0 cursor-pointer disabled:opacity-50"
                 >
                   {isResubmitting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                  <span>{lang === "rw" ? "Ongera Wohereze" : "Resubmit to Admin"}</span>
+                  <span>{lang === "rw" ? "Ongera Wohereze" : "Resubmit Application"}</span>
                 </button>
               </div>
 
-              {/* Exact Admin Notes */}
+              {/* Exact Feedback Notes */}
               <div className="p-3.5 rounded-xl bg-white border border-amber-300 text-xs shadow-xs">
                 <span className="font-bold text-amber-950 block mb-1">
-                  💬 {lang === "rw" ? "Ubutumwa buvuye ku buyobozi bwa MOSA:" : "Admin Feedback Message:"}
+                  💬 {lang === "rw" ? "Ubutumwa buvuye ku musuzumi wa MOSA:" : "Verification Feedback Message:"}
                 </span>
                 <p className="text-slate-800 font-medium whitespace-pre-wrap leading-relaxed">
                   {verifications.find((v: any) => v.type === "CORRECTIONS_REQUESTED")?.notes || verifications[0]?.notes || "Please check and complete your business information."}
@@ -3447,7 +3550,7 @@ export default function OwnerDashboardPage() {
                   className="px-6 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-black text-xs shadow-md transition-all cursor-pointer flex items-center gap-1.5"
                 >
                   {isResubmitting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                  <span>Save & Resubmit to MOSA Admin</span>
+                  <span>Save & Resubmit for Verification</span>
                 </button>
               </div>
             ) : (
@@ -4190,7 +4293,7 @@ export default function OwnerDashboardPage() {
                     className="px-6 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-black text-xs shadow-md transition-all cursor-pointer flex items-center gap-2"
                   >
                     {isResubmitting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                    <span>Save & Resubmit to MOSA Admin</span>
+                    <span>Save & Resubmit for Verification</span>
                   </button>
                 </>
               ) : (
@@ -5854,6 +5957,57 @@ export default function OwnerDashboardPage() {
             </div>
           </div>
 
+          {/* Danger Zone: Partner Account Deletion */}
+          <div className="bg-white p-6 sm:p-8 rounded-3xl border border-rose-200/80 shadow-card space-y-5 bg-gradient-to-br from-white via-rose-50/20 to-rose-50/40">
+            <div className="border-b border-rose-100 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h3 className="text-lg font-bold text-rose-950 flex items-center gap-2">
+                  <Trash2 className="w-5 h-5 text-rose-600" />
+                  <span>{lang === "rw" ? "Gusiba Konti yawe (Delete My Account)" : "Delete My Account"}</span>
+                </h3>
+                <p className="text-xs text-rose-700/80 mt-1">
+                  {lang === "rw"
+                    ? "Gusiba konti burundu. Iki gikorwa ntigishobora gusubizwa inyuma kandi gihita gihagarika ububasha bwose bwo kwinjira."
+                    : "Permanently delete your partner account and deactivate your managed storefront."}
+                </p>
+              </div>
+              <span className="self-start sm:self-auto px-3 py-1 rounded-full text-[10px] font-black uppercase bg-rose-100 text-rose-800 border border-rose-200">
+                Permanent Action
+              </span>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-rose-50/80 border border-rose-200 text-xs text-rose-900 space-y-2">
+              <div className="font-bold flex items-center gap-1.5 text-rose-950">
+                <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                <span>What happens when you delete your partner account:</span>
+              </div>
+              <ul className="list-disc list-inside space-y-1 text-[11px] text-rose-800 pl-1 leading-relaxed">
+                <li>Your partner login credentials, active sessions, and portal access are permanently revoked.</li>
+                <li>Your managed business profile(s) will be deactivated and removed from public discoverability on MOSA.</li>
+                <li>All active customer communication channels and automated inquiries will be immediately terminated.</li>
+                <li>An immutable audit log will record the closure for regulatory and security compliance.</li>
+              </ul>
+            </div>
+
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-2">
+              <p className="text-[11px] text-slate-500 max-w-md">
+                Once deleted, you will no longer be able to sign in or manage this business. If you change your mind later, you would need to apply for registration anew.
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setDeleteConfirmText("");
+                  setDeleteAccountError("");
+                  setDeleteModalOpen(true);
+                }}
+                className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl text-xs shadow-md transition-all flex items-center justify-center gap-2 shrink-0 cursor-pointer"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>{lang === "rw" ? "Siba Konti Yanjye" : "Delete My Account"}</span>
+              </button>
+            </div>
+          </div>
+
           {/* Expandable Accordion: Advanced Operations & Bookkeeping */}
           <div className="bg-white rounded-3xl border border-slate-200 shadow-card overflow-hidden">
             <button
@@ -7311,6 +7465,205 @@ export default function OwnerDashboardPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: PERMANENT ACCOUNT DELETION CONFIRMATION */}
+      {deleteModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-rose-200 animate-in fade-in zoom-in-95 duration-150 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-rose-100">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-2xl bg-rose-100 text-rose-700 flex items-center justify-center shrink-0">
+                  <AlertTriangle className="w-5 h-5 text-rose-600" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-slate-900 text-base">
+                    {lang === "rw" ? "Kwemeza Gusiba Konti Burundu" : "Confirm Permanent Deletion"}
+                  </h3>
+                  <p className="text-[11px] text-rose-600 font-semibold">
+                    {lang === "rw" ? "Iki gikorwa ntigishobora gusubizwa inyuma" : "This action cannot be undone"}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setDeleteModalOpen(false);
+                  setDeleteAccountError("");
+                }}
+                className="p-1 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs text-slate-600 leading-relaxed">
+              <p>
+                You are about to permanently delete your account for <strong>{business.name}</strong>.
+              </p>
+              <div className="p-3 bg-rose-50 rounded-xl border border-rose-200 text-rose-900 text-[11px] space-y-1 font-medium">
+                <p>⚠️ <strong>Immediate effects:</strong></p>
+                <ul className="list-disc list-inside space-y-0.5 pl-1 text-[11px]">
+                  <li>Your phone/email will be unlinked and disabled.</li>
+                  <li>Storefront will become inactive and hidden from discovery.</li>
+                  <li>You will be logged out and cannot sign back in.</li>
+                </ul>
+              </div>
+            </div>
+
+            {deleteAccountError && (
+              <div className="p-3 rounded-xl bg-red-100 border border-red-200 text-red-800 text-xs font-semibold">
+                {deleteAccountError}
+              </div>
+            )}
+
+            <div className="space-y-2 pt-1">
+              <label className="block text-[11px] font-bold text-slate-700">
+                To confirm, type <span className="text-rose-600 font-mono font-extrabold">DELETE</span> in capital letters:
+              </label>
+              <input
+                type="text"
+                data-testid="delete-confirm-input"
+                placeholder="Type DELETE to confirm"
+                value={deleteConfirmText}
+                onChange={(e) => setDeleteConfirmText(e.target.value)}
+                className="w-full p-2.5 bg-slate-50 rounded-xl border border-rose-300 font-mono font-bold text-xs text-slate-900 outline-none focus:ring-2 focus:ring-rose-500/20"
+              />
+            </div>
+
+            <div className="flex items-center gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setDeleteModalOpen(false);
+                  setDeleteAccountError("");
+                }}
+                disabled={isDeletingAccount}
+                className="flex-1 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs cursor-pointer transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                data-testid="confirm-delete-account-btn"
+                onClick={handleDeleteAccount}
+                disabled={deleteConfirmText.trim().toUpperCase() !== "DELETE" || isDeletingAccount}
+                className="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white font-bold text-xs shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                {isDeletingAccount ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>Deleting...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Permanently Delete</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Official Registration Receipt Modal */}
+      {ownerReceiptModalOpen && registrationReceipt && (
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-xl w-full p-8 shadow-2xl border border-slate-200 text-slate-900 space-y-6">
+            <div className="flex items-start justify-between border-b border-slate-100 pb-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="w-7 h-7 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-black text-sm">
+                    M
+                  </span>
+                  <h3 className="font-black text-lg text-slate-900">MOSA OFFICIAL RECEIPT</h3>
+                </div>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  Republic of Rwanda • Official Business Registration &amp; Activation Record
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setOwnerReceiptModalOpen(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Receipt Paper */}
+            <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 font-mono text-xs space-y-4">
+              <div className="flex justify-between items-center border-b border-slate-200 pb-3">
+                <div>
+                  <div className="text-[10px] text-slate-400 uppercase">Receipt Number</div>
+                  <div className="text-sm font-bold text-emerald-800">{registrationReceipt.receiptNumber}</div>
+                </div>
+                <div className="text-right">
+                  <div className="text-[10px] text-slate-400 uppercase">Issue Date</div>
+                  <div className="text-xs font-semibold text-slate-700">
+                    {new Date(registrationReceipt.issuedAt).toLocaleDateString()}
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 text-xs">
+                <div>
+                  <div className="text-[10px] text-slate-400 uppercase">Business Entity</div>
+                  <div className="font-bold text-slate-900">{registrationReceipt.businessName || business?.name}</div>
+                  <div className="text-[11px] text-slate-500">ID: {registrationReceipt.businessId}</div>
+                </div>
+                <div>
+                  <div className="text-[10px] text-slate-400 uppercase">Registered Proprietor</div>
+                  <div className="font-bold text-slate-900">{registrationReceipt.ownerName}</div>
+                  <div className="text-slate-500 text-[11px]">{registrationReceipt.ownerPhone}</div>
+                </div>
+              </div>
+
+              <div className="border-t border-b border-slate-200 py-3 space-y-1">
+                <div className="flex justify-between font-bold text-slate-900">
+                  <span>Description</span>
+                  <span>Amount</span>
+                </div>
+                <div className="flex justify-between text-slate-700">
+                  <span>MOSA Platform Business Registration &amp; Activation Fee</span>
+                  <span>{registrationReceipt.amountPaid?.toLocaleString()} {registrationReceipt.currency}</span>
+                </div>
+                <div className="flex justify-between text-slate-500 text-[11px]">
+                  <span>Channel: {registrationReceipt.paymentMethod}</span>
+                  <span>Ext Ref: {registrationReceipt.providerTransactionRef || "N/A"}</span>
+                </div>
+              </div>
+
+              <div className="flex justify-between items-center font-bold text-sm text-slate-900">
+                <span>TOTAL PAID</span>
+                <span className="text-emerald-700">{registrationReceipt.amountPaid?.toLocaleString()} {registrationReceipt.currency}</span>
+              </div>
+
+              <div className="pt-2 text-[10px] text-slate-500 border-t border-slate-200">
+                Status: CONFIRMED &amp; ACTIVATED. Discoverable across Rwanda nationwide directory.
+              </div>
+            </div>
+
+            <div className="flex justify-between items-center pt-2">
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl flex items-center gap-1.5 transition cursor-pointer"
+              >
+                <Printer className="w-3.5 h-3.5" />
+                <span>Print Receipt</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setOwnerReceiptModalOpen(false)}
+                className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}

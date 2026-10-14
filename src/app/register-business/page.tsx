@@ -33,7 +33,13 @@ import {
   Upload,
   Check,
   X,
-  Camera
+  Camera,
+  CreditCard,
+  Copy,
+  Printer,
+  Smartphone,
+  Building,
+  RefreshCw
 } from "lucide-react";
 import {
   CANONICAL_TAXONOMY,
@@ -73,11 +79,80 @@ export default function RegisterBusinessPage() {
     return item.name;
   };
 
-  const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
+  const [step, setStep] = useState<1 | 2 | 3 | 4 | 5>(1);
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
+  // Step 5 Registration Payment & Instant Activation states
+  const [registeredBusinessId, setRegisteredBusinessId] = useState<string | null>(null);
+  const [registeredBusinessName, setRegisteredBusinessName] = useState<string>("");
+  const [paymentConfig, setPaymentConfig] = useState<{ fee: any; providers: any[] } | null>(null);
+  const [selectedProvider, setSelectedProvider] = useState<string>("MTN_MOMO");
+  const [initiatingPayment, setInitiatingPayment] = useState<boolean>(false);
+  const [activePayment, setActivePayment] = useState<any>(null);
+  const [paymentStatus, setPaymentStatus] = useState<"PENDING" | "CONFIRMED" | "FAILED">("PENDING");
+  const [confirmedReceipt, setConfirmedReceipt] = useState<any>(null);
+  const [showReceiptModal, setShowReceiptModal] = useState<boolean>(false);
+  const [pollingActive, setPollingActive] = useState<boolean>(false);
+
+  React.useEffect(() => {
+    let interval: any;
+    if (pollingActive && activePayment?.paymentReference && paymentStatus !== "CONFIRMED") {
+      interval = setInterval(async () => {
+        try {
+          const res = await fetch(`/api/payments/status?reference=${activePayment.paymentReference}`);
+          const data = await res.json();
+          if (data.success && data.isConfirmed) {
+            setPaymentStatus("CONFIRMED");
+            setConfirmedReceipt(data.receipt);
+            setPollingActive(false);
+          }
+        } catch {
+          // Retry next tick
+        }
+      }, 3000);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [pollingActive, activePayment, paymentStatus]);
+
+  const handleInitiatePayment = async (providerOverride?: string) => {
+    if (!registeredBusinessId) return;
+    setInitiatingPayment(true);
+    setErrorMsg(null);
+    try {
+      const prov = providerOverride || selectedProvider;
+      const res = await fetch("/api/payments/initiate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          businessId: registeredBusinessId,
+          provider: prov,
+          phoneNumber: formData.phone.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setActivePayment(data.payment);
+        setPollingActive(true);
+        if (data.isAlreadyPaid) {
+          setPaymentStatus("CONFIRMED");
+          setConfirmedReceipt(data.receipt);
+        } else {
+          setPaymentStatus("PENDING");
+        }
+      } else {
+        setErrorMsg(data.error || "Failed to initiate payment reference.");
+      }
+    } catch (err: any) {
+      setErrorMsg(err.message || "Failed to initiate payment.");
+    } finally {
+      setInitiatingPayment(false);
+    }
+  };
 
   // Step 1: Business Identity & Owner Account
   const [formData, setFormData] = useState({
@@ -689,7 +764,7 @@ export default function RegisterBusinessPage() {
         throw new Error(data.error || "Failed to submit business application");
       }
 
-      setSuccess(true);
+      // Proceed directly to Step 5 Payment
       if (typeof window !== "undefined") {
         if (data.user) {
           try {
@@ -697,7 +772,7 @@ export default function RegisterBusinessPage() {
           } catch {}
         }
 
-        // Native Device / Browser Password Manager Integration (Android, iOS, Chrome, Safari, Edge)
+        // Native Device / Browser Password Manager Integration
         if ("PasswordCredential" in window && navigator.credentials) {
           try {
             const cred = new (window as any).PasswordCredential({
@@ -707,13 +782,44 @@ export default function RegisterBusinessPage() {
             });
             await navigator.credentials.store(cred);
           } catch {
-            // Non-blocking if browser permission denied
+            // Non-blocking
           }
         }
-
-        // Immediately open owner dashboard without artificial delays
-        window.location.href = data.redirectUrl || "/owner/dashboard";
       }
+
+      const createdBizId = data.businessId || data.business?.id;
+      setRegisteredBusinessId(createdBizId);
+      setRegisteredBusinessName(formData.name.trim());
+
+      // Fetch payment configuration (fee & providers)
+      try {
+        const configRes = await fetch("/api/payments/config");
+        const configData = await configRes.json();
+        if (configData.success) {
+          setPaymentConfig(configData);
+        }
+      } catch {}
+
+      // Automatically initiate payment for the primary provider (MTN MoMo)
+      try {
+        const initRes = await fetch("/api/payments/initiate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            businessId: createdBizId,
+            provider: "MTN_MOMO",
+            phoneNumber: formData.phone.trim(),
+          }),
+        });
+        const initData = await initRes.json();
+        if (initData.success) {
+          setActivePayment(initData.payment);
+          setPollingActive(true);
+        }
+      } catch {}
+
+      setStep(5);
+      window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (err: any) {
       setErrorMsg(err.message || "An unexpected error occurred. Please try again.");
     } finally {
@@ -822,18 +928,40 @@ export default function RegisterBusinessPage() {
               <button
                 type="button"
                 onClick={() => {
-                  if (validateStep1() && validateStep2() && validateStep3()) setStep(4);
+                  if (validateStep1() && validateStep2() && validateStep3() && step < 5) setStep(4);
                 }}
                 className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs cursor-pointer ${
                   step === 4 
                     ? "bg-emerald-600 text-white shadow-md ring-4 ring-emerald-100" 
+                    : step > 4
+                    ? "bg-emerald-500 text-white"
                     : "bg-slate-100 text-slate-500"
                 }`}
               >
-                4
+                {step > 4 ? <CheckCircle2 className="w-4 h-4" /> : "4"}
               </button>
               <span className={`text-xs font-bold hidden sm:inline ${step === 4 ? "text-slate-900" : "text-slate-500"}`}>
                 {t.registration.step4 || "Review & Submit"}
+              </span>
+            </div>
+
+            <div className="h-0.5 flex-1 mx-2 bg-slate-200" />
+
+            {/* Step 5 Indicator */}
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                disabled={step < 5}
+                className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs cursor-pointer ${
+                  step === 5
+                    ? "bg-emerald-600 text-white shadow-md ring-4 ring-emerald-100" 
+                    : "bg-slate-100 text-slate-500"
+                }`}
+              >
+                {paymentStatus === "CONFIRMED" ? <CheckCircle2 className="w-4 h-4" /> : "5"}
+              </button>
+              <span className={`text-xs font-bold hidden sm:inline ${step === 5 ? "text-slate-900" : "text-slate-500"}`}>
+                {lang === "rw" ? "Kwishyura & Kwemeza" : "Payment & Activation"}
               </span>
             </div>
 
@@ -866,7 +994,7 @@ export default function RegisterBusinessPage() {
           </div>
         )}
 
-        {!success && (
+        {step < 5 && (
           <form onSubmit={handleSubmit} autoComplete="on" className="space-y-6">
             {/* Hidden Persistent Credential Fields for Mobile & Computer Password Manager Autofill */}
             <div className="sr-only hidden" aria-hidden="true">
@@ -2147,9 +2275,331 @@ export default function RegisterBusinessPage() {
                 </div>
               </div>
             )}
-
           </form>
         )}
+
+        {/* Step 5: Registration Payment & Instant Activation */}
+        {step === 5 && (
+              <div className="bg-white rounded-3xl border border-slate-200 shadow-card p-6 sm:p-8 space-y-6">
+                
+                {/* Header */}
+                <div className="text-center space-y-2 pb-4 border-b border-slate-100">
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold">
+                    <ShieldCheck className="w-4 h-4" />
+                    <span>{lang === "rw" ? "Kwemeza & Gufungura Ubucuruzi Ako Kanya" : "Instant Activation & Verification"}</span>
+                  </div>
+                  <h3 className="text-2xl font-black text-slate-900 tracking-tight">
+                    {paymentStatus === "CONFIRMED" 
+                      ? (lang === "rw" ? "Ubwishyu Bwemejwe — Ubucuruzi Bwawe Burakora!" : "Payment Confirmed & Business Activated!")
+                      : (lang === "rw" ? "Kwishyura Amafaranga yo Kwiyandikisha" : "Business Registration Payment")}
+                  </h3>
+                  <p className="text-xs text-slate-600 max-w-md mx-auto">
+                    {paymentStatus === "CONFIRMED"
+                      ? (lang === "rw" ? "Ubucuruzi bwawe bwashyizwe ku rubuga rwa MOSA kandi bugaragara muri rusange." : "Your business is now fully active and discoverable on the MOSA Rwanda community network.")
+                      : (lang === "rw" ? "Yishyura amafaranga asanzwe yo kwiyandikisha ugire ubucuruzi bwawe bugaragara ako kanya kuri MOSA." : "Complete the standard registration fee to automatically verify your business and activate public discovery.")}
+                  </p>
+                </div>
+
+                {/* Business Snapshot Card */}
+                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 flex items-center justify-between text-xs">
+                  <div>
+                    <div className="text-[10px] uppercase font-bold text-slate-400">Registered Business</div>
+                    <div className="font-bold text-slate-900 text-sm">{registeredBusinessName || formData.name}</div>
+                    <div className="text-slate-500 text-[11px]">{formData.ownerName} • {formData.phone}</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-[10px] uppercase font-bold text-slate-400">Registration Fee</div>
+                    <div className="text-base font-black text-emerald-700">
+                      {paymentConfig?.fee?.amount ? paymentConfig.fee.amount.toLocaleString() : "5,000"} {paymentConfig?.fee?.currency || "RWF"}
+                    </div>
+                  </div>
+                </div>
+
+                {/* CONFIRMED STATE */}
+                {paymentStatus === "CONFIRMED" ? (
+                  <div className="p-6 rounded-2xl bg-emerald-50 border-2 border-emerald-500/30 text-center space-y-4">
+                    <div className="w-14 h-14 rounded-full bg-emerald-600 text-white mx-auto flex items-center justify-center shadow-md">
+                      <CheckCircle2 className="w-8 h-8" />
+                    </div>
+
+                    <div className="space-y-1">
+                      <h4 className="text-lg font-black text-emerald-950">
+                        {lang === "rw" ? "Ubwishyu Bwakiriwe Neza!" : "Official Payment Confirmed!"}
+                      </h4>
+                      <p className="text-xs text-emerald-800">
+                        {lang === "rw" 
+                          ? "Inyemezabwishyu yawe yamaze gutegurwa kandi ubucuruzi bwawe buri kugaragara kuri MOSA." 
+                          : "Your numbered official receipt is ready, and your business is now active for discovery."}
+                      </p>
+                    </div>
+
+                    {confirmedReceipt?.receiptNumber && (
+                      <div className="inline-block p-3 rounded-xl bg-white border border-emerald-200 font-mono text-xs font-bold text-emerald-900">
+                        Receipt: {confirmedReceipt.receiptNumber}
+                      </div>
+                    )}
+
+                    <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+                      <button
+                        type="button"
+                        onClick={() => setShowReceiptModal(true)}
+                        className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-white border border-emerald-300 text-emerald-800 hover:bg-emerald-100 font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer shadow-xs"
+                      >
+                        <Printer className="w-4 h-4" />
+                        <span>{lang === "rw" ? "Reba Inyemezabwishyu" : "View & Print Official Receipt"}</span>
+                      </button>
+
+                      <Link
+                        href="/owner/dashboard"
+                        className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-2 transition shadow-md"
+                      >
+                        <span>{lang === "rw" ? "Komeza kuri Dashboard yawe" : "Proceed to Partner Portal"}</span>
+                        <ArrowRight className="w-4 h-4" />
+                      </Link>
+                    </div>
+                  </div>
+                ) : (
+                  /* PENDING PAYMENT STATE */
+                  <div className="space-y-5">
+                    
+                    {/* Provider Selection */}
+                    <div>
+                      <label className="font-bold text-xs text-slate-800 block mb-2">
+                        {lang === "rw" ? "Hitamo Uburyo bwo Kwishyura:" : "Select Payment Provider:"}
+                      </label>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                        {[
+                          { id: "MTN_MOMO", name: "MTN Mobile Money", icon: Smartphone, color: "hover:border-yellow-400" },
+                          { id: "AIRTEL_MONEY", name: "Airtel Money", icon: Smartphone, color: "hover:border-red-400" },
+                          { id: "BANK_TRANSFER", name: "Bank of Kigali / Bank", icon: Building, color: "hover:border-blue-400" },
+                        ].map((prov) => {
+                          const isSel = selectedProvider === prov.id;
+                          const Icon = prov.icon;
+                          return (
+                            <button
+                              key={prov.id}
+                              type="button"
+                              onClick={() => {
+                                setSelectedProvider(prov.id);
+                                handleInitiatePayment(prov.id);
+                              }}
+                              className={`p-3 rounded-2xl border text-left transition cursor-pointer flex items-center gap-2.5 ${
+                                isSel
+                                  ? "border-emerald-600 bg-emerald-50/60 ring-2 ring-emerald-500/20"
+                                  : "border-slate-200 bg-white " + prov.color
+                              }`}
+                            >
+                              <div className={`p-2 rounded-xl ${isSel ? "bg-emerald-600 text-white" : "bg-slate-100 text-slate-700"}`}>
+                                <Icon className="w-4 h-4" />
+                              </div>
+                              <div className="min-w-0">
+                                <div className="font-bold text-xs text-slate-900 truncate">{prov.name}</div>
+                                <div className="text-[10px] text-slate-500">
+                                  {prov.id === "BANK_TRANSFER" ? "Bank Transfer / Slip" : "Instant USSD"}
+                                </div>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Payment Reference & Instructions */}
+                    <div className="p-5 rounded-2xl bg-slate-900 text-white space-y-4">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-3">
+                        <div>
+                          <div className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">
+                            Your Payment Reference (Required in Narration)
+                          </div>
+                          <div className="text-lg font-black font-mono text-emerald-400 flex items-center gap-2 mt-0.5">
+                            <span>{activePayment?.paymentReference || "Generating..."}</span>
+                            {activePayment?.paymentReference && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  navigator.clipboard.writeText(activePayment.paymentReference);
+                                  alert("Payment Reference copied to clipboard!");
+                                }}
+                                className="p-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white cursor-pointer"
+                                title="Copy Reference"
+                              >
+                                <Copy className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="text-right">
+                          <div className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Amount Due</div>
+                          <div className="text-xl font-black text-white">
+                            {paymentConfig?.fee?.amount ? paymentConfig.fee.amount.toLocaleString() : "5,000"} RWF
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Instructions */}
+                      <div className="space-y-2 text-xs">
+                        <div className="font-bold text-slate-300 text-[11px] uppercase tracking-wider">
+                          How to Pay:
+                        </div>
+                        {selectedProvider === "MTN_MOMO" && (
+                          <div className="space-y-1 text-slate-300 text-xs">
+                            <p>1. Dial <strong>*182*8*1*0788123456#</strong> or open MoMo app.</p>
+                            <p>2. Enter Amount: <strong>{paymentConfig?.fee?.amount || 5000} RWF</strong></p>
+                            <p>3. Enter Reference / Reason: <strong className="text-emerald-400 font-mono">{activePayment?.paymentReference}</strong></p>
+                            <p>4. Enter your MoMo PIN to complete payment.</p>
+                          </div>
+                        )}
+                        {selectedProvider === "AIRTEL_MONEY" && (
+                          <div className="space-y-1 text-slate-300 text-xs">
+                            <p>1. Dial <strong>*182*8*1*0733123456#</strong> or use Airtel Money.</p>
+                            <p>2. Enter Amount: <strong>{paymentConfig?.fee?.amount || 5000} RWF</strong></p>
+                            <p>3. Enter Reference: <strong className="text-emerald-400 font-mono">{activePayment?.paymentReference}</strong></p>
+                            <p>4. Confirm with Airtel Money PIN.</p>
+                          </div>
+                        )}
+                        {selectedProvider === "BANK_TRANSFER" && (
+                          <div className="space-y-1 text-slate-300 text-xs">
+                            <p>1. Transfer to <strong>Bank of Kigali</strong> Account: <strong>00040-06912345-67</strong></p>
+                            <p>2. Beneficiary: <strong>MOSA Network Ltd</strong></p>
+                            <p>3. In narration / description, enter: <strong className="text-emerald-400 font-mono">{activePayment?.paymentReference}</strong></p>
+                            <p className="text-slate-400 text-[11px]">Bank transfers will be activated as soon as reconciled by administration.</p>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Polling Indicator */}
+                      <div className="pt-2 border-t border-slate-800 flex items-center justify-between text-xs">
+                        <div className="flex items-center gap-2 text-slate-400">
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin text-emerald-400" />
+                          <span>Listening for payment confirmation...</span>
+                        </div>
+                        <button
+                          type="button"
+                          disabled={initiatingPayment}
+                          onClick={() => handleInitiatePayment()}
+                          className="text-[11px] text-emerald-400 hover:text-emerald-300 underline font-bold cursor-pointer"
+                        >
+                          Check Status
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Step Actions */}
+                    <div className="flex items-center justify-between pt-2">
+                      <Link
+                        href="/owner/dashboard"
+                        className="text-xs text-slate-500 hover:text-slate-800 underline font-medium"
+                      >
+                        {lang === "rw" ? "Kwishyura nyuma (Gana kuri Dashboard)" : "Pay later in Partner Portal"}
+                      </Link>
+
+                      <Link
+                        href="/owner/dashboard"
+                        className="px-5 py-2.5 rounded-xl bg-slate-900 hover:bg-black text-white font-bold text-xs flex items-center gap-2 shadow-xs transition"
+                      >
+                        <span>{lang === "rw" ? "Gana kuri Dashboard" : "Go to Partner Portal"}</span>
+                        <ArrowRight className="w-4 h-4" />
+                      </Link>
+                    </div>
+
+                  </div>
+                )}
+
+              </div>
+            )}
+
+            {/* RECEIPT MODAL FOR PARTNERS */}
+            {showReceiptModal && (
+              <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4">
+                <div className="bg-white rounded-3xl max-w-xl w-full p-8 shadow-2xl border border-slate-200 text-slate-900 space-y-6">
+                  <div className="flex items-start justify-between border-b border-slate-100 pb-4">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="w-7 h-7 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-black text-sm">
+                          M
+                        </span>
+                        <h3 className="font-black text-lg text-slate-900">MOSA OFFICIAL RECEIPT</h3>
+                      </div>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        Republic of Rwanda • Business Community Network
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowReceiptModal(false)}
+                      className="p-1 rounded-lg text-slate-400 hover:text-slate-600 cursor-pointer"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+
+                  {/* Receipt Paper */}
+                  <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 font-mono text-xs space-y-4">
+                    <div className="flex justify-between items-center border-b border-slate-200 pb-3">
+                      <div>
+                        <div className="text-[10px] text-slate-400 uppercase">Receipt Number</div>
+                        <div className="text-sm font-bold text-emerald-800">{confirmedReceipt?.receiptNumber || activePayment?.paymentReference}</div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-[10px] text-slate-400 uppercase">Issue Date</div>
+                        <div className="text-xs font-semibold text-slate-700">{new Date().toLocaleDateString()}</div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3 text-xs">
+                      <div>
+                        <div className="text-[10px] text-slate-400 uppercase">Business Entity</div>
+                        <div className="font-bold text-slate-900">{registeredBusinessName || formData.name}</div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] text-slate-400 uppercase">Proprietor</div>
+                        <div className="font-bold text-slate-900">{formData.ownerName}</div>
+                        <div className="text-slate-500 text-[11px]">{formData.phone}</div>
+                      </div>
+                    </div>
+
+                    <div className="border-t border-b border-slate-200 py-3 space-y-1">
+                      <div className="flex justify-between font-bold text-slate-900">
+                        <span>Description</span>
+                        <span>Amount</span>
+                      </div>
+                      <div className="flex justify-between text-slate-700">
+                        <span>MOSA Platform Business Registration & Activation Fee</span>
+                        <span>{paymentConfig?.fee?.amount || 5000} RWF</span>
+                      </div>
+                    </div>
+
+                    <div className="flex justify-between items-center font-bold text-sm text-slate-900">
+                      <span>TOTAL PAID</span>
+                      <span className="text-emerald-700">{paymentConfig?.fee?.amount || 5000} RWF</span>
+                    </div>
+
+                    <div className="pt-2 text-[10px] text-slate-500 border-t border-slate-200">
+                      Status: CONFIRMED &amp; ACTIVATED. Discoverable across Rwanda.
+                    </div>
+                  </div>
+
+                  <div className="flex justify-between items-center pt-2">
+                    <button
+                      type="button"
+                      onClick={() => window.print()}
+                      className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl flex items-center gap-1.5 transition cursor-pointer"
+                    >
+                      <Printer className="w-3.5 h-3.5" />
+                      <span>Print Receipt</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowReceiptModal(false)}
+                      className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition cursor-pointer"
+                    >
+                      Close
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
 
         {/* Bottom Link for Existing Owners */}
         <div className="text-center text-xs text-slate-500">

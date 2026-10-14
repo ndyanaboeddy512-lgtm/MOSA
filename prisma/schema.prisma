@@ -120,6 +120,8 @@ model User {
   changeHistories  BusinessChangeHistory[]
   locationsCaptured Business[]        @relation("LocationCapturedBy")
   locationsVerified Business[]        @relation("LocationVerifiedBy")
+  registrationPayments RegistrationPayment[] @relation("PayerPayments")
+  feeConfigsCreated    RegistrationFeeConfig[] @relation("AdminFeeConfigs")
 
   @@index([phone])
   @@index([email])
@@ -392,6 +394,8 @@ model Business {
   updates            BusinessUpdate[]
   opportunities      BusinessOpportunity[]
   inquiries          CustomerInquiry[]
+  registrationPayments RegistrationPayment[]
+  registrationReceipts RegistrationReceipt[]
 
   @@index([category])
   @@index([mainCategory])
@@ -1024,6 +1028,105 @@ model PlatformSettings {
   updatedBy          String?
   updatedAt          DateTime @updatedAt
   createdAt          DateTime @default(now())
+}
+
+// -------------------------------------------------------------
+// Registration Payments, Receipts & Dynamic Fee Configuration
+// -------------------------------------------------------------
+
+model RegistrationFeeConfig {
+  id            String    @id @default(cuid())
+  amount        Float     @default(5000) // Default 5,000 RWF
+  currency      String    @default("RWF")
+  effectiveFrom DateTime  @default(now())
+  effectiveTo   DateTime?
+  isActive      Boolean   @default(true)
+  reason        String?   @default("Standard Registration Fee")
+  adminId       String?
+  admin         User?     @relation("AdminFeeConfigs", fields: [adminId], references: [id])
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  payments      RegistrationPayment[]
+
+  @@index([isActive])
+  @@index([effectiveFrom])
+}
+
+model PaymentProviderConfig {
+  id              String   @id @default(cuid())
+  provider        String   @unique // "MTN_MOMO", "AIRTEL_MONEY", "BANK_TRANSFER"
+  name            String
+  isEnabled       Boolean  @default(true)
+  accountNumber   String?  // Till Number, Merchant Code, or Bank Account
+  accountName     String?  // Beneficiary Name (e.g. MOSA Global Ltd)
+  instructions    String?  // English instructions / USSD
+  instructionsRw  String?  // Kinyarwanda instructions
+  webhookSecret   String?  // Cryptographic HMAC secret
+  apiKeyEncrypted String?
+  updatedBy       String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([provider])
+}
+
+model RegistrationPayment {
+  id                     String                 @id @default(cuid())
+  businessId             String
+  business               Business               @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  payerUserId            String
+  payer                  User                   @relation("PayerPayments", fields: [payerUserId], references: [id])
+  feeConfigId            String?
+  feeConfig              RegistrationFeeConfig? @relation(fields: [feeConfigId], references: [id])
+  feeAmount              Float                  // Immutable snapshot of fee charged
+  currency               String                 @default("RWF")
+  provider               String                 // "MTN_MOMO", "AIRTEL_MONEY", "BANK_TRANSFER"
+  paymentReference       String                 @unique // e.g. "MOSA-REG-2026-XXXXX"
+  providerTransactionRef String?                @unique // External transaction ID from telco/bank
+  phoneNumber            String?                // MSISDN used for MoMo
+  status                 String                 @default("PENDING") // PENDING, CONFIRMED, FAILED, REFUNDED, DUPLICATE, UNMATCHED
+  failureReason          String?
+  verifiedAt             DateTime?
+  verifiedBy             String?                // "PROVIDER_WEBHOOK", "ADMIN_MANUAL", "API_CONFIRMATION"
+  rawCallbackPayload     String?                // Raw webhook JSON payload for audit
+  refundedAt             DateTime?
+  refundReason           String?
+  createdAt              DateTime               @default(now())
+  updatedAt              DateTime               @updatedAt
+
+  receipt                RegistrationReceipt?
+
+  @@index([businessId])
+  @@index([payerUserId])
+  @@index([status])
+  @@index([provider])
+  @@index([paymentReference])
+  @@index([providerTransactionRef])
+  @@index([createdAt])
+}
+
+model RegistrationReceipt {
+  id                     String              @id @default(cuid())
+  receiptNumber          String              @unique // e.g. "MOSA-REC-2026-00001"
+  paymentId              String              @unique
+  payment                RegistrationPayment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  businessId             String
+  business               Business            @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  businessName           String
+  ownerName              String
+  ownerPhone             String
+  amountPaid             Float
+  currency               String              @default("RWF")
+  paymentMethod          String
+  providerTransactionRef String?
+  issuedAt               DateTime            @default(now())
+  metadata               String?             // JSON snapshot of tax, business location, hash
+  createdAt              DateTime            @default(now())
+
+  @@index([businessId])
+  @@index([receiptNumber])
+  @@index([issuedAt])
 }
 
 

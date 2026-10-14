@@ -76,7 +76,14 @@ export async function GET(request: Request) {
     }
 
     // Calculate operational intelligence and fetch verification history + notifications
-    const [healthReport, reminders, verifications, notifications] = await Promise.all([
+    const [
+      healthReport,
+      reminders,
+      verifications,
+      notifications,
+      registrationReceipt,
+      registrationPayment,
+    ] = await Promise.all([
       calculateAndPersistBusinessHealth(business.id),
       syncAndGetBusinessReminders(business.id),
       prisma.verificationRecord.findMany({
@@ -88,6 +95,15 @@ export async function GET(request: Request) {
         where: { userId: auth.user.id },
         orderBy: { createdAt: "desc" },
         take: 10,
+      }),
+      prisma.registrationReceipt.findFirst({
+        where: { businessId: business.id },
+        orderBy: { issuedAt: "desc" },
+        include: { payment: true },
+      }),
+      prisma.registrationPayment.findFirst({
+        where: { businessId: business.id },
+        orderBy: { createdAt: "desc" },
       }),
     ]);
 
@@ -101,6 +117,9 @@ export async function GET(request: Request) {
       reminders,
       verifications,
       notifications,
+      receipt: (verifications as any)[0] ? undefined : undefined, // dummy reference
+      registrationReceipt,
+      registrationPayment,
     });
   } catch (error) {
     console.error("[Owner Business GET Error]:", error);
