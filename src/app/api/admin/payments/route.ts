@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { getRegistrationAndRenewalKPIs } from "@/lib/payments/renewals-engine";
 
 export async function GET(req: NextRequest) {
   try {
@@ -16,6 +17,8 @@ export async function GET(req: NextRequest) {
     const search = url.searchParams.get("search")?.trim() || "";
     const status = url.searchParams.get("status")?.trim() || "ALL";
     const provider = url.searchParams.get("provider")?.trim() || "ALL";
+    const paymentType = url.searchParams.get("paymentType")?.trim() || "ALL";
+    const renewalStatus = url.searchParams.get("renewalStatus")?.trim() || "ALL";
     const startDate = url.searchParams.get("startDate");
     const endDate = url.searchParams.get("endDate");
     const page = parseInt(url.searchParams.get("page") || "1", 10);
@@ -29,6 +32,14 @@ export async function GET(req: NextRequest) {
 
     if (provider !== "ALL") {
       where.provider = provider;
+    }
+
+    if (paymentType !== "ALL") {
+      where.paymentType = paymentType;
+    }
+
+    if (renewalStatus !== "ALL") {
+      where.business = { ...where.business, renewalStatus };
     }
 
     if (startDate || endDate) {
@@ -54,7 +65,7 @@ export async function GET(req: NextRequest) {
       ];
     }
 
-    const [totalCount, payments, allConfirmed] = await Promise.all([
+    const [totalCount, payments, renewalKPIs] = await Promise.all([
       prisma.registrationPayment.count({ where }),
       prisma.registrationPayment.findMany({
         where,
@@ -68,6 +79,11 @@ export async function GET(req: NextRequest) {
               name: true,
               phone: true,
               status: true,
+              renewalStatus: true,
+              registrationConfirmedAt: true,
+              registrationExpiresAt: true,
+              gracePeriodEndsAt: true,
+              isWaiver: true,
               verificationStatus: true,
               sector: true,
               district: true,
@@ -81,15 +97,19 @@ export async function GET(req: NextRequest) {
               },
             },
           },
-          receipt: true,
+          receipt: {
+            select: {
+              id: true,
+              receiptNumber: true,
+              receiptType: true,
+              periodCoveredStart: true,
+              periodCoveredEnd: true,
+              issuedAt: true,
+            },
+          },
         },
       }),
-      // Aggregate confirmed revenue
-      prisma.registrationPayment.aggregate({
-        where: { status: "CONFIRMED" },
-        _sum: { feeAmount: true },
-        _count: { id: true },
-      }),
+      getRegistrationAndRenewalKPIs(),
     ]);
 
     // Financial KPI summaries
@@ -99,26 +119,39 @@ export async function GET(req: NextRequest) {
       prisma.registrationPayment.count({ where: { status: "DUPLICATE" } }),
     ]);
 
-    const totalRevenue = allConfirmed._sum.feeAmount || 0;
-    const confirmedCount = allConfirmed._count.id || 0;
-
     // By provider breakdown
-    const mtnCount = await prisma.registrationPayment.count({ where: { provider: "MTN_MOMO", status: "CONFIRMED" } });
-    const airtelCount = await prisma.registrationPayment.count({ where: { provider: "AIRTEL_MONEY", status: "CONFIRMED" } });
-    const bankCount = await prisma.registrationPayment.count({ where: { provider: "BANK_TRANSFER", status: "CONFIRMED" } });
+    const [mtnCount, airtelCount, bankCount, waiverCount] = await Promise.all([
+      prisma.registrationPayment.count({ where: { provider: "MTN_MOMO", status: "CONFIRMED" } }),
+      prisma.registrationPayment.count({ where: { provider: "AIRTEL_MONEY", status: "CONFIRMED" } }),
+      prisma.registrationPayment.count({ where: { provider: "BANK_TRANSFER", status: "CONFIRMED" } }),
+      prisma.registrationPayment.count({ where: { provider: "ADMIN_WAIVER", status: "CONFIRMED" } }),
+    ]);
 
     return NextResponse.json({
       success: true,
       summary: {
-        totalRevenue,
-        confirmedCount,
+        totalRevenue: renewalKPIs.totalRevenue,
+        confirmedCount: renewalKPIs.initialRegistrations + renewalKPIs.renewalsCompleted,
         pendingCount,
         failedCount,
         duplicateCount,
+        renewalsDueSoon: renewalKPIs.renewalsDueSoon,
+        expiredRegistrations: renewalKPIs.expiredRegistrations,
+        inGracePeriod: renewalKPIs.inGracePeriod,
+        suspendedBusinesses: renewalKPIs.suspendedBusinesses,
+        waiverBusinesses: renewalKPIs.waiverBusinesses,
+        outstandingRenewals: renewalKPIs.outstandingRenewals,
+        activeRegistrations: renewalKPIs.activeRegistrations,
+        totalBusinesses: renewalKPIs.totalBusinesses,
+        activeRegistrationFee: renewalKPIs.activeRegistrationFee,
+        activeRenewalFee: renewalKPIs.activeRenewalFee,
+        gracePeriodDays: renewalKPIs.gracePeriodDays,
+        currency: renewalKPIs.currency,
         byProvider: {
           MTN_MOMO: mtnCount,
           AIRTEL_MONEY: airtelCount,
           BANK_TRANSFER: bankCount,
+          ADMIN_WAIVER: waiverCount,
         },
       },
       pagination: {
@@ -132,6 +165,14 @@ export async function GET(req: NextRequest) {
         businessId: p.businessId,
         businessName: p.business?.name || "N/A",
         businessStatus: p.business?.status || "UNKNOWN",
+        renewalStatus: (p.business as any)?.renewalStatus || "CURRENT",
+        registrationExpiresAt: (p.business as any)?.registrationExpiresAt || null,
+        gracePeriodEndsAt: (p.business as any)?.gracePeriodEndsAt || null,
+        isWaiver: p.isWaiver,
+        waiverReason: p.waiverReason,
+        paymentType: p.paymentType || "REGISTRATION",
+        periodCoveredStart: p.periodCoveredStart || p.receipt?.periodCoveredStart || null,
+        periodCoveredEnd: p.periodCoveredEnd || p.receipt?.periodCoveredEnd || null,
         verificationStatus: p.business?.verificationStatus || "UNVERIFIED",
         ownerName: p.business?.owner?.name || "N/A",
         ownerPhone: p.phoneNumber || p.business?.owner?.phone || p.business?.phone || "N/A",
@@ -147,6 +188,7 @@ export async function GET(req: NextRequest) {
         verifiedBy: p.verifiedBy,
         receiptId: p.receipt?.id || null,
         receiptNumber: p.receipt?.receiptNumber || null,
+        receiptType: p.receipt?.receiptType || p.paymentType || "REGISTRATION",
         createdAt: p.createdAt,
       })),
     });

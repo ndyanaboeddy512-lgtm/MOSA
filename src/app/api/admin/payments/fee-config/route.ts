@@ -64,24 +64,35 @@ export async function POST(req: NextRequest) {
     const { action } = body;
 
     if (action === "UPDATE_FEE") {
-      const { amount, currency = "RWF", reason } = body;
+      const {
+        amount,
+        renewalAmount,
+        gracePeriodDays,
+        reminderSchedule,
+        currency = "RWF",
+        reason,
+      } = body;
+
       if (amount === undefined || isNaN(Number(amount)) || Number(amount) < 0) {
         return NextResponse.json(
-          { success: false, error: "Valid non-negative amount is required." },
+          { success: false, error: "Valid non-negative registration fee amount is required." },
           { status: 400 }
         );
       }
 
       const updated = await updateRegistrationFeeConfig({
         amount: Number(amount),
+        renewalAmount: renewalAmount !== undefined ? Number(renewalAmount) : undefined,
+        gracePeriodDays: gracePeriodDays !== undefined ? Number(gracePeriodDays) : 7,
+        reminderSchedule: reminderSchedule || "30,14,7,0",
         currency: currency || "RWF",
-        reason: reason || "Fee adjusted by Administrator",
+        reason: reason || "Registration & Renewal Fee Settings updated by Administrator",
         adminId: currentUser.id,
       });
 
       return NextResponse.json({
         success: true,
-        message: `Registration fee updated to ${updated.amount} ${updated.currency}.`,
+        message: `Registration fee (${updated.amount} ${updated.currency}) and Renewal fee (${updated.renewalAmount} ${updated.currency}) successfully updated.`,
         config: updated,
       });
     }

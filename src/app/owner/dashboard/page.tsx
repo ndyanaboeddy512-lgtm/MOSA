@@ -62,6 +62,7 @@ import {
   Mail,
   Printer,
   CreditCard,
+  Building,
 } from "lucide-react";
 import { MosaMap } from "@/components/discovery/MosaMap";
 import { calculateLocationCompleteness, getGoogleMapsDirectionsUrl } from "@/lib/location-quality";
@@ -383,6 +384,42 @@ export default function OwnerDashboardPage() {
   const [registrationReceipt, setRegistrationReceipt] = useState<any>(null);
   const [registrationPayment, setRegistrationPayment] = useState<any>(null);
   const [ownerReceiptModalOpen, setOwnerReceiptModalOpen] = useState(false);
+
+  // Annual Registration Renewal State
+  const [ownerRenewModalOpen, setOwnerRenewModalOpen] = useState(false);
+  const [renewProvider, setRenewProvider] = useState<"MTN_MOMO" | "AIRTEL_MONEY" | "BANK_TRANSFER">("MTN_MOMO");
+  const [renewPhone, setRenewPhone] = useState("");
+  const [renewLoading, setRenewLoading] = useState(false);
+  const [renewPayment, setRenewPayment] = useState<any>(null);
+  const [renewError, setRenewError] = useState("");
+
+  const handleInitiateRenewal = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!business?.id) return;
+    setRenewLoading(true);
+    setRenewError("");
+    try {
+      const res = await fetch("/api/payments/renew", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          businessId: business.id,
+          provider: renewProvider,
+          phoneNumber: renewPhone.trim() || user?.phone || business.phone,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setRenewPayment(data);
+      } else {
+        setRenewError(data.error || "Failed to initiate renewal payment.");
+      }
+    } catch (err: any) {
+      setRenewError(err.message || "Failed to initiate renewal payment.");
+    } finally {
+      setRenewLoading(false);
+    }
+  };
 
   const handleDeleteAccount = async () => {
     if (deleteConfirmText.trim().toUpperCase() !== "DELETE") {
@@ -2038,7 +2075,115 @@ export default function OwnerDashboardPage() {
         </div>
       )}
 
-      {/* Registration Payment & Official Legal Receipt Banner */}
+      {/* Annual Registration Renewal & Lifecycle Status Banners */}
+      {business?.renewalStatus === "SUSPENDED" ? (
+        <div className="p-4 rounded-2xl bg-rose-50 border border-rose-300 text-rose-950 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center shrink-0 border border-rose-200">
+              <AlertTriangle className="w-5 h-5 text-rose-600" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-black text-xs sm:text-sm text-rose-900">
+                  {lang === "rw" ? "Kwiyandikisha Kwarahagaze — Hakenewe Ivugurura" : "Business Registration Suspended — Action Required"}
+                </span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-200 text-rose-900">
+                  SUSPENDED
+                </span>
+              </div>
+              <p className="text-rose-800 text-[11px] mt-0.5">
+                {lang === "rw"
+                  ? "Igihe cy'umwaka cyararangiye kandi n'iminsi y'imbabazi yarashize. Kwamamaza no guhindura amakuru byahagaritswe by'agateganyo kugeza ivugurura ryishyuwe."
+                  : "Your 12-month registration and grace period have expired. Public search discovery and profile updates are paused until registration is renewed."}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setOwnerRenewModalOpen(true);
+              setRenewPayment(null);
+              setRenewError("");
+            }}
+            className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-xs transition cursor-pointer shrink-0"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            <span>{lang === "rw" ? "Vugurura Kwiyandikisha (5,000 RWF)" : "Renew Registration (5,000 RWF)"}</span>
+          </button>
+        </div>
+      ) : business?.renewalStatus === "GRACE_PERIOD" ? (
+        <div className="p-4 rounded-2xl bg-orange-50 border border-orange-300 text-orange-950 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-orange-100 text-orange-700 flex items-center justify-center shrink-0 border border-orange-200">
+              <Clock className="w-5 h-5 text-orange-600" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-black text-xs sm:text-sm text-orange-900">
+                  {lang === "rw" ? "Kwiyandikisha Byarenze Igihe — Iminsi y'Imbabazi Irakora" : "Registration Overdue — Grace Period Active"}
+                </span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-orange-200 text-orange-900">
+                  GRACE PERIOD
+                </span>
+              </div>
+              <p className="text-orange-800 text-[11px] mt-0.5">
+                {lang === "rw"
+                  ? `Kwiyandikisha kw'ubucuruzi byararangiye. Nyamuneka vugurura mbere y'uko iminsi y'imbabazi irangira (${business?.gracePeriodEndsAt ? new Date(business.gracePeriodEndsAt).toLocaleDateString() : "mu minsi 7"}) kugira ngo ubucuruzi budahagarara.`
+                  : `Your 12-month registration has expired. Please renew before the grace period ends (${business?.gracePeriodEndsAt ? new Date(business.gracePeriodEndsAt).toLocaleDateString() : "within 7 days"}) to avoid public suspension.`}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setOwnerRenewModalOpen(true);
+              setRenewPayment(null);
+              setRenewError("");
+            }}
+            className="px-4 py-2 rounded-xl bg-orange-600 hover:bg-orange-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-xs transition cursor-pointer shrink-0"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            <span>{lang === "rw" ? "Vugurura Nonaha (5,000 RWF)" : "Renew Now (5,000 RWF)"}</span>
+          </button>
+        </div>
+      ) : business?.renewalStatus === "DUE_SOON" ? (
+        <div className="p-4 rounded-2xl bg-amber-50 border border-amber-300 text-amber-950 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0 border border-amber-200">
+              <Clock className="w-5 h-5 text-amber-600" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-xs sm:text-sm text-amber-900">
+                  {lang === "rw" ? "Ivugurura ry'Umwaka Riregereje" : "Annual Registration Renewal Due Soon"}
+                </span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-200 text-amber-900">
+                  DUE SOON
+                </span>
+              </div>
+              <p className="text-amber-800 text-[11px] mt-0.5">
+                {lang === "rw"
+                  ? `Kwiyandikisha kwawe kuzarangira kuya ${business?.registrationExpiresAt ? new Date(business.registrationExpiresAt).toLocaleDateString() : "mu minsi mike"}. Vugurura hakiri kare kugira ngo ukomeze kugaragara kuri MOSA.`
+                  : `Your 12-month registration expires on ${business?.registrationExpiresAt ? new Date(business.registrationExpiresAt).toLocaleDateString() : "soon"}. Renew early to ensure uninterrupted public discovery.`}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setOwnerRenewModalOpen(true);
+              setRenewPayment(null);
+              setRenewError("");
+            }}
+            className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-xs transition cursor-pointer shrink-0"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            <span>{lang === "rw" ? "Vugurura (5,000 RWF)" : "Renew Early (5,000 RWF)"}</span>
+          </button>
+        </div>
+      ) : null}
+
+      {/* Confirmed Registration & Official Receipt Banner */}
       {registrationReceipt ? (
         <div className="p-4 rounded-2xl bg-white border border-emerald-200/90 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-3">
@@ -2053,21 +2198,33 @@ export default function OwnerDashboardPage() {
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800">
                   PAID ({registrationReceipt.amountPaid?.toLocaleString()} {registrationReceipt.currency})
                 </span>
+                {business?.registrationExpiresAt && (
+                  <span className="hidden sm:inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+                    Valid to {new Date(business.registrationExpiresAt).toLocaleDateString()}
+                  </span>
+                )}
               </div>
               <p className="text-slate-500 text-[11px] font-mono mt-0.5">
                 Receipt #{registrationReceipt.receiptNumber} • Issued {new Date(registrationReceipt.issuedAt).toLocaleDateString()}
+                {business?.registrationExpiresAt && (
+                  <span className="sm:hidden ml-2 text-emerald-700 font-sans font-medium">
+                    (Expires {new Date(business.registrationExpiresAt).toLocaleDateString()})
+                  </span>
+                )}
               </p>
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={() => setOwnerReceiptModalOpen(true)}
-            className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-xs transition cursor-pointer shrink-0"
-          >
-            <Printer className="w-3.5 h-3.5" />
-            <span>{lang === "rw" ? "Reba Inyemezabwishyu" : "View & Print Official Receipt"}</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setOwnerReceiptModalOpen(true)}
+              className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-xs transition cursor-pointer shrink-0"
+            >
+              <Printer className="w-3.5 h-3.5" />
+              <span>{lang === "rw" ? "Reba Inyemezabwishyu" : "View & Print Receipt"}</span>
+            </button>
+          </div>
         </div>
       ) : registrationPayment?.status === "PENDING" ? (
         <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
@@ -7628,9 +7785,22 @@ export default function OwnerDashboardPage() {
                   <span>Amount</span>
                 </div>
                 <div className="flex justify-between text-slate-700">
-                  <span>MOSA Platform Business Registration &amp; Activation Fee</span>
+                  <span>
+                    {registrationReceipt.receiptType === "ANNUAL_RENEWAL"
+                      ? "MOSA 12-Month Annual Registration Renewal"
+                      : registrationReceipt.receiptType === "ADMIN_WAIVER"
+                      ? "MOSA Administrative Registration Waiver"
+                      : "MOSA Platform Business Registration & Activation Fee"}
+                  </span>
                   <span>{registrationReceipt.amountPaid?.toLocaleString()} {registrationReceipt.currency}</span>
                 </div>
+                {registrationReceipt.periodCoveredStart && registrationReceipt.periodCoveredEnd && (
+                  <div className="text-[11px] text-emerald-800 bg-emerald-50/70 p-2 rounded-lg border border-emerald-200 my-1">
+                    <strong>12-Month Coverage:</strong>{" "}
+                    {new Date(registrationReceipt.periodCoveredStart).toLocaleDateString()} to{" "}
+                    {new Date(registrationReceipt.periodCoveredEnd).toLocaleDateString()}
+                  </div>
+                )}
                 <div className="flex justify-between text-slate-500 text-[11px]">
                   <span>Channel: {registrationReceipt.paymentMethod}</span>
                   <span>Ext Ref: {registrationReceipt.providerTransactionRef || "N/A"}</span>
@@ -7664,6 +7834,210 @@ export default function OwnerDashboardPage() {
                 Close
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Annual Registration Renewal Checkout Modal */}
+      {ownerRenewModalOpen && business && (
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 text-slate-900 space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center border border-emerald-200">
+                  <RefreshCw className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base text-slate-900">
+                    {lang === "rw" ? "Kuvugurura Kwiyandikisha ku Mwaka" : "Annual Registration Renewal"}
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    {lang === "rw" ? "Kongera umwaka 1 w'ubucuruzi bwawe kuri MOSA" : "Extend your nationwide verified business listing for 12 months"}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setOwnerRenewModalOpen(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Business & Fee Summary Card */}
+            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 text-xs space-y-2">
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500">Business Name:</span>
+                <span className="font-bold text-slate-900">{business.name}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500">Coverage Duration:</span>
+                <span className="font-bold text-emerald-700">+12 Months (365 Days)</span>
+              </div>
+              <div className="flex justify-between items-center border-t border-slate-200 pt-2">
+                <span className="font-bold text-slate-700">Annual Renewal Fee:</span>
+                <span className="text-base font-black text-emerald-800">5,000 RWF</span>
+              </div>
+            </div>
+
+            {renewError && (
+              <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-bold flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                <span>{renewError}</span>
+              </div>
+            )}
+
+            {!renewPayment ? (
+              <form onSubmit={handleInitiateRenewal} className="space-y-4 text-xs">
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">
+                    Select Payment Method / Hitamo Uburyo bwo Kwishyura
+                  </label>
+                  <div className="grid grid-cols-3 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setRenewProvider("MTN_MOMO")}
+                      className={`p-3 rounded-xl border text-center transition cursor-pointer flex flex-col items-center gap-1 ${
+                        renewProvider === "MTN_MOMO"
+                          ? "border-yellow-500 bg-yellow-50/70 font-bold text-yellow-900"
+                          : "border-slate-200 hover:border-slate-300 text-slate-700"
+                      }`}
+                    >
+                      <Smartphone className="w-4 h-4 text-yellow-600" />
+                      <span className="text-[11px]">MTN MoMo</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setRenewProvider("AIRTEL_MONEY")}
+                      className={`p-3 rounded-xl border text-center transition cursor-pointer flex flex-col items-center gap-1 ${
+                        renewProvider === "AIRTEL_MONEY"
+                          ? "border-rose-500 bg-rose-50/70 font-bold text-rose-900"
+                          : "border-slate-200 hover:border-slate-300 text-slate-700"
+                      }`}
+                    >
+                      <Smartphone className="w-4 h-4 text-rose-600" />
+                      <span className="text-[11px]">Airtel Money</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setRenewProvider("BANK_TRANSFER")}
+                      className={`p-3 rounded-xl border text-center transition cursor-pointer flex flex-col items-center gap-1 ${
+                        renewProvider === "BANK_TRANSFER"
+                          ? "border-blue-500 bg-blue-50/70 font-bold text-blue-900"
+                          : "border-slate-200 hover:border-slate-300 text-slate-700"
+                      }`}
+                    >
+                      <Building className="w-4 h-4 text-blue-600" />
+                      <span className="text-[11px]">Bank Transfer</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">
+                    Your Phone Number (For payment receipt &amp; SMS)
+                  </label>
+                  <input
+                    type="tel"
+                    required
+                    value={renewPhone}
+                    onChange={(e) => setRenewPhone(e.target.value)}
+                    placeholder={business.phone || user?.phone || "0788..."}
+                    className="w-full p-2.5 rounded-xl border border-slate-200 font-mono text-xs focus:outline-emerald-500"
+                  />
+                </div>
+
+                <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => setOwnerRenewModalOpen(false)}
+                    className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 text-xs font-bold cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={renewLoading}
+                    className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-xs cursor-pointer disabled:opacity-60 flex items-center gap-1.5"
+                  >
+                    {renewLoading ? (
+                      <>
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        <span>Generating Ref...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Check className="w-3.5 h-3.5" />
+                        <span>Proceed to Pay (5,000 RWF)</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            ) : (
+              /* Step 2: Payment Reference & Instructions */
+              <div className="space-y-4 text-xs">
+                <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-2xl space-y-2">
+                  <div className="text-[10px] text-emerald-800 font-bold uppercase tracking-wider">
+                    Your Unique Renewal Reference
+                  </div>
+                  <div className="flex items-center justify-between bg-white p-3 rounded-xl border border-emerald-300">
+                    <span className="font-mono font-black text-sm text-emerald-950">
+                      {renewPayment.paymentReference}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard?.writeText(renewPayment.paymentReference);
+                        alert("Reference copied to clipboard!");
+                      }}
+                      className="text-xs font-bold text-emerald-700 hover:text-emerald-900 cursor-pointer"
+                    >
+                      Copy
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-emerald-800 font-medium">
+                    Please use this exact reference in the reason / remark field of your payment.
+                  </p>
+                </div>
+
+                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2 text-xs">
+                  <div className="font-bold text-slate-800">
+                    {renewProvider === "BANK_TRANSFER" ? "Bank Transfer Details:" : "Mobile Money Payment Instructions:"}
+                  </div>
+                  <p className="text-slate-600 whitespace-pre-line leading-relaxed">
+                    {renewPayment.instructions || "Send 5,000 RWF via Mobile Money or Bank and enter the reference above."}
+                  </p>
+                </div>
+
+                <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => setRenewPayment(null)}
+                    className="text-xs font-bold text-slate-500 hover:text-slate-700 cursor-pointer"
+                  >
+                    ← Change Method
+                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        await loadOwnerData();
+                        alert("Checked payment status. If your payment was confirmed, your business is now active!");
+                        setOwnerRenewModalOpen(false);
+                      }}
+                      className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-xs cursor-pointer flex items-center gap-1.5"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" />
+                      <span>Check Status &amp; Finish</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

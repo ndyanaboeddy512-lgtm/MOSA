@@ -279,6 +279,14 @@ export interface Business {
   updates?: BusinessUpdateRecord[];
   opportunities?: BusinessOpportunityRecord[];
   media?: BusinessMedia[];
+  // Annual Registration & Renewal lifecycle fields
+  registrationConfirmedAt?: string;
+  registrationExpiresAt?: string;
+  renewalStatus?: "CURRENT" | "DUE_SOON" | "EXPIRED" | "GRACE_PERIOD" | "SUSPENDED" | string;
+  gracePeriodEndsAt?: string;
+  renewalCount?: number;
+  lastRenewalAt?: string;
+  isWaiver?: boolean;
   createdAt: string;
   updatedAt: string;
 }

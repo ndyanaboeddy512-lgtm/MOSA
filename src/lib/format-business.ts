@@ -199,6 +199,14 @@ export function formatBusinessRecord(raw: any): Business {
     isClaimed: Boolean(raw.isClaimed || raw.ownerId),
     status: raw.status || "ACTIVE",
     ownerId: raw.ownerId || raw.claimedByUserId || undefined,
+    // Annual Registration & Renewal lifecycle fields
+    registrationConfirmedAt: raw.registrationConfirmedAt ? new Date(raw.registrationConfirmedAt).toISOString() : undefined,
+    registrationExpiresAt: raw.registrationExpiresAt ? new Date(raw.registrationExpiresAt).toISOString() : undefined,
+    renewalStatus: raw.renewalStatus || undefined,
+    gracePeriodEndsAt: raw.gracePeriodEndsAt ? new Date(raw.gracePeriodEndsAt).toISOString() : undefined,
+    renewalCount: typeof raw.renewalCount === "number" ? raw.renewalCount : 0,
+    lastRenewalAt: raw.lastRenewalAt ? new Date(raw.lastRenewalAt).toISOString() : undefined,
+    isWaiver: Boolean(raw.isWaiver),
     featuredOffer: raw.featuredOffer || (Array.isArray(raw.offers) && raw.offers.length > 0 ? {
       id: raw.offers[0].id,
       title: raw.offers[0].title,

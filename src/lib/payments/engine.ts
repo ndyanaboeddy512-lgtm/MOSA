@@ -320,13 +320,24 @@ export async function confirmPaymentAndActivateBusiness({
     }
   }
 
-  // 4. Generate unique numbered receipt
+  // 4. Calculate 12-month validity period
+  const isRenewal = payment.paymentType === "ANNUAL_RENEWAL";
+  const now = new Date();
+  let periodStart = now;
+  let periodEnd = new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000);
+
+  if (isRenewal && payment.business.registrationExpiresAt && new Date(payment.business.registrationExpiresAt) > now) {
+    periodStart = new Date(payment.business.registrationExpiresAt);
+    periodEnd = new Date(periodStart.getTime() + 365 * 24 * 60 * 60 * 1000);
+  }
+
+  // 5. Generate unique numbered receipt
   const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, "");
   const receiptCount = await prisma.registrationReceipt.count();
   const seqNum = String(receiptCount + 1).padStart(5, "0");
   const receiptNumber = `MOSA-REC-${dateStr}-${seqNum}`;
 
-  // 5. Execute atomic transaction: update payment, create receipt, activate business
+  // 6. Execute atomic transaction: update payment, create receipt, activate/renew business
   const result = await prisma.$transaction(async (tx) => {
     // Update payment record
     const updatedPayment = await tx.registrationPayment.update({
@@ -334,6 +345,8 @@ export async function confirmPaymentAndActivateBusiness({
       data: {
         status: "CONFIRMED",
         providerTransactionRef: providerTransactionRef || null,
+        periodCoveredStart: periodStart,
+        periodCoveredEnd: periodEnd,
         verifiedAt: new Date(),
         verifiedBy,
         rawCallbackPayload: rawPayload || null,
@@ -352,29 +365,40 @@ export async function confirmPaymentAndActivateBusiness({
         amountPaid: payment.feeAmount,
         currency: payment.currency,
         paymentMethod: payment.provider,
+        receiptType: payment.paymentType || (isRenewal ? "ANNUAL_RENEWAL" : "REGISTRATION"),
+        periodCoveredStart: periodStart,
+        periodCoveredEnd: periodEnd,
         providerTransactionRef: providerTransactionRef || null,
         metadata: JSON.stringify({
           sector: payment.business.sector,
           district: payment.business.district,
           verifiedBy,
           paymentReference: payment.paymentReference,
+          periodCoveredStart: periodStart,
+          periodCoveredEnd: periodEnd,
         }),
       },
     });
 
-    // Automatically transition business to ACTIVE so it is immediately discoverable
-    // VerificationStatus is intentionally NOT changed (kept separate)
+    // Automatically transition business to ACTIVE and renewalStatus to CURRENT
+    // Calculates and extends 12-month validity
     const updatedBusiness = await tx.business.update({
       where: { id: payment.businessId },
       data: {
         status: "ACTIVE",
+        renewalStatus: "CURRENT",
+        registrationConfirmedAt: payment.business.registrationConfirmedAt || now,
+        registrationExpiresAt: periodEnd,
+        gracePeriodEndsAt: null,
+        renewalCount: { increment: isRenewal ? 1 : 0 },
+        lastRenewalAt: isRenewal ? now : undefined,
       },
     });
 
     // Create persistent audit log
     await tx.auditLog.create({
       data: {
-        action: "PAYMENT_CONFIRMED_BUSINESS_ACTIVATED",
+        action: isRenewal ? "ANNUAL_RENEWAL_CONFIRMED" : "PAYMENT_CONFIRMED_BUSINESS_ACTIVATED",
         entityType: "Business",
         entityId: payment.businessId,
         metadata: JSON.stringify({
@@ -383,8 +407,11 @@ export async function confirmPaymentAndActivateBusiness({
           receiptNumber: receipt.receiptNumber,
           feeAmount: payment.feeAmount,
           provider,
+          paymentType: payment.paymentType,
           providerTransactionRef,
           verifiedBy,
+          periodCoveredStart: periodStart,
+          periodCoveredEnd: periodEnd,
           businessPreviousStatus: payment.business.status,
           businessNewStatus: "ACTIVE",
         }),
@@ -397,6 +424,20 @@ export async function confirmPaymentAndActivateBusiness({
       business: updatedBusiness,
     };
   }, { timeout: 25000, maxWait: 15000 });
+
+  // 7. Dispatch in-app notification to business owner
+  if (payment.business.ownerId) {
+    await prisma.notification.create({
+      data: {
+        userId: payment.business.ownerId,
+        title: isRenewal ? "Annual Renewal Confirmed" : "Registration Payment Confirmed",
+        message: isRenewal
+          ? `Your annual renewal for ${payment.business.name} has been confirmed. Your listing is active until ${periodEnd.toLocaleDateString()}. Receipt: ${result.receipt.receiptNumber}`
+          : `Registration payment for ${payment.business.name} is confirmed and your business is now active! Receipt: ${result.receipt.receiptNumber}`,
+        type: "SYSTEM",
+      },
+    }).catch(() => null);
+  }
 
   return {
     success: true,
@@ -448,17 +489,26 @@ export async function adminConfirmPayment({
  */
 export async function updateRegistrationFeeConfig({
   amount,
+  renewalAmount,
+  gracePeriodDays = 7,
+  reminderSchedule = "30,14,7,0",
   currency = "RWF",
   reason,
   adminId,
 }: {
   amount: number;
+  renewalAmount?: number;
+  gracePeriodDays?: number;
+  reminderSchedule?: string;
   currency?: string;
   reason: string;
   adminId: string;
 }) {
   if (amount < 0) {
     throw new Error("Registration fee cannot be negative.");
+  }
+  if (renewalAmount !== undefined && renewalAmount < 0) {
+    throw new Error("Renewal fee cannot be negative.");
   }
 
   return await prisma.$transaction(async (tx) => {
@@ -475,6 +525,9 @@ export async function updateRegistrationFeeConfig({
     const newConfig = await tx.registrationFeeConfig.create({
       data: {
         amount,
+        renewalAmount: renewalAmount !== undefined ? renewalAmount : amount,
+        gracePeriodDays: gracePeriodDays > 0 ? gracePeriodDays : 7,
+        reminderSchedule: reminderSchedule || "30,14,7,0",
         currency,
         reason,
         adminId,
@@ -487,11 +540,14 @@ export async function updateRegistrationFeeConfig({
     await tx.auditLog.create({
       data: {
         actorId: adminId,
-        action: "REGISTRATION_FEE_UPDATED",
+        action: "REGISTRATION_AND_RENEWAL_FEE_UPDATED",
         entityType: "RegistrationFeeConfig",
         entityId: newConfig.id,
         metadata: JSON.stringify({
-          newAmount: amount,
+          registrationAmount: amount,
+          renewalAmount: newConfig.renewalAmount,
+          gracePeriodDays: newConfig.gracePeriodDays,
+          reminderSchedule: newConfig.reminderSchedule,
           currency,
           reason,
         }),
@@ -499,7 +555,7 @@ export async function updateRegistrationFeeConfig({
     });
 
     return newConfig;
-  });
+  }, { timeout: 25000, maxWait: 15000 });
 }
 
 /**

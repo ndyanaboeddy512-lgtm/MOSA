@@ -370,6 +370,18 @@ model Business {
   claimedAt          DateTime?
   claimPhone         String?
   isClaimed          Boolean            @default(false)
+
+  // Annual Registration & Renewal Lifecycle
+  registrationConfirmedAt DateTime?
+  registrationExpiresAt   DateTime?
+  renewalStatus           String    @default("CURRENT") // CURRENT, DUE_SOON, EXPIRED, GRACE_PERIOD, SUSPENDED
+  gracePeriodEndsAt       DateTime?
+  renewalCount            Int       @default(0)
+  lastRenewalAt           DateTime?
+  isWaiver                Boolean   @default(false)
+  waiverReason            String?
+  waiverGrantedByAdminId  String?
+  waiverGrantedAt         DateTime?
   
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @updatedAt
@@ -396,8 +408,11 @@ model Business {
   inquiries          CustomerInquiry[]
   registrationPayments RegistrationPayment[]
   registrationReceipts RegistrationReceipt[]
+  renewalNotificationLogs RenewalNotificationLog[]
 
   @@index([category])
+  @@index([renewalStatus])
+  @@index([registrationExpiresAt])
   @@index([mainCategory])
   @@index([subCategory])
   @@index([businessType])
@@ -1035,19 +1050,22 @@ model PlatformSettings {
 // -------------------------------------------------------------
 
 model RegistrationFeeConfig {
-  id            String    @id @default(cuid())
-  amount        Float     @default(5000) // Default 5,000 RWF
-  currency      String    @default("RWF")
-  effectiveFrom DateTime  @default(now())
-  effectiveTo   DateTime?
-  isActive      Boolean   @default(true)
-  reason        String?   @default("Standard Registration Fee")
-  adminId       String?
-  admin         User?     @relation("AdminFeeConfigs", fields: [adminId], references: [id])
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id               String    @id @default(cuid())
+  amount           Float     @default(5000) // Default 5,000 RWF Registration Fee
+  renewalAmount    Float?    @default(5000) // Default 5,000 RWF Annual Renewal Fee
+  gracePeriodDays  Int       @default(7)    // Default 7-day grace period
+  reminderSchedule String?   @default("30,14,7,0") // Reminders in days before expiry
+  currency         String    @default("RWF")
+  effectiveFrom    DateTime  @default(now())
+  effectiveTo      DateTime?
+  isActive         Boolean   @default(true)
+  reason           String?   @default("Standard Registration Fee")
+  adminId          String?
+  admin            User?     @relation("AdminFeeConfigs", fields: [adminId], references: [id])
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
-  payments      RegistrationPayment[]
+  payments         RegistrationPayment[]
 
   @@index([isActive])
   @@index([effectiveFrom])
@@ -1081,14 +1099,20 @@ model RegistrationPayment {
   feeConfig              RegistrationFeeConfig? @relation(fields: [feeConfigId], references: [id])
   feeAmount              Float                  // Immutable snapshot of fee charged
   currency               String                 @default("RWF")
-  provider               String                 // "MTN_MOMO", "AIRTEL_MONEY", "BANK_TRANSFER"
-  paymentReference       String                 @unique // e.g. "MOSA-REG-2026-XXXXX"
+  provider               String                 // "MTN_MOMO", "AIRTEL_MONEY", "BANK_TRANSFER", "ADMIN_WAIVER"
+  paymentType            String                 @default("REGISTRATION") // "REGISTRATION", "ANNUAL_RENEWAL", "ADMIN_WAIVER"
+  periodCoveredStart     DateTime?
+  periodCoveredEnd       DateTime?
+  isWaiver               Boolean                @default(false)
+  waiverReason           String?
+  waiverAdminId          String?
+  paymentReference       String                 @unique // e.g. "MOSA-REG-2026-XXXXX", "MOSA-REN-2026-XXXXX"
   providerTransactionRef String?                @unique // External transaction ID from telco/bank
   phoneNumber            String?                // MSISDN used for MoMo
   status                 String                 @default("PENDING") // PENDING, CONFIRMED, FAILED, REFUNDED, DUPLICATE, UNMATCHED
   failureReason          String?
   verifiedAt             DateTime?
-  verifiedBy             String?                // "PROVIDER_WEBHOOK", "ADMIN_MANUAL", "API_CONFIRMATION"
+  verifiedBy             String?                // "PROVIDER_WEBHOOK", "ADMIN_MANUAL", "API_CONFIRMATION", "ADMIN_WAIVER"
   rawCallbackPayload     String?                // Raw webhook JSON payload for audit
   refundedAt             DateTime?
   refundReason           String?
@@ -1101,6 +1125,7 @@ model RegistrationPayment {
   @@index([payerUserId])
   @@index([status])
   @@index([provider])
+  @@index([paymentType])
   @@index([paymentReference])
   @@index([providerTransactionRef])
   @@index([createdAt])
@@ -1119,6 +1144,9 @@ model RegistrationReceipt {
   amountPaid             Float
   currency               String              @default("RWF")
   paymentMethod          String
+  receiptType            String              @default("REGISTRATION") // "REGISTRATION", "ANNUAL_RENEWAL", "ADMIN_WAIVER"
+  periodCoveredStart     DateTime?
+  periodCoveredEnd       DateTime?
   providerTransactionRef String?
   issuedAt               DateTime            @default(now())
   metadata               String?             // JSON snapshot of tax, business location, hash
@@ -1126,7 +1154,25 @@ model RegistrationReceipt {
 
   @@index([businessId])
   @@index([receiptNumber])
+  @@index([receiptType])
   @@index([issuedAt])
+}
+
+model RenewalNotificationLog {
+  id           String   @id @default(cuid())
+  businessId   String
+  business     Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  stage        String   // "REMINDER_30D", "WARNING_14D", "URGENT_7D", "EXPIRED_0D", "OVERDUE_GRACE", "SUSPENDED", "RENEWAL_CONFIRMED"
+  channel      String   // "EMAIL", "IN_APP", "SMS"
+  recipient    String
+  status       String   @default("SENT") // "SENT", "FAILED"
+  errorMessage String?
+  sentAt       DateTime @default(now())
+
+  @@unique([businessId, stage, channel])
+  @@index([businessId])
+  @@index([stage])
+  @@index([sentAt])
 }
 
 

@@ -172,6 +172,20 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: "Forbidden: You do not own this business" }, { status: 403 });
     }
 
+    // Automatic Enforcement: Block updates if business is suspended due to expired annual registration
+    if (existing.renewalStatus === "SUSPENDED" && auth.user.role !== Role.SUPER_ADMIN) {
+      return NextResponse.json(
+        {
+          error: "Your business registration is suspended due to an expired annual renewal. Profile updates and public visibility are paused until registration is renewed.",
+          code: "REGISTRATION_SUSPENDED",
+          renewalStatus: existing.renewalStatus,
+          registrationExpiresAt: existing.registrationExpiresAt,
+          isSuspended: true,
+        },
+        { status: 403 }
+      );
+    }
+
     // 1-Click "Keep My Business Alive" Confirmation Action
     if (action === "CONFIRM_ALIVE") {
       const result = await confirmBusinessInformation(businessId, auth.user.id, auth.user.role);
