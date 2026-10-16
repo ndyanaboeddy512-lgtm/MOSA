@@ -1,0 +1,21 @@
+<resources>
+    <string name="app_name">MOSA Payment Bridge</string>
+    <string name="pairing_title">Enroll Payment Terminal</string>
+    <string name="pairing_desc">Enter the 8-character pairing code generated in the MOSA Command Center to pair this Android phone.</string>
+    <string name="pairing_code_hint">e.g. D07A-6B90</string>
+    <string name="server_url_hint">https://mosa.rw</string>
+    <string name="btn_pair">Pair Device &amp; Activate Terminal</string>
+    <string name="pairing_loading">Pairing with MOSA Backend...</string>
+
+    <string name="dashboard_title">MOSA Payment Terminal</string>
+    <string name="status_active">CONNECTED &amp; ACTIVE</string>
+    <string name="status_revoked">TERMINAL REVOKED</string>
+    <string name="status_offline">OFFLINE (QUEUED)</string>
+    <string name="btn_sync_now">Synchronize Now</string>
+    <string name="btn_test_sms">Simulate MoMo Payment</string>
+    <string name="btn_unpair">Unpair Terminal</string>
+    <string name="battery_label">Battery: %1$d%% (%2$s)</string>
+    <string name="pending_label">Pending In Queue: %d</string>
+    <string name="synced_label">Confirmed Synced: %d</string>
+    <string name="last_sync_label">Last Sync: %s</string>
+</resources>

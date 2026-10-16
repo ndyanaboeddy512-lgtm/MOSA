@@ -57,8 +57,8 @@ export const rw = {
   },
   hero: {
     headline: "Vumbura ibyo umuryango wawe wari usanganywe.",
-    subheadline: "Ubucuruzi bwemejwe, abanyamwuga, n'ubukorikori ku isi yose—bwahanzwe mu Rwanda, biboneka ku ikoranabuhanga bifite imyirondoro n'ibiciro by'ukuri.",
-    communityBadge: "Ahantu Hose ku Isi • Amavu n'Amavuko mu Rwanda",
+    subheadline: "Ubucuruzi bwemejwe, abanyamwuga, n'ubukorikori ku isi yose, biboneka ku ikoranabuhanga bifite imyirondoro n'ibiciro by'ukuri.",
+    communityBadge: "Urubuga Rwigenga rw'Ubucuruzi n'Abanyamyuga",
     stats: {
       businesses: "Ubucuruzi Buto 120+",
       agents: "Abakozi b'Umuryango 18",

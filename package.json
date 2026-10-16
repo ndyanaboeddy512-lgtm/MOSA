@@ -2,7 +2,7 @@
   "name": "mosa",
   "version": "1.0.0",
   "private": true,
-  "description": "MOSA — Micro-Opportunity & Service Access: Rwanda's Community Commerce Discovery Network",
+  "description": "MOSA — Micro-Opportunity & Service Access: Global Community Commerce Discovery Network",
   "scripts": {
     "dev": "next dev",
     "build": "prisma generate && next build",

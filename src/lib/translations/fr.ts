@@ -57,8 +57,8 @@ export const fr = {
   },
   hero: {
     headline: "Découvrez ce que votre communauté possède déjà.",
-    subheadline: "Entreprises vérifiées, corps de métier et artisans du monde entier—né au Rwanda, découvrable avec adresses géolocalisées et prix réels.",
-    communityBadge: "Pôles Mondiaux • Né au Rwanda",
+    subheadline: "Entreprises vérifiées, corps de métier et artisans du monde entier, découvrables avec adresses géolocalisées et prix réels.",
+    communityBadge: "Plateforme Indépendante de Découverte Commerciale",
     stats: {
       businesses: "120+ Micro-Entreprises",
       agents: "18 Agents Communautaires",

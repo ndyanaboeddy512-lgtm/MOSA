@@ -47,8 +47,8 @@ export const DEFAULT_PLATFORM_SETTINGS: PlatformSettingsData = {
   platformNameRw: "MOSA",
   tagline: "Global Commerce & Verified Local Business Directory",
   taglineRw: "Urubuga Mpuzamahanga rw'Ubucuruzi Bwemejwe",
-  shortDescription: "Global Local Commerce Discovery Network · Born in Kigali, Built for the World",
-  shortDescriptionRw: "Urusobe Mpuzamahanga rw'Ubucuruzi n'Ibiciro by'Ukuri · Bwahanzwe mu Rwanda, Bwerekejwe ku Isi Yose",
+  shortDescription: "Global Local Commerce Discovery Network · Built for Independent Trade",
+  shortDescriptionRw: "Urusobe Mpuzamahanga rw'Ubucuruzi Bwemejwe n'Ibiciro by'Ukuri",
   logoUrl: null,
   faviconUrl: null,
   heroBannerUrl: null,
@@ -70,7 +70,7 @@ export const DEFAULT_PLATFORM_SETTINGS: PlatformSettingsData = {
   brandAssets: {
     brandColor: "#059669",
   },
-  copyrightText: "MOSA Network (Rwanda). Built for sustainable, ethical community discovery.",
+  copyrightText: "MOSA Global Network. Built for sustainable, ethical community discovery.",
   updatedBy: null,
   updatedAt: null,
 };

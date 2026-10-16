@@ -57,8 +57,8 @@ export const sw = {
   },
   hero: {
     headline: "Gundua kile ambacho jamii yako tayari inacho.",
-    subheadline: "Biashara zilizothibitishwa, mafundi, na huduma kote ulimwenguni—ikizaliwa Rwanda, zinapatikana kidijitali zikiwa na maeneo na bei halisi.",
-    communityBadge: "Vituo vya Kimataifa • Asili ya Rwanda",
+    subheadline: "Biashara zilizothibitishwa, mafundi, na huduma kote ulimwenguni, zinapatikana kidijitali zikiwa na maeneo na bei halisi.",
+    communityBadge: "Jukwaa Huru la Ugunduzi wa Biashara",
     stats: {
       businesses: "Biashara Ndogo 120+",
       agents: "Mawakala wa Jamii 18",

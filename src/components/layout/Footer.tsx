@@ -2,18 +2,24 @@
 
 import React from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useLanguage } from "@/lib/i18n";
 import { usePlatformSettings } from "@/lib/platform-context";
 import { ShieldCheck, HeartHandshake, Mail, Phone, MessageSquare } from "lucide-react";
 
 export function Footer() {
+  const pathname = usePathname();
+  if (pathname.startsWith("/admin")) {
+    return null;
+  }
+
   const { lang, t } = useLanguage();
   const { settings: platformSettings } = usePlatformSettings();
 
   const platformName = lang === "rw" ? (platformSettings.platformNameRw || platformSettings.platformName) : platformSettings.platformName;
   const description = lang === "rw"
-    ? (platformSettings.shortDescriptionRw || platformSettings.taglineRw || "MOSA igamije gushyira ahagaragara ubucuruzi n'abanyamyuga bo mu midugudu no mu mijyi ku isi hose, ihereye mu Rwanda, ifasha abacuruzi kwiyandikisha no kuboneka ku buryo bworoshye.")
-    : (platformSettings.shortDescription || platformSettings.tagline || "A Global Commerce Discovery Network connecting verified local merchants, artisans, and enterprises worldwide. Founded in Rwanda, built for transparent global trade.");
+    ? (platformSettings.shortDescriptionRw || platformSettings.taglineRw || "MOSA igamije gushyira ahagaragara ubucuruzi n'abanyamyuga bo mu midugudu no mu mijyi ku isi hose, ifasha abacuruzi kwiyandikisha no kuboneka ku buryo bworoshye.")
+    : (platformSettings.shortDescription || platformSettings.tagline || "An independent business discovery platform connecting verified local merchants, artisans, and enterprises worldwide with transparent pricing and verified locations.");
 
   return (
     <footer className="bg-slate-950 text-slate-400 pt-16 sm:pt-20 pb-16 border-t border-slate-900">
@@ -125,7 +131,7 @@ export function Footer() {
         {/* Ethical Governance & Bottom Bar */}
         <div className="pt-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500">
           <p className="tracking-wide">
-            © {new Date().getFullYear()} {platformSettings.copyrightText || "MOSA Global Network. Born in Rwanda, built for verified local commerce worldwide."}
+            © {new Date().getFullYear()} {platformSettings.copyrightText || "MOSA Global Network. Independent business discovery platform."}
           </p>
           <div className="flex flex-wrap items-center gap-3">
             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-900 border border-slate-800 text-[11px] text-emerald-400 font-medium">

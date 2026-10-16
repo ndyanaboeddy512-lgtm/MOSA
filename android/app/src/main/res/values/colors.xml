@@ -1,0 +1,14 @@
+<resources>
+    <color name="primary">#0F766E</color>
+    <color name="primary_dark">#115E59</color>
+    <color name="accent">#F59E0B</color>
+    <color name="mtn_yellow">#FFCC00</color>
+    <color name="background">#F8FAFC</color>
+    <color name="surface">#FFFFFF</color>
+    <color name="text_main">#0F172A</color>
+    <color name="text_muted">#64748B</color>
+    <color name="status_green">#10B981</color>
+    <color name="status_red">#EF4444</color>
+    <color name="status_orange">#F97316</color>
+    <color name="border">#E2E8F0</color>
+</resources>

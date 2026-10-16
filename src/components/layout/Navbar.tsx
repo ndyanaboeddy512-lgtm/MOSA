@@ -47,14 +47,23 @@ export function Navbar() {
     { href: "/demand", label: t.nav.whatPeopleNeed, icon: TrendingUp },
   ];
 
+  // The Admin Command Center is completely isolated and never renders public consumer navigation.
+  if (pathname.startsWith("/admin")) {
+    return null;
+  }
+
+  // Administrative staff (SUPER_ADMIN, COMMUNITY_ADMIN, MODERATOR) are completely isolated
+  // and must never display admin badges or profiles in public website navigation.
+  const isAdminUser = Boolean(user && ["SUPER_ADMIN", "COMMUNITY_ADMIN", "MODERATOR"].includes(user.role));
+  const isPublicUser = Boolean(user && !isAdminUser);
+
   // Role portal links - strictly limited to the Business Owner portal.
-  // The Admin Command Center is completely isolated and never appears in public/partner navigation.
   const rolePortals: Partial<Record<Role, { href: string; label: string; icon: React.ComponentType<{ className?: string }> }>> = {
     COMMUNITY_AGENT: { href: "/owner/dashboard", label: t.nav.ownerPortal, icon: Store },
     BUSINESS_OWNER: { href: "/owner/dashboard", label: t.nav.ownerPortal, icon: Store },
   };
 
-  const activePortal = user ? rolePortals[user.role] || null : null;
+  const activePortal = isPublicUser && user ? rolePortals[user.role] || null : null;
 
   return (
     <header className="sticky top-0 z-40 bg-white/90 backdrop-blur-md border-b border-slate-200/70 transition-all">
@@ -234,8 +243,8 @@ export function Navbar() {
               )}
             </div>
 
-            {/* Demo Persona Switcher / User Profile (Visible on >= sm screens) */}
-            {isDemoEnabled ? (
+            {/* Demo Persona Switcher / User Profile (Visible on >= sm screens) - Strictly limited to public merchant/customer roles */}
+            {isDemoEnabled && isPublicUser ? (
               <div className="relative hidden sm:block">
                 <button
                   onClick={() => setRoleDropdownOpen(!roleDropdownOpen)}
@@ -293,7 +302,7 @@ export function Navbar() {
                   </div>
                 )}
               </div>
-            ) : user ? (
+            ) : isPublicUser && user ? (
               <div className="relative hidden sm:block">
                 <button
                   onClick={() => setRoleDropdownOpen(!roleDropdownOpen)}
@@ -447,8 +456,8 @@ export function Navbar() {
             </div>
           </div>
 
-          {/* Mobile Persona Switcher / Auth State */}
-          {isDemoEnabled ? (
+          {/* Mobile Persona Switcher / Auth State - Strictly limited to public merchant/customer roles */}
+          {isDemoEnabled && isPublicUser ? (
             <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200">
               <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5 flex items-center justify-between">
                 <span>Demo Role / Umwirondoro:</span>
@@ -479,7 +488,7 @@ export function Navbar() {
                 })}
               </div>
             </div>
-          ) : user ? (
+          ) : isPublicUser && user ? (
             <div className="p-3 rounded-lg bg-slate-50 border border-slate-200 flex items-center justify-between">
               <div>
                 <div className="text-xs font-bold text-slate-900">{user.name}</div>

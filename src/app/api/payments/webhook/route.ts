@@ -5,6 +5,7 @@ import {
   confirmPaymentAndActivateBusiness,
 } from "@/lib/payments/engine";
 import { parseMtnMoMoSms } from "@/lib/payments/momo-sms";
+import { authenticateWebhookRequest } from "@/lib/payments/bridge-devices";
 
 export async function POST(req: NextRequest) {
   try {
@@ -65,7 +66,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Look up provider config to get configured webhookSecret
+    // Look up provider config to ensure provider is enabled
     const providerConfig = await prisma.paymentProviderConfig.findUnique({
       where: { provider },
     });
@@ -77,23 +78,33 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Cryptographic validation of webhook authenticity
-    const secret = providerConfig.webhookSecret || process.env.PAYMENT_WEBHOOK_SECRET || "";
-    if (!secret) {
-      return NextResponse.json(
-        { success: false, error: "Provider webhook secret not configured on server." },
-        { status: 500 }
-      );
-    }
+    // Dual-mode authentication: Enrolled Android Bridge Device credentials OR Provider Webhook Secret
+    const deviceIdHeader = req.headers.get("x-mosa-device-id") || payload.bridgeDeviceId;
+    const authHeader = req.headers.get("authorization");
 
-    const isValid = verifyWebhookSignature(rawBody, signature, secret);
-    if (!isValid) {
-      console.warn(`[SECURITY WARNING]: Rejected unverified webhook for ${paymentReference} from ${provider}`);
+    const authResult = await authenticateWebhookRequest({
+      rawBody,
+      signature,
+      deviceIdHeader,
+      authHeader,
+      provider,
+    });
+
+    if (!authResult.isAuthenticated) {
+      console.warn(
+        `[SECURITY WARNING]: Rejected unverified webhook for ${paymentReference} from ${provider}: ${authResult.error}`
+      );
       return NextResponse.json(
-        { success: false, error: "Invalid cryptographic webhook signature." },
+        { success: false, error: authResult.error || "Invalid cryptographic webhook signature." },
         { status: 401 }
       );
     }
+
+    const verifiedBy = authResult.device
+      ? `ANDROID_BRIDGE_${authResult.device.deviceId}`
+      : payload.bridgeDeviceId
+      ? `ANDROID_BRIDGE_${payload.bridgeDeviceId}`
+      : `WEBHOOK_${provider}`;
 
     // Process idempotent confirmation, activation, and receipt generation
     const result = await confirmPaymentAndActivateBusiness({
@@ -102,7 +113,7 @@ export async function POST(req: NextRequest) {
       provider,
       amountPaid,
       rawPayload: rawBody,
-      verifiedBy: payload.bridgeDeviceId ? `ANDROID_BRIDGE_${payload.bridgeDeviceId}` : `WEBHOOK_${provider}`,
+      verifiedBy,
     });
 
     return NextResponse.json({

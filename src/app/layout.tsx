@@ -12,7 +12,7 @@ import { LocationSelectorModal } from "@/components/layout/LocationSelectorModal
 export const metadata: Metadata = {
   title: "MOSA — Global Community Commerce & Ground Discovery Network",
   description:
-    "Pioneering micro-enterprise discovery, authentic price transparency, and street-level landmark navigation. Originating in Rwanda and built for sustainable community commerce worldwide.",
+    "Independent business discovery platform pioneering micro-enterprise visibility, authentic price transparency, and street-level landmark navigation worldwide.",
   manifest: "/manifest.json",
   icons: {
     icon: "/icon-192.png",
@@ -22,8 +22,6 @@ export const metadata: Metadata = {
     "MOSA",
     "Community Commerce",
     "Global Business Discovery",
-    "Rwanda Innovation",
-    "Kigali",
     "Ground Discovery",
     "Micro Enterprise",
     "Authentic Price Intelligence",

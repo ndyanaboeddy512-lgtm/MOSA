@@ -113,7 +113,7 @@ export function DiscoveryFeed({ businesses }: DiscoveryFeedProps) {
               <p className="text-xs text-slate-500 mt-2 leading-relaxed">
                 {lang === "rw"
                   ? "Reba abanyabukorikori baboha uduseke tw'umwimerere na za salo zigezweho ziri hafi yawe."
-                  : "From traditional Rwandan Agaseke weavers and bespoke tailors to precision electronics repair specialists worldwide."}
+                  : "From traditional Agaseke weavers and bespoke tailors to precision electronics repair specialists worldwide."}
               </p>
             </div>
             <button

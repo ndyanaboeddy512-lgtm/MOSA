@@ -57,8 +57,8 @@ export const en = {
   },
   hero: {
     headline: "Discover what your community already has.",
-    subheadline: "Verified local enterprises, trusted trades, and artisanal craft worldwide—born in Rwanda, discoverable across communities with verified locations and real pricing.",
-    communityBadge: "Worldwide Hubs • Born in Rwanda",
+    subheadline: "Verified local enterprises, trusted trades, and artisanal craft worldwide, discoverable across communities with verified locations and real pricing.",
+    communityBadge: "Independent Business Discovery Platform",
     stats: {
       businesses: "120+ Micro-Enterprises",
       agents: "18 Community Agents",

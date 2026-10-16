@@ -314,7 +314,7 @@ function SearchContent() {
             <span>
               {lang === "rw"
                 ? `Icyuho: Igicuruzwa cyangwa serivisi "${query}" yanditswe mu byo abaturage bakeneye.`
-                : `Logged as unmet opportunity: "${query}" added to Rwanda local economic intelligence.`}
+                : `Logged as unmet opportunity: "${query}" added to local economic intelligence.`}
             </span>
           </div>
         </div>

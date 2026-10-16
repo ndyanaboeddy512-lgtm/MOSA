@@ -2295,7 +2295,7 @@ export default function RegisterBusinessPage() {
                   </h3>
                   <p className="text-xs text-slate-600 max-w-md mx-auto">
                     {paymentStatus === "CONFIRMED"
-                      ? (lang === "rw" ? "Ubucuruzi bwawe bwashyizwe ku rubuga rwa MOSA kandi bugaragara muri rusange." : "Your business is now fully active and discoverable on the MOSA Rwanda community network.")
+                      ? (lang === "rw" ? "Ubucuruzi bwawe bwashyizwe ku rubuga rwa MOSA kandi bugaragara muri rusange." : "Your business is now fully active and discoverable on the MOSA community network.")
                       : (lang === "rw" ? "Yishyura amafaranga asanzwe yo kwiyandikisha ugire ubucuruzi bwawe bugaragara ako kanya kuri MOSA." : "Complete the standard registration fee to automatically verify your business and activate public discovery.")}
                   </p>
                 </div>
@@ -2516,13 +2516,11 @@ export default function RegisterBusinessPage() {
                   <div className="flex items-start justify-between border-b border-slate-100 pb-4">
                     <div>
                       <div className="flex items-center gap-2">
-                        <span className="w-7 h-7 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-black text-sm">
-                          M
-                        </span>
+                        <img src="/icon.svg" alt="MOSA" className="w-8 h-8 rounded-xl object-contain shadow-xs" />
                         <h3 className="font-black text-lg text-slate-900">MOSA OFFICIAL RECEIPT</h3>
                       </div>
                       <p className="text-[11px] text-slate-500 mt-0.5">
-                        Republic of Rwanda • Business Community Network
+                        Business Community Discovery Network
                       </p>
                     </div>
                     <button
@@ -2576,7 +2574,7 @@ export default function RegisterBusinessPage() {
                     </div>
 
                     <div className="pt-2 text-[10px] text-slate-500 border-t border-slate-200">
-                      Status: CONFIRMED &amp; ACTIVATED. Discoverable across Rwanda.
+                      Status: CONFIRMED &amp; ACTIVATED. Discoverable on live directory.
                     </div>
                   </div>
 

@@ -163,7 +163,7 @@ export function LocationCard({ business, lang = "en" }: LocationCardProps) {
         <div>
           <div className="flex items-center justify-between text-xs text-slate-500 mb-2">
             <span className="font-semibold">{lang === "rw" ? "Ikarita yo ku Butaka" : "Interactive Ground Map"}</span>
-            <span className="text-[11px]">Rwanda Mercator Projection</span>
+            <span className="text-[11px]">Mercator Map Projection</span>
           </div>
           <MosaMap
             center={{ lat, lng }}

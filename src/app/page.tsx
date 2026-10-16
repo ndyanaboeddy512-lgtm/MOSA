@@ -108,7 +108,7 @@ export default function HomePage() {
           <div className="space-y-4">
             <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-white/10 text-emerald-300 border border-white/10 text-[11px] font-bold uppercase tracking-[0.2em] backdrop-blur-md">
               <Globe className="w-3.5 h-3.5 text-amber-400" />
-              <span>{lang === "rw" ? "Bwahanzwe mu Rwanda • Bwerekejwe ku Isi Yose" : "Born in Rwanda • Built for Global Commerce"}</span>
+              <span>{t.hero.communityBadge}</span>
             </div>
             <h1 className="text-4xl sm:text-6xl md:text-7xl lg:text-8xl font-light tracking-tight max-w-4xl mx-auto leading-[1.05] text-white">
               {t.hero.headline}

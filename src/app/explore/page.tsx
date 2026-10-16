@@ -106,8 +106,8 @@ export default function ExplorePage() {
                   ? "Ubucuruzi bwo muri Kacyiru (Gasabo): ahazwi cyane ahegereye MINAGRI ku muhanda KG 569 St, Kamutwa, Kibaza na Kamatamu."
                   : "Verified micro-enterprises across Kacyiru Sector (Gasabo): Kamutwa, MINAGRI Area (KG 569 St), Kibaza & Kamatamu.")
               : (lang === "rw"
-                  ? "Reba amaduka, serivisi, ubudozi, n'inganda nto zose zemejwe n'inzego z'ubucuruzi ku isi hose · Bwahanzwe mu Rwanda."
-                  : "Discover verified neighborhood enterprises, tailors, salons, artisan markets, and specialized trade worldwide · Born in Rwanda.")}
+                  ? "Reba amaduka, serivisi, ubudozi, n'inganda nto zose zemejwe n'inzego z'ubucuruzi ku isi hose."
+                  : "Discover verified neighborhood enterprises, tailors, salons, artisan markets, and specialized trade worldwide.")}
           </p>
         </div>
 

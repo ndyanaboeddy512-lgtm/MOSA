@@ -122,6 +122,8 @@ model User {
   locationsVerified Business[]        @relation("LocationVerifiedBy")
   registrationPayments RegistrationPayment[] @relation("PayerPayments")
   feeConfigsCreated    RegistrationFeeConfig[] @relation("AdminFeeConfigs")
+  enrolledDevices      PaymentBridgeDevice[] @relation("EnrolledBridgeDevices")
+  revokedDevices       PaymentBridgeDevice[] @relation("RevokedBridgeDevices")
 
   @@index([phone])
   @@index([email])
@@ -1023,9 +1025,9 @@ model PlatformSettings {
   platformName       String   @default("MOSA")
   platformNameRw     String?  @default("MOSA")
   tagline            String   @default("Neighborhood Commerce & Authentic Price Intelligence")
-  taglineRw          String?  @default("Urubuga rw'Ubucuruzi bw'Ibiciro by'Ukuri mu Rwanda")
-  shortDescription   String?  @default("Rwanda's Community Commerce Discovery Network")
-  shortDescriptionRw String?  @default("Urusobe rw'Ikoranabuhanga ry'Ubucuruzi n'Ibiciro by'Ukuri mu Rwanda")
+  taglineRw          String?  @default("Urubuga rw'Ubucuruzi bw'Ibiciro by'Ukuri")
+  shortDescription   String?  @default("Global Community Commerce Discovery Network")
+  shortDescriptionRw String?  @default("Urusobe rw'Ikoranabuhanga ry'Ubucuruzi n'Ibiciro by'Ukuri")
   logoUrl            String?
   faviconUrl         String?
   heroBannerUrl      String?
@@ -1039,7 +1041,7 @@ model PlatformSettings {
   operatingHoursRw   String?  @default("Kuwa Mbere - Kuwa Gatandatu: 08:00 - 18:00 CAT")
   socialLinks        String?  // JSON string
   brandAssets        String?  // JSON string
-  copyrightText      String?  @default("MOSA Network (Rwanda). Built for sustainable, ethical community discovery.")
+  copyrightText      String?  @default("MOSA Network. Built for sustainable, ethical community discovery.")
   updatedBy          String?
   updatedAt          DateTime @updatedAt
   createdAt          DateTime @default(now())
@@ -1175,5 +1177,46 @@ model RenewalNotificationLog {
   @@index([sentAt])
 }
 
+// -------------------------------------------------------------
+// Payment Bridge Hardware Devices & Terminal Management
+// -------------------------------------------------------------
 
+enum BridgeDeviceStatus {
+  PENDING_PAIRING
+  ACTIVE
+  SUSPENDED
+  REVOKED
+}
 
+model PaymentBridgeDevice {
+  id               String             @id @default(cuid())
+  name             String             // Friendly name, e.g. "Primary Hub Phone - MTN SIM 1"
+  deviceId         String             @unique // Unique hardware or client identifier
+  deviceToken      String             @unique // High-entropy API bearer token for phone
+  hmacSecret       String             // Device-specific HMAC-SHA256 signing secret
+  simPhoneNumber   String?            // Current SIM phone number, e.g. "+250788123456"
+  carrier          String             @default("MTN Rwanda")
+  status           BridgeDeviceStatus @default(PENDING_PAIRING)
+  pairingCode      String?            @unique // One-time pairing code (short token / UUID)
+  pairingExpiresAt DateTime?          // Expiry for one-time pairing
+  appVersion       String?            // e.g. "1.0.0"
+  batteryLevel     Int?               // 0 - 100%
+  isCharging       Boolean            @default(false)
+  networkType      String?            // "WIFI", "CELLULAR_4G", "CELLULAR_3G", etc.
+  lastHeartbeatAt  DateTime?
+  lastSyncAt       DateTime?
+  enrolledAt       DateTime?
+  enrolledById     String?
+  enrolledBy       User?              @relation("EnrolledBridgeDevices", fields: [enrolledById], references: [id], onDelete: SetNull)
+  revokedAt        DateTime?
+  revokedById      String?
+  revokedBy        User?              @relation("RevokedBridgeDevices", fields: [revokedById], references: [id], onDelete: SetNull)
+  revokedReason    String?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  @@index([status])
+  @@index([deviceId])
+  @@index([pairingCode])
+  @@index([enrolledById])
+}

@@ -134,7 +134,7 @@ export function renderVerificationEmail(
                   <td>
                     <div style="display: inline-block; width: 40px; height: 40px; line-height: 40px; text-align: center; background: linear-gradient(135deg, #059669 0%, #047857 100%); color: #ffffff; font-weight: 800; font-size: 20px; border-radius: 12px; margin-right: 12px; vertical-align: middle;">M</div>
                     <span style="font-size: 22px; font-weight: 800; color: #ffffff; letter-spacing: -0.5px; vertical-align: middle;">MOSA</span>
-                    <span style="font-size: 11px; font-weight: 600; color: #34d399; letter-spacing: 1px; text-transform: uppercase; margin-left: 8px; vertical-align: middle;">Rwanda</span>
+                    <span style="font-size: 11px; font-weight: 600; color: #34d399; letter-spacing: 1px; text-transform: uppercase; margin-left: 8px; vertical-align: middle;">Network</span>
                   </td>
                   <td align="right">
                     <span style="display: inline-block; padding: 4px 10px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #34d399; background-color: rgba(5, 150, 105, 0.15); border: 1px solid rgba(5, 150, 105, 0.3); border-radius: 9999px;">
@@ -196,10 +196,10 @@ export function renderVerificationEmail(
           <tr>
             <td style="padding: 24px 36px 32px; background-color: #020617; border-top: 1px solid #1e293b; text-align: center;">
               <p style="margin: 0 0 6px; font-size: 11px; color: #64748b; font-weight: 500;">
-                MOSA Network • Rwanda's Community Commerce Discovery Network
+                MOSA Network • Independent Business Discovery Platform
               </p>
               <p style="margin: 0; font-size: 10px; color: #475569;">
-                Kigali, Rwanda • Privacy-Protected & Ethical Micro-Commerce
+                Privacy-Protected & Ethical Micro-Commerce
               </p>
             </td>
           </tr>
@@ -213,7 +213,7 @@ export function renderVerificationEmail(
   `.trim();
 
   const text = `
-MOSA Rwanda — ${content.title}
+MOSA Network — ${content.title}
 ${greeting}
 
 ${content.intro}
@@ -226,7 +226,7 @@ ${content.securityWarning}
 
 ${content.ignoreNote}
 
-MOSA Network (Rwanda) • Kigali, Rwanda
+MOSA Network • Independent Business Discovery Platform
   `.trim();
 
   return { subject: content.subject, html, text };

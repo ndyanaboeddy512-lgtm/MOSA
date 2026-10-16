@@ -31,7 +31,9 @@ import {
   Calendar,
   Gift,
   ShieldAlert,
+  Radio,
 } from "lucide-react";
+import { PaymentBridgeManagementModal } from "@/components/admin/PaymentBridgeManagementModal";
 
 interface PaymentItem {
   id: string;
@@ -132,6 +134,9 @@ export function RegistrationPaymentsTab() {
   const [cronModalOpen, setCronModalOpen] = useState(false);
   const [cronLoading, setCronLoading] = useState(false);
   const [cronResult, setCronResult] = useState<any>(null);
+
+  // Payment Bridge & SIM Management Modal State
+  const [bridgeModalOpen, setBridgeModalOpen] = useState(false);
 
   // MTN Bridge Simulator State
   const [simulatorModalOpen, setSimulatorModalOpen] = useState(false);
@@ -466,7 +471,7 @@ export function RegistrationPaymentsTab() {
                 </span>
               </div>
               <p className="text-xs text-slate-500 mt-0.5">
-                Dynamic Rwanda fees, 12-month expiry engine, automated 30d/14d/7d warnings, grace period enforcement, and audit waivers.
+                Dynamic registration fees, 12-month expiry engine, automated 30d/14d/7d warnings, grace period enforcement, and audit waivers.
               </p>
             </div>
           </div>
@@ -493,6 +498,14 @@ export function RegistrationPaymentsTab() {
           >
             <Gift className="w-3.5 h-3.5 text-purple-700" />
             <span>Grant Fee Waiver</span>
+          </button>
+
+          <button
+            onClick={() => setBridgeModalOpen(true)}
+            className="px-3 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-950 border border-emerald-300 font-bold text-xs flex items-center gap-1.5 transition cursor-pointer shadow-xs"
+          >
+            <Radio className="w-3.5 h-3.5 text-emerald-700 animate-pulse" />
+            <span>Bridge &amp; SIM Control</span>
           </button>
 
           <button
@@ -978,13 +991,11 @@ export function RegistrationPaymentsTab() {
             <div className="flex items-start justify-between border-b border-slate-100 pb-4">
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="w-7 h-7 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-black text-sm">
-                    M
-                  </span>
+                  <img src="/icon.svg" alt="MOSA" className="w-8 h-8 rounded-xl object-contain shadow-xs" />
                   <h3 className="font-black text-lg text-slate-900 tracking-tight">MOSA OFFICIAL RECEIPT</h3>
                 </div>
                 <p className="text-[11px] text-slate-500 mt-0.5">
-                  Ministry of Commerce &amp; Local Business Community Discovery Network
+                  Local Business Community Discovery Network
                 </p>
               </div>
 
@@ -1039,8 +1050,8 @@ export function RegistrationPaymentsTab() {
                     {selectedReceipt.paymentType === "ANNUAL_RENEWAL"
                       ? "MOSA 12-Month Annual Registration Renewal"
                       : selectedReceipt.isWaiver
-                      ? `Administrative Fee Waiver (${selectedReceipt.waiverReason || "Government / Community Development Grant"})`
-                      : "Rwanda Platform Business Registration & Activation Fee"}
+                      ? `Administrative Fee Waiver (${selectedReceipt.waiverReason || "Community Development Grant"})`
+                      : "MOSA Platform Business Registration & Activation Fee"}
                   </span>
                   <span>{selectedReceipt.feeAmount.toLocaleString()} {selectedReceipt.currency}</span>
                 </div>
@@ -1065,10 +1076,10 @@ export function RegistrationPaymentsTab() {
               <div className="pt-2 text-[10px] text-slate-500 border-t border-slate-200">
                 <div>Status: Confirmed &amp; Activated on Live Discovery Engine.</div>
                 <div>
-                  Verification Method:{" "}
+                  Verification Status:{" "}
                   {selectedReceipt.isWaiver
-                    ? `Administrative Waiver Authorized (${selectedReceipt.waiverReason || "Admin Exemption"})`
-                    : selectedReceipt.verifiedBy || "Automated Cryptographic Telco Callback"}
+                    ? `Fee Waiver Granted (${selectedReceipt.waiverReason || "Official Exemption"})`
+                    : selectedReceipt.verifiedBy || "Official Verified Record"}
                 </div>
               </div>
             </div>
@@ -1681,7 +1692,7 @@ export function RegistrationPaymentsTab() {
                   rows={3}
                   required
                   minLength={8}
-                  placeholder="e.g. Official Youth Entrepreneurship Promotion Program grant by MINICOM."
+                  placeholder="e.g. Official Youth Entrepreneurship Promotion Program grant."
                   value={waiverReason}
                   onChange={(e) => setWaiverReason(e.target.value)}
                   className="w-full p-2.5 rounded-xl border border-slate-200 text-xs focus:outline-purple-500"
@@ -1801,6 +1812,15 @@ export function RegistrationPaymentsTab() {
           </div>
         </div>
       )}
+
+      {/* Section 7: Centralized Payment Bridge & SIM Management Modal */}
+      <PaymentBridgeManagementModal
+        isOpen={bridgeModalOpen}
+        onClose={() => {
+          setBridgeModalOpen(false);
+          fetchPayments();
+        }}
+      />
     </div>
   );
 }

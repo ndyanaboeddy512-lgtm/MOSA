@@ -875,7 +875,7 @@ export default function OwnerDashboardPage() {
         setResubmitSuccessMsg(
           lang === "rw"
             ? "Icyifuzo cyanyu cyakiriwe kandi cyongeye koherezwa k'ubuyobozi bwa MOSA."
-            : "Your application has been resubmitted to MOSA Admin for verification!"
+            : "Your application has been resubmitted for verification!"
         );
         await loadOwnerData();
         setTimeout(() => setResubmitSuccessMsg(""), 6000);
@@ -1014,7 +1014,7 @@ export default function OwnerDashboardPage() {
           setSaveSuccessMsg(
             lang === "rw"
               ? "Impinduka mu byiciro by'ubucuruzi zoherejwe ku buyobozi bwa MOSA kugira ngo zemeze."
-              : "Classification changes saved and submitted to MOSA Admin for re-verification."
+              : "Classification changes saved and submitted for re-verification."
           );
         } else {
           setSaveSuccessMsg(
@@ -3303,7 +3303,7 @@ export default function OwnerDashboardPage() {
                 {business && (business.status === "ACTIVE" || business.verificationStatus === "HIGH_CONFIDENCE" || business.verificationStatus === "AGENT_VERIFIED") && (
                   <span className="px-2.5 py-1 rounded-lg bg-amber-100 text-amber-900 text-[11px] font-bold border border-amber-300 flex items-center gap-1">
                     <AlertTriangle className="w-3 h-3 text-amber-600 shrink-0" />
-                    Major sector change requires MOSA admin re-verification
+                    Major sector change requires verification review
                   </span>
                 )}
               </div>
@@ -3701,7 +3701,7 @@ export default function OwnerDashboardPage() {
                   type="button"
                   onClick={async (e) => {
                     await handleProfileSubmit(e);
-                    await handleResubmitApplication("Profile updated as requested by MOSA admin.");
+                    await handleResubmitApplication("Profile updated as requested for verification.");
                   }}
                   disabled={loading || isResubmitting}
                   className="px-6 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-black text-xs shadow-md transition-all cursor-pointer flex items-center gap-1.5"
@@ -3951,13 +3951,21 @@ export default function OwnerDashboardPage() {
                     : "bg-amber-100 text-amber-800"
                 }`}
               >
-                {locationForm.locationVerificationStatus || "UNVERIFIED"}
+                {locationForm.locationVerificationStatus === "AGENT_CAPTURED" ||
+                locationForm.locationVerificationStatus === "AGENT_VERIFIED" ||
+                locationForm.locationVerificationStatus === "BUSINESS_CONFIRMED"
+                  ? (lang === "rw" ? "Yemejwe" : "Verified")
+                  : (lang === "rw" ? "Itegerezwa" : "Pending Verification")}
               </span>
 
               <span className="text-slate-400">•</span>
 
               <span className="text-slate-600">
-                {lang === "rw" ? "Inkomoko:" : "Source:"} <strong>{locationForm.locationSource || "OWNER_DECLARED"}</strong>
+                {lang === "rw" ? "Inkomoko:" : "Source:"} <strong>
+                  {locationForm.locationSource === "AGENT_CAPTURED" || locationForm.locationSource === "AGENT_VERIFIED"
+                    ? (lang === "rw" ? "Umusuzumi" : "Field Agent")
+                    : (lang === "rw" ? "Nyir'ubucuruzi" : "Business Owner")}
+                </strong>
               </span>
 
               {locationForm.locationAccuracy && (
@@ -4444,7 +4452,7 @@ export default function OwnerDashboardPage() {
                     type="button"
                     onClick={async (e) => {
                       await handleLocationSubmit(e);
-                      await handleResubmitApplication("Updated location details as requested by MOSA admin.");
+                      await handleResubmitApplication("Updated location details as requested for verification.");
                     }}
                     disabled={loading || isResubmitting}
                     className="px-6 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-black text-xs shadow-md transition-all cursor-pointer flex items-center gap-2"
@@ -7733,13 +7741,11 @@ export default function OwnerDashboardPage() {
             <div className="flex items-start justify-between border-b border-slate-100 pb-4">
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="w-7 h-7 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-black text-sm">
-                    M
-                  </span>
+                  <img src="/icon.svg" alt="MOSA" className="w-8 h-8 rounded-xl object-contain shadow-xs" />
                   <h3 className="font-black text-lg text-slate-900">MOSA OFFICIAL RECEIPT</h3>
                 </div>
                 <p className="text-[11px] text-slate-500 mt-0.5">
-                  Republic of Rwanda • Official Business Registration &amp; Activation Record
+                  Official Business Registration &amp; Activation Record
                 </p>
               </div>
               <button
@@ -7813,7 +7819,7 @@ export default function OwnerDashboardPage() {
               </div>
 
               <div className="pt-2 text-[10px] text-slate-500 border-t border-slate-200">
-                Status: CONFIRMED &amp; ACTIVATED. Discoverable across Rwanda nationwide directory.
+                Status: CONFIRMED &amp; ACTIVATED. Discoverable on live platform directory.
               </div>
             </div>
 

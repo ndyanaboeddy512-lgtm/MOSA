@@ -8,9 +8,9 @@ const FALLBACK_SETTINGS = {
   platformName: "MOSA",
   platformNameRw: "MOSA",
   tagline: "Neighborhood Commerce & Authentic Price Intelligence",
-  taglineRw: "Urubuga rw'Ubucuruzi bw'Ibiciro by'Ukuri mu Rwanda",
-  shortDescription: "Rwanda's Community Commerce Discovery Network",
-  shortDescriptionRw: "Urusobe rw'Ikoranabuhanga ry'Ubucuruzi n'Ibiciro by'Ukuri mu Rwanda",
+  taglineRw: "Urubuga rw'Ubucuruzi bw'Ibiciro by'Ukuri",
+  shortDescription: "Global Community Commerce Discovery Network",
+  shortDescriptionRw: "Urusobe rw'Ikoranabuhanga ry'Ubucuruzi n'Ibiciro by'Ukuri",
   logoUrl: null,
   faviconUrl: null,
   heroBannerUrl: null,
@@ -32,7 +32,7 @@ const FALLBACK_SETTINGS = {
   brandAssets: JSON.stringify({
     brandColor: "#059669",
   }),
-  copyrightText: "MOSA Network (Rwanda). Built for sustainable, ethical community discovery.",
+  copyrightText: "MOSA Network. Built for sustainable, ethical community discovery.",
   updatedBy: null,
   updatedAt: new Date().toISOString(),
 };
