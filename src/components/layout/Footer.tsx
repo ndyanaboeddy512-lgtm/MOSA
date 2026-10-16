@@ -18,7 +18,7 @@ export function Footer() {
 
   const platformName = lang === "rw" ? (platformSettings.platformNameRw || platformSettings.platformName) : platformSettings.platformName;
   const defaultDescEn = "An independent business discovery platform connecting verified local merchants, artisans, and enterprises worldwide with transparent pricing and verified locations.";
-  const defaultDescRw = "MOSA igamije gushyira ahagaragara ubucuruzi n'abanyamyuga bo mu midugudu no mu mijyi ku isi hose, ifasha abacuruzi kwiyandikisha no kuboneka ku buryo bworoshye.";
+  const defaultDescRw = "55 MOSA igamije gushyira ahagaragara ubucuruzi n'abanyamyuga bo mu midugudu no mu mijyi ku isi hose, ifasha abacuruzi kwiyandikisha no kuboneka ku buryo bworoshye.";
 
   const rawDescription = lang === "rw"
     ? (platformSettings.shortDescriptionRw || platformSettings.taglineRw)
@@ -42,8 +42,8 @@ export function Footer() {
                   className="w-9 h-9 rounded-xl object-contain bg-white/10 p-1 border border-white/10"
                 />
               ) : (
-                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center text-white font-bold text-lg shadow-sm">
-                  {platformName ? platformName.charAt(0) : "M"}
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center text-white font-bold text-xs shadow-sm">
+                  55
                 </div>
               )}
               <div className="flex flex-col">
@@ -137,7 +137,7 @@ export function Footer() {
         {/* Ethical Governance & Bottom Bar */}
         <div className="pt-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500">
           <p className="tracking-wide">
-            © 2026 MOSA Network. All rights reserved.
+            © 2026 55 MOSA. All rights reserved.
           </p>
           <div className="flex flex-wrap items-center gap-3">
             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-900 border border-slate-800 text-[11px] text-emerald-400 font-medium">

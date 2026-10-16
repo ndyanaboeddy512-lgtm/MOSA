@@ -991,8 +991,8 @@ export function RegistrationPaymentsTab() {
             <div className="flex items-start justify-between border-b border-slate-100 pb-4">
               <div>
                 <div className="flex items-center gap-2">
-                  <img src="/icon.svg" alt="MOSA" className="w-8 h-8 rounded-xl object-contain shadow-xs" />
-                  <h3 className="font-black text-lg text-slate-900 tracking-tight">MOSA OFFICIAL RECEIPT</h3>
+                  <img src="/icon.svg" alt="55 MOSA" className="w-8 h-8 rounded-xl object-contain shadow-xs" />
+                  <h3 className="font-black text-lg text-slate-900 tracking-tight">55 MOSA OFFICIAL RECEIPT</h3>
                 </div>
                 <p className="text-[11px] text-slate-500 mt-0.5">
                   Local Business Community Discovery Network
@@ -1048,10 +1048,10 @@ export function RegistrationPaymentsTab() {
                 <div className="flex justify-between text-slate-700">
                   <span>
                     {selectedReceipt.paymentType === "ANNUAL_RENEWAL"
-                      ? "MOSA 12-Month Annual Registration Renewal"
+                      ? "55 MOSA 12-Month Annual Registration Renewal"
                       : selectedReceipt.isWaiver
                       ? `Administrative Fee Waiver (${selectedReceipt.waiverReason || "Community Development Grant"})`
-                      : "MOSA Platform Business Registration & Activation Fee"}
+                      : "55 MOSA Platform Business Registration & Activation Fee"}
                   </span>
                   <span>{selectedReceipt.feeAmount.toLocaleString()} {selectedReceipt.currency}</span>
                 </div>

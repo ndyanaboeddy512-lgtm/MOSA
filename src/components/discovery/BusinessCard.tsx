@@ -245,8 +245,8 @@ export function BusinessCard({ business, variant = "standard", className = "" }:
               const cleanWa = business.whatsapp.replace(/\D/g, "");
               const waText = encodeURIComponent(
                 lang === "rw"
-                  ? "Muraho, nabonye ubucuruzi bwanyu kuri MOSA."
-                  : "Hello, I found your business on MOSA."
+                  ? "Muraho, nabonye ubucuruzi bwanyu kuri 55 MOSA."
+                  : "Hello, I found your business on 55 MOSA."
               );
               return (
                 <a

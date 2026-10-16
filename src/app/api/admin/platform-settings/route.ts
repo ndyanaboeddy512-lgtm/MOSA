@@ -8,8 +8,8 @@ import { Role } from "@prisma/client";
 export const dynamic = "force-dynamic";
 
 const DEFAULT_SETTINGS = {
-  platformName: "MOSA",
-  platformNameRw: "MOSA",
+  platformName: "55 MOSA",
+  platformNameRw: "55 MOSA",
   tagline: "Independent Business Discovery Platform",
   taglineRw: "Urubuga rw'Ubucuruzi bw'Ibiciro by'Ukuri",
   shortDescription: "Global Community Commerce Discovery Network",
@@ -35,7 +35,7 @@ const DEFAULT_SETTINGS = {
   brandAssets: JSON.stringify({
     brandColor: "#059669",
   }),
-  copyrightText: "© 2026 MOSA Network. All rights reserved.",
+  copyrightText: "© 2026 55 MOSA. All rights reserved.",
 };
 
 /**

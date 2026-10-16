@@ -228,7 +228,7 @@ export default function HomePage() {
                   ? (lang === "rw" ? "Uruhererekane rwa Kacyiru: MINAGRI (KG 569 St), Kamutwa, Kibaza na Kamatamu" : "Kacyiru Sector (Gasabo) · Featuring MINAGRI Area (KG 569 St), Kamutwa, Kibaza & Kamatamu")
                   : currentSector === "Nyamirambo"
                   ? (lang === "rw" ? "Uruhererekane rwa Nyamirambo: Biryogo, Cosmos, Tapi Rouge, Mumena na Cyivugiza" : "Nyamirambo Sector (Nyarugenge) · Featuring Biryogo Car-Free Zone, Cosmos & Tapi Rouge")
-                  : (lang === "rw" ? "Vumbura amaduka na serivisi byemejwe ku isi hose · Bwahanzwe i Kigali" : "Discovering verified neighborhood commerce, artisans, and services globally · Born in Kigali, built for worldwide trade")}
+                  : (lang === "rw" ? "Vumbura amaduka na serivisi byemejwe ku isi hose" : "Discovering verified neighborhood commerce, artisans, and services globally")}
               </p>
             </div>
           </div>
@@ -270,7 +270,7 @@ export default function HomePage() {
               <span>{lang === "rw" ? "Uburyo Bworoshye bwo Kwiyandikisha" : "Simple Self-Serve Registration"}</span>
             </div>
             <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-950 tracking-tight">
-              {lang === "rw" ? "Uko Wandika Ubucuruzi Bwawe Kuri MOSA" : "Put Your Business on MOSA in 4 Simple Steps"}
+              {lang === "rw" ? "Uko Wandika Ubucuruzi Bwawe Kuri 55 MOSA" : "Put Your Business on 55 MOSA in 4 Simple Steps"}
             </h2>
             <p className="text-xs sm:text-sm text-slate-500 mt-2.5 max-w-xl mx-auto leading-relaxed">
               {lang === "rw"
@@ -379,8 +379,8 @@ export default function HomePage() {
               </h3>
               <p className="text-xs sm:text-sm text-slate-400 leading-relaxed">
                 {lang === "rw"
-                  ? "Andika ubucuruzi bwawe ku buntu kuri MOSA maze winjire no mu biro by'umucuruzi (Owner Portal) byo gukurikirana ibicuruzwa n'imari yawe."
-                  : "Register your business for free on MOSA and unlock your Private Business Owner Portal to manage inventory, wholesale costs, and margins."}
+                  ? "Andika ubucuruzi bwawe ku buntu kuri 55 MOSA maze winjire no mu biro by'umucuruzi (Owner Portal) byo gukurikirana ibicuruzwa n'imari yawe."
+                  : "Register your business for free on 55 MOSA and unlock your Private Business Owner Portal to manage inventory, wholesale costs, and margins."}
               </p>
             </div>
             <div className="flex flex-col sm:flex-row gap-3.5 shrink-0 w-full sm:w-auto relative z-10">

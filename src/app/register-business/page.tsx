@@ -2295,8 +2295,8 @@ export default function RegisterBusinessPage() {
                   </h3>
                   <p className="text-xs text-slate-600 max-w-md mx-auto">
                     {paymentStatus === "CONFIRMED"
-                      ? (lang === "rw" ? "Ubucuruzi bwawe bwashyizwe ku rubuga rwa MOSA kandi bugaragara muri rusange." : "Your business is now fully active and discoverable on the MOSA community network.")
-                      : (lang === "rw" ? "Yishyura amafaranga asanzwe yo kwiyandikisha ugire ubucuruzi bwawe bugaragara ako kanya kuri MOSA." : "Complete the standard registration fee to automatically verify your business and activate public discovery.")}
+                      ? (lang === "rw" ? "Ubucuruzi bwawe bwashyizwe ku rubuga rwa 55 MOSA kandi bugaragara muri rusange." : "Your business is now fully active and discoverable on the 55 MOSA community network.")
+                      : (lang === "rw" ? "Yishyura amafaranga asanzwe yo kwiyandikisha ugire ubucuruzi bwawe bugaragara ako kanya kuri 55 MOSA." : "Complete the standard registration fee to automatically verify your business and activate public discovery.")}
                   </p>
                 </div>
 
@@ -2328,7 +2328,7 @@ export default function RegisterBusinessPage() {
                       </h4>
                       <p className="text-xs text-emerald-800">
                         {lang === "rw" 
-                          ? "Inyemezabwishyu yawe yamaze gutegurwa kandi ubucuruzi bwawe buri kugaragara kuri MOSA." 
+                          ? "Inyemezabwishyu yawe yamaze gutegurwa kandi ubucuruzi bwawe buri kugaragara kuri 55 MOSA." 
                           : "Your numbered official receipt is ready, and your business is now active for discovery."}
                       </p>
                     </div>
@@ -2516,8 +2516,8 @@ export default function RegisterBusinessPage() {
                   <div className="flex items-start justify-between border-b border-slate-100 pb-4">
                     <div>
                       <div className="flex items-center gap-2">
-                        <img src="/icon.svg" alt="MOSA" className="w-8 h-8 rounded-xl object-contain shadow-xs" />
-                        <h3 className="font-black text-lg text-slate-900">MOSA OFFICIAL RECEIPT</h3>
+                        <img src="/icon.svg" alt="55 MOSA" className="w-8 h-8 rounded-xl object-contain shadow-xs" />
+                        <h3 className="font-black text-lg text-slate-900">55 MOSA OFFICIAL RECEIPT</h3>
                       </div>
                       <p className="text-[11px] text-slate-500 mt-0.5">
                         Business Community Discovery Network
@@ -2563,7 +2563,7 @@ export default function RegisterBusinessPage() {
                         <span>Amount</span>
                       </div>
                       <div className="flex justify-between text-slate-700">
-                        <span>MOSA Platform Business Registration & Activation Fee</span>
+                        <span>55 MOSA Platform Business Registration & Activation Fee</span>
                         <span>{paymentConfig?.fee?.amount || 5000} RWF</span>
                       </div>
                     </div>

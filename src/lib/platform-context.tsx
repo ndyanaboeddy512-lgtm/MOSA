@@ -43,8 +43,8 @@ export interface PlatformSettingsData {
 
 export const DEFAULT_PLATFORM_SETTINGS: PlatformSettingsData = {
   id: "default",
-  platformName: "MOSA",
-  platformNameRw: "MOSA",
+  platformName: "55 MOSA",
+  platformNameRw: "55 MOSA",
   tagline: "Independent Business Discovery Platform",
   taglineRw: "Urubuga Mpuzamahanga rw'Ubucuruzi Bwemejwe",
   shortDescription: "Global Community Commerce Discovery Network",
@@ -70,7 +70,7 @@ export const DEFAULT_PLATFORM_SETTINGS: PlatformSettingsData = {
   brandAssets: {
     brandColor: "#059669",
   },
-  copyrightText: "© 2026 MOSA Network. All rights reserved.",
+  copyrightText: "© 2026 55 MOSA. All rights reserved.",
   updatedBy: null,
   updatedAt: null,
 };

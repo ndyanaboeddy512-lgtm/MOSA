@@ -7741,8 +7741,8 @@ export default function OwnerDashboardPage() {
             <div className="flex items-start justify-between border-b border-slate-100 pb-4">
               <div>
                 <div className="flex items-center gap-2">
-                  <img src="/icon.svg" alt="MOSA" className="w-8 h-8 rounded-xl object-contain shadow-xs" />
-                  <h3 className="font-black text-lg text-slate-900">MOSA OFFICIAL RECEIPT</h3>
+                  <img src="/icon.svg" alt="55 MOSA" className="w-8 h-8 rounded-xl object-contain shadow-xs" />
+                  <h3 className="font-black text-lg text-slate-900">55 MOSA OFFICIAL RECEIPT</h3>
                 </div>
                 <p className="text-[11px] text-slate-500 mt-0.5">
                   Official Business Registration &amp; Activation Record
@@ -7793,10 +7793,10 @@ export default function OwnerDashboardPage() {
                 <div className="flex justify-between text-slate-700">
                   <span>
                     {registrationReceipt.receiptType === "ANNUAL_RENEWAL"
-                      ? "MOSA 12-Month Annual Registration Renewal"
+                      ? "55 MOSA 12-Month Annual Registration Renewal"
                       : registrationReceipt.receiptType === "ADMIN_WAIVER"
-                      ? "MOSA Administrative Registration Waiver"
-                      : "MOSA Platform Business Registration & Activation Fee"}
+                      ? "55 MOSA Administrative Registration Waiver"
+                      : "55 MOSA Platform Business Registration & Activation Fee"}
                   </span>
                   <span>{registrationReceipt.amountPaid?.toLocaleString()} {registrationReceipt.currency}</span>
                 </div>
@@ -7858,7 +7858,7 @@ export default function OwnerDashboardPage() {
                     {lang === "rw" ? "Kuvugurura Kwiyandikisha ku Mwaka" : "Annual Registration Renewal"}
                   </h3>
                   <p className="text-[11px] text-slate-500">
-                    {lang === "rw" ? "Kongera umwaka 1 w'ubucuruzi bwawe kuri MOSA" : "Extend your nationwide verified business listing for 12 months"}
+                    {lang === "rw" ? "Kongera umwaka 1 w'ubucuruzi bwawe kuri 55 MOSA" : "Extend your nationwide verified business listing for 12 months"}
                   </p>
                 </div>
               </div>

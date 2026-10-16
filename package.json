@@ -2,7 +2,7 @@
   "name": "mosa",
   "version": "1.0.0",
   "private": true,
-  "description": "MOSA — Micro-Opportunity & Service Access: Global Community Commerce Discovery Network",
+  "description": "55 MOSA — Micro-Opportunity & Service Access: Global Community Commerce Discovery Network",
   "scripts": {
     "dev": "next dev",
     "build": "prisma generate && next build",

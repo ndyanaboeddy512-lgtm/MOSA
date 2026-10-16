@@ -75,8 +75,8 @@ interface PlatformSettingsState {
 
 const DEFAULT_FORM_STATE: PlatformSettingsState = {
   id: "default",
-  platformName: "MOSA",
-  platformNameRw: "MOSA",
+  platformName: "55 MOSA",
+  platformNameRw: "55 MOSA",
   tagline: "Independent Business Discovery Platform",
   taglineRw: "Urubuga rw'Ubucuruzi bw'Ibiciro by'Ukuri",
   shortDescription: "Global Community Commerce Discovery Network",
@@ -102,7 +102,7 @@ const DEFAULT_FORM_STATE: PlatformSettingsState = {
   brandAssets: {
     brandColor: "#059669",
   },
-  copyrightText: "© 2026 MOSA Network. All rights reserved.",
+  copyrightText: "© 2026 55 MOSA. All rights reserved.",
   updatedBy: null,
   updatedAt: null,
 };
@@ -407,7 +407,7 @@ export function PlatformIdentityTab({ user }: { user: any }) {
                   value={formData.platformName}
                   onChange={(e) => setFormData({ ...formData, platformName: e.target.value })}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
-                  placeholder="e.g. MOSA"
+                  placeholder="e.g. 55 MOSA"
                 />
               </div>
 
@@ -420,7 +420,7 @@ export function PlatformIdentityTab({ user }: { user: any }) {
                   value={formData.platformNameRw}
                   onChange={(e) => setFormData({ ...formData, platformNameRw: e.target.value })}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
-                  placeholder="e.g. MOSA"
+                  placeholder="e.g. 55 MOSA"
                 />
               </div>
             </div>
@@ -767,7 +767,7 @@ export function PlatformIdentityTab({ user }: { user: any }) {
                 value={formData.copyrightText}
                 onChange={(e) => setFormData({ ...formData, copyrightText: e.target.value })}
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20"
-                placeholder="© 2026 MOSA Network. All rights reserved."
+                placeholder="© 2026 55 MOSA. All rights reserved."
               />
             </div>
           </div>

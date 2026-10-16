@@ -80,8 +80,8 @@ export function Navbar() {
                   className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl object-contain bg-white p-0.5 border border-slate-200/80 shadow-xs group-hover:scale-105 transition-transform"
                 />
               ) : (
-                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-tr from-emerald-800 via-emerald-700 to-amber-500 flex items-center justify-center text-white font-extrabold text-xl shadow-xs group-hover:scale-105 transition-transform">
-                  {platformSettings.platformName ? platformSettings.platformName.charAt(0) : "M"}
+                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-tr from-emerald-800 via-emerald-700 to-amber-500 flex items-center justify-center text-white font-extrabold text-sm sm:text-base shadow-xs group-hover:scale-105 transition-transform">
+                  55
                 </div>
               )}
               <div className="flex flex-col">
@@ -153,7 +153,7 @@ export function Navbar() {
             <Link
               href="/register-business"
               className="hidden md:flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-slate-950 hover:bg-slate-800 rounded-full shadow-xs hover:scale-[1.02] transition-all"
-              title="Register your business on MOSA"
+              title="Register your business on 55 MOSA"
             >
               <Store className="w-3.5 h-3.5 text-amber-400" />
               <span>

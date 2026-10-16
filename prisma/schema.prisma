@@ -1022,8 +1022,8 @@ model CustomerInquiry {
 
 model PlatformSettings {
   id                 String   @id @default("default")
-  platformName       String   @default("MOSA")
-  platformNameRw     String?  @default("MOSA")
+  platformName       String   @default("55 MOSA")
+  platformNameRw     String?  @default("55 MOSA")
   tagline            String   @default("Independent Business Discovery Platform")
   taglineRw          String?  @default("Urubuga rw'Ubucuruzi bw'Ibiciro by'Ukuri")
   shortDescription   String?  @default("Global Community Commerce Discovery Network")
@@ -1041,7 +1041,7 @@ model PlatformSettings {
   operatingHoursRw   String?  @default("Kuwa Mbere - Kuwa Gatandatu: 08:00 - 18:00 CAT")
   socialLinks        String?  // JSON string
   brandAssets        String?  // JSON string
-  copyrightText      String?  @default("© 2026 MOSA Network. All rights reserved.")
+  copyrightText      String?  @default("© 2026 55 MOSA. All rights reserved.")
   updatedBy          String?
   updatedAt          DateTime @updatedAt
   createdAt          DateTime @default(now())

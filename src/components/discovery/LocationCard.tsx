@@ -70,8 +70,8 @@ export function LocationCard({ business, lang = "en" }: LocationCardProps) {
           </div>
           <p className="text-xs text-slate-500 mt-1">
             {lang === "rw"
-              ? "MOSA itanga ibyerekezo by'ukuri byemejwe n'abakozi bacu ku butaka, byoroshya kubona ubu bucuruzi."
-              : "Authoritative ground coordinates and landmarks verified by MOSA Community Agents."}
+              ? "55 MOSA itanga ibyerekezo by'ukuri byemejwe n'abakozi bacu ku butaka, byoroshya kubona ubu bucuruzi."
+              : "Authoritative ground coordinates and landmarks verified by 55 MOSA Community Agents."}
           </p>
         </div>
 

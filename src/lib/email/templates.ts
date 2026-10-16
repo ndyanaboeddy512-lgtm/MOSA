@@ -14,40 +14,40 @@ interface TemplateContent {
 const TEMPLATES: Record<string, Record<VerificationPurpose, TemplateContent>> = {
   en: {
     ACCOUNT_LOGIN: {
-      subject: "Your MOSA Verification Code",
+      subject: "Your 55 MOSA Verification Code",
       badge: "Account Sign-In",
       title: "One-Time Sign-In Verification",
-      intro: "Use the 4-digit verification code below to securely sign into your MOSA account.",
+      intro: "Use the 4-digit verification code below to securely sign into your 55 MOSA account.",
       codeLabel: "Verification Code",
       expiryNote: "This code expires in 10 minutes and can only be used once.",
-      securityWarning: "Never share this code with anyone. MOSA administrators will never ask for your verification code.",
+      securityWarning: "Never share this code with anyone. 55 MOSA administrators will never ask for your verification code.",
       ignoreNote: "If you did not attempt to sign in, please ignore this email or update your account password.",
     },
     PASSWORD_RESET: {
-      subject: "MOSA Password Reset Verification Code",
+      subject: "55 MOSA Password Reset Verification Code",
       badge: "Password Recovery",
       title: "Reset Your Account Password",
-      intro: "We received a request to reset the password for your MOSA account. Enter the verification code below to proceed.",
+      intro: "We received a request to reset the password for your 55 MOSA account. Enter the verification code below to proceed.",
       codeLabel: "Password Reset Code",
       expiryNote: "This code expires in 10 minutes and is valid for one-time use.",
       securityWarning: "Keep this code confidential. Do not forward this email to anyone.",
       ignoreNote: "If you did not request a password reset, you can safely ignore this message. Your password remains unchanged.",
     },
     ACCOUNT_VERIFICATION: {
-      subject: "Verify Your MOSA Account Email",
+      subject: "Verify Your 55 MOSA Account Email",
       badge: "Account Verification",
       title: "Confirm Your Email Address",
-      intro: "Welcome to MOSA Rwanda. Please confirm your email address using the verification code below.",
+      intro: "Welcome to 55 MOSA. Please confirm your email address using the verification code below.",
       codeLabel: "Activation Code",
       expiryNote: "This code expires in 10 minutes.",
       securityWarning: "Protect your account credentials at all times.",
-      ignoreNote: "If you did not create a MOSA account, no further action is required.",
+      ignoreNote: "If you did not create a 55 MOSA account, no further action is required.",
     },
     ADMIN_PASSWORD_RESET: {
-      subject: "MOSA Command Center — Administrator Password Reset",
+      subject: "55 MOSA Command Center — Administrator Password Reset",
       badge: "Command Center Security",
       title: "Administrator Password Reset Request",
-      intro: "A password reset request was initiated for your MOSA Command Center administrator profile.",
+      intro: "A password reset request was initiated for your 55 MOSA Command Center administrator profile.",
       codeLabel: "Admin Verification Code",
       expiryNote: "This high-privilege verification code expires in 10 minutes.",
       securityWarning: "CRITICAL: Administrative security clearance is required. Never share this code.",
@@ -56,40 +56,40 @@ const TEMPLATES: Record<string, Record<VerificationPurpose, TemplateContent>> = 
   },
   rw: {
     ACCOUNT_LOGIN: {
-      subject: "Kode yawe yo kwinjira kuri MOSA",
+      subject: "Kode yawe yo kwinjira kuri 55 MOSA",
       badge: "Kwinjira muri Konti",
       title: "Kwemeza Kwinjira",
-      intro: "Koresha kode y'imibare 4 iri hasi kugira ngo winjire mu buryo butekanye kuri konti yawe ya MOSA.",
+      intro: "Koresha kode y'imibare 4 iri hasi kugira ngo winjire mu buryo butekanye kuri konti yawe ya 55 MOSA.",
       codeLabel: "Kode Yemeza",
       expiryNote: "Iyi kode irangira mu minota 10 kandi ikoreshwa inshuro imwe gusa.",
-      securityWarning: "Ntugire undi uha iyi kode. Abakozi ba MOSA ntibazigera bayigusaba.",
+      securityWarning: "Ntugire undi uha iyi kode. Abakozi ba 55 MOSA ntibazigera bayigusaba.",
       ignoreNote: "Niba atari wowe wasabye kwinjira, irengagize ubu butumwa.",
     },
     PASSWORD_RESET: {
-      subject: "Kode yo guhindura ijambobanga rya MOSA",
+      subject: "Kode yo guhindura ijambobanga rya 55 MOSA",
       badge: "Guhindura Ijambobanga",
       title: "Hindura Ijambobanga rya Konti",
-      intro: "Twakiriye ubusabe bwo guhindura ijambobanga ryawe rya MOSA. Injiza kode iri hasi kugira ngo ukomeze.",
+      intro: "Twakiriye ubusabe bwo guhindura ijambobanga ryawe rya 55 MOSA. Injiza kode iri hasi kugira ngo ukomeze.",
       codeLabel: "Kode yo Guhindura",
       expiryNote: "Iyi kode irangira mu minota 10 kandi ikoreshwa inshuro imwe gusa.",
       securityWarning: "Bika iyi kode mu ibanga rikomeye. Ntuyisangize undi uwo ari we wese.",
       ignoreNote: "Niba atari wowe wasabye guhindura ijambobanga, irengagize ubu butumwa.",
     },
     ACCOUNT_VERIFICATION: {
-      subject: "Emeza imeli yawe kuri MOSA",
+      subject: "Emeza imeli yawe kuri 55 MOSA",
       badge: "Kwemeza Konti",
       title: "Emeza Imeli Yawe",
-      intro: "Murakaza neza kuri MOSA Rwanda. Emeza imeli yawe ukoresheje kode iri hasi.",
+      intro: "Murakaza neza kuri 55 MOSA. Emeza imeli yawe ukoresheje kode iri hasi.",
       codeLabel: "Kode Yemeza",
       expiryNote: "Iyi kode irangira mu minota 10.",
       securityWarning: "Rinda amakuru yawe y'umutekano buri gihe.",
-      ignoreNote: "Niba utafunguye konti kuri MOSA, nta kindi usabwa gukora.",
+      ignoreNote: "Niba utafunguye konti kuri 55 MOSA, nta kindi usabwa gukora.",
     },
     ADMIN_PASSWORD_RESET: {
-      subject: "MOSA Command Center — Guhindura Ijambobanga ry'Ubuyobozi",
+      subject: "55 MOSA Command Center — Guhindura Ijambobanga ry'Ubuyobozi",
       badge: "Umutekano w'Ubuyobozi",
       title: "Guhindura Ijambobanga ry'Ubuyobozi",
-      intro: "Hari ubusabe bwo guhindura ijambobanga rya konti yawe y'ubuyobozi bwa MOSA Command Center.",
+      intro: "Hari ubusabe bwo guhindura ijambobanga rya konti yawe y'ubuyobozi bwa 55 MOSA Command Center.",
       codeLabel: "Kode y'Ubuyobozi",
       expiryNote: "Iyi kode irangira mu minota 10.",
       securityWarning: "IKOMEYE: Ntukigere usangiza undi muntu iyi kode y'ubuyobozi.",
@@ -132,8 +132,8 @@ export function renderVerificationEmail(
               <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
                 <tr>
                   <td>
-                    <div style="display: inline-block; width: 40px; height: 40px; line-height: 40px; text-align: center; background: linear-gradient(135deg, #059669 0%, #047857 100%); color: #ffffff; font-weight: 800; font-size: 20px; border-radius: 12px; margin-right: 12px; vertical-align: middle;">M</div>
-                    <span style="font-size: 22px; font-weight: 800; color: #ffffff; letter-spacing: -0.5px; vertical-align: middle;">MOSA</span>
+                    <div style="display: inline-block; width: 40px; height: 40px; line-height: 40px; text-align: center; background: linear-gradient(135deg, #059669 0%, #047857 100%); color: #ffffff; font-weight: 800; font-size: 16px; border-radius: 12px; margin-right: 12px; vertical-align: middle;">55</div>
+                    <span style="font-size: 22px; font-weight: 800; color: #ffffff; letter-spacing: -0.5px; vertical-align: middle;">55 MOSA</span>
                     <span style="font-size: 11px; font-weight: 600; color: #34d399; letter-spacing: 1px; text-transform: uppercase; margin-left: 8px; vertical-align: middle;">Network</span>
                   </td>
                   <td align="right">
@@ -196,7 +196,7 @@ export function renderVerificationEmail(
           <tr>
             <td style="padding: 24px 36px 32px; background-color: #020617; border-top: 1px solid #1e293b; text-align: center;">
               <p style="margin: 0 0 6px; font-size: 11px; color: #64748b; font-weight: 500;">
-                MOSA Network • Independent Business Discovery Platform
+                55 MOSA Network • Independent Business Discovery Platform
               </p>
               <p style="margin: 0; font-size: 10px; color: #475569;">
                 Privacy-Protected & Ethical Micro-Commerce
@@ -213,7 +213,7 @@ export function renderVerificationEmail(
   `.trim();
 
   const text = `
-MOSA Network — ${content.title}
+55 MOSA Network — ${content.title}
 ${greeting}
 
 ${content.intro}
@@ -226,7 +226,7 @@ ${content.securityWarning}
 
 ${content.ignoreNote}
 
-MOSA Network • Independent Business Discovery Platform
+55 MOSA Network • Independent Business Discovery Platform
   `.trim();
 
   return { subject: content.subject, html, text };
