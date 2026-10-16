@@ -77,9 +77,9 @@ const DEFAULT_FORM_STATE: PlatformSettingsState = {
   id: "default",
   platformName: "MOSA",
   platformNameRw: "MOSA",
-  tagline: "Neighborhood Commerce & Authentic Price Intelligence",
+  tagline: "Independent Business Discovery Platform",
   taglineRw: "Urubuga rw'Ubucuruzi bw'Ibiciro by'Ukuri",
-  shortDescription: "Community Commerce Discovery Network",
+  shortDescription: "Global Community Commerce Discovery Network",
   shortDescriptionRw: "Urusobe rw'Ikoranabuhanga ry'Ubucuruzi n'Ibiciro by'Ukuri",
   logoUrl: "",
   faviconUrl: "",
@@ -102,7 +102,7 @@ const DEFAULT_FORM_STATE: PlatformSettingsState = {
   brandAssets: {
     brandColor: "#059669",
   },
-  copyrightText: "MOSA Global Network. Built for sustainable, ethical community discovery.",
+  copyrightText: "© 2026 MOSA Network. All rights reserved.",
   updatedBy: null,
   updatedAt: null,
 };
@@ -767,7 +767,7 @@ export function PlatformIdentityTab({ user }: { user: any }) {
                 value={formData.copyrightText}
                 onChange={(e) => setFormData({ ...formData, copyrightText: e.target.value })}
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20"
-                placeholder="MOSA Network (Rwanda). Built for sustainable, ethical community discovery."
+                placeholder="© 2026 MOSA Network. All rights reserved."
               />
             </div>
           </div>

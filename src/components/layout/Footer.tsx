@@ -17,9 +17,15 @@ export function Footer() {
   const { settings: platformSettings } = usePlatformSettings();
 
   const platformName = lang === "rw" ? (platformSettings.platformNameRw || platformSettings.platformName) : platformSettings.platformName;
-  const description = lang === "rw"
-    ? (platformSettings.shortDescriptionRw || platformSettings.taglineRw || "MOSA igamije gushyira ahagaragara ubucuruzi n'abanyamyuga bo mu midugudu no mu mijyi ku isi hose, ifasha abacuruzi kwiyandikisha no kuboneka ku buryo bworoshye.")
-    : (platformSettings.shortDescription || platformSettings.tagline || "An independent business discovery platform connecting verified local merchants, artisans, and enterprises worldwide with transparent pricing and verified locations.");
+  const defaultDescEn = "An independent business discovery platform connecting verified local merchants, artisans, and enterprises worldwide with transparent pricing and verified locations.";
+  const defaultDescRw = "MOSA igamije gushyira ahagaragara ubucuruzi n'abanyamyuga bo mu midugudu no mu mijyi ku isi hose, ifasha abacuruzi kwiyandikisha no kuboneka ku buryo bworoshye.";
+
+  const rawDescription = lang === "rw"
+    ? (platformSettings.shortDescriptionRw || platformSettings.taglineRw)
+    : (platformSettings.shortDescription || platformSettings.tagline);
+
+  const isOutdated = !rawDescription || /rwanda.*community commerce/i.test(rawDescription);
+  const description = isOutdated ? (lang === "rw" ? defaultDescRw : defaultDescEn) : rawDescription;
 
   return (
     <footer className="bg-slate-950 text-slate-400 pt-16 sm:pt-20 pb-16 border-t border-slate-900">
@@ -43,7 +49,7 @@ export function Footer() {
               <div className="flex flex-col">
                 <span className="font-extrabold text-xl tracking-tight text-white">{platformName}</span>
                 <span className="text-[10px] text-emerald-400 font-semibold uppercase tracking-widest">
-                  {lang === "rw" ? (platformSettings.taglineRw || t.common.appFullName) : (platformSettings.tagline || t.common.appFullName)}
+                  Independent Business Discovery Platform
                 </span>
               </div>
             </div>
@@ -131,7 +137,7 @@ export function Footer() {
         {/* Ethical Governance & Bottom Bar */}
         <div className="pt-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500">
           <p className="tracking-wide">
-            © {new Date().getFullYear()} {platformSettings.copyrightText || "MOSA Global Network. Independent business discovery platform."}
+            © 2026 MOSA Network. All rights reserved.
           </p>
           <div className="flex flex-wrap items-center gap-3">
             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-900 border border-slate-800 text-[11px] text-emerald-400 font-medium">

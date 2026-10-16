@@ -45,9 +45,9 @@ export const DEFAULT_PLATFORM_SETTINGS: PlatformSettingsData = {
   id: "default",
   platformName: "MOSA",
   platformNameRw: "MOSA",
-  tagline: "Global Commerce & Verified Local Business Directory",
+  tagline: "Independent Business Discovery Platform",
   taglineRw: "Urubuga Mpuzamahanga rw'Ubucuruzi Bwemejwe",
-  shortDescription: "Global Local Commerce Discovery Network · Built for Independent Trade",
+  shortDescription: "Global Community Commerce Discovery Network",
   shortDescriptionRw: "Urusobe Mpuzamahanga rw'Ubucuruzi Bwemejwe n'Ibiciro by'Ukuri",
   logoUrl: null,
   faviconUrl: null,
@@ -70,7 +70,7 @@ export const DEFAULT_PLATFORM_SETTINGS: PlatformSettingsData = {
   brandAssets: {
     brandColor: "#059669",
   },
-  copyrightText: "MOSA Global Network. Built for sustainable, ethical community discovery.",
+  copyrightText: "© 2026 MOSA Network. All rights reserved.",
   updatedBy: null,
   updatedAt: null,
 };
