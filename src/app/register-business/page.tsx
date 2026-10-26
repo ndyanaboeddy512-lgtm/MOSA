@@ -2511,13 +2511,13 @@ export default function RegisterBusinessPage() {
 
             {/* RECEIPT MODAL FOR PARTNERS */}
             {showReceiptModal && (
-              <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4">
-                <div className="bg-white rounded-3xl max-w-xl w-full p-8 shadow-2xl border border-slate-200 text-slate-900 space-y-6">
+              <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4 print:fixed print:inset-0 print:bg-white print:p-6 print:z-[9999] print:block">
+                <div className="bg-white rounded-3xl max-w-xl w-full p-8 shadow-2xl border border-slate-200 text-slate-900 space-y-6 print:shadow-none print:border-none print:p-0 print:max-w-none">
                   <div className="flex items-start justify-between border-b border-slate-100 pb-4">
                     <div>
-                      <div className="flex items-center gap-2">
-                        <img src="/icon.svg" alt="55 MOSA" className="w-8 h-8 rounded-xl object-contain shadow-xs" />
-                        <h3 className="font-black text-lg text-slate-900">55 MOSA OFFICIAL RECEIPT</h3>
+                      <div className="flex items-center gap-2.5">
+                        <img src="/mosa-logo.jpg" alt="MOSA" className="w-10 h-10 rounded-xl object-contain bg-white border border-slate-200/80 shadow-xs print:border-slate-300" />
+                        <h3 className="font-black text-lg text-slate-900">MOSA OFFICIAL RECEIPT</h3>
                       </div>
                       <p className="text-[11px] text-slate-500 mt-0.5">
                         Business Community Discovery Network
@@ -2526,14 +2526,14 @@ export default function RegisterBusinessPage() {
                     <button
                       type="button"
                       onClick={() => setShowReceiptModal(false)}
-                      className="p-1 rounded-lg text-slate-400 hover:text-slate-600 cursor-pointer"
+                      className="p-1 rounded-lg text-slate-400 hover:text-slate-600 cursor-pointer print:hidden"
                     >
                       <X className="w-5 h-5" />
                     </button>
                   </div>
 
                   {/* Receipt Paper */}
-                  <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 font-mono text-xs space-y-4">
+                  <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 font-mono text-xs space-y-4 print:bg-slate-50/50 print:border-slate-300">
                     <div className="flex justify-between items-center border-b border-slate-200 pb-3">
                       <div>
                         <div className="text-[10px] text-slate-400 uppercase">Receipt Number</div>
@@ -2563,7 +2563,7 @@ export default function RegisterBusinessPage() {
                         <span>Amount</span>
                       </div>
                       <div className="flex justify-between text-slate-700">
-                        <span>55 MOSA Platform Business Registration & Activation Fee</span>
+                        <span>MOSA Platform Business Registration & Activation Fee</span>
                         <span>{paymentConfig?.fee?.amount || 5000} RWF</span>
                       </div>
                     </div>
@@ -2578,7 +2578,7 @@ export default function RegisterBusinessPage() {
                     </div>
                   </div>
 
-                  <div className="flex justify-between items-center pt-2">
+                  <div className="flex justify-between items-center pt-2 print:hidden">
                     <button
                       type="button"
                       onClick={() => window.print()}

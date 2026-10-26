@@ -85,3 +85,11 @@ select,
 .cursor-zoom-view {
   cursor: zoom-in;
 }
+
+/* Ensure accurate background colors and graphics for printable receipts */
+@media print {
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+}

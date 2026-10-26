@@ -986,13 +986,13 @@ export function RegistrationPaymentsTab() {
 
       {/* MODAL 1: OFFICIAL RECEIPT VIEWER & PRINTER */}
       {selectedReceipt && (
-        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-xl w-full p-8 shadow-2xl border border-slate-200 text-slate-900 space-y-6 relative">
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4 print:fixed print:inset-0 print:bg-white print:p-6 print:z-[9999] print:block">
+          <div className="bg-white rounded-3xl max-w-xl w-full p-8 shadow-2xl border border-slate-200 text-slate-900 space-y-6 relative print:shadow-none print:border-none print:p-0 print:max-w-none">
             <div className="flex items-start justify-between border-b border-slate-100 pb-4">
               <div>
-                <div className="flex items-center gap-2">
-                  <img src="/icon.svg" alt="55 MOSA" className="w-8 h-8 rounded-xl object-contain shadow-xs" />
-                  <h3 className="font-black text-lg text-slate-900 tracking-tight">55 MOSA OFFICIAL RECEIPT</h3>
+                <div className="flex items-center gap-2.5">
+                  <img src="/mosa-logo.jpg" alt="MOSA" className="w-10 h-10 rounded-xl object-contain bg-white border border-slate-200/80 shadow-xs print:border-slate-300" />
+                  <h3 className="font-black text-lg text-slate-900 tracking-tight">MOSA OFFICIAL RECEIPT</h3>
                 </div>
                 <p className="text-[11px] text-slate-500 mt-0.5">
                   Local Business Community Discovery Network
@@ -1001,14 +1001,14 @@ export function RegistrationPaymentsTab() {
 
               <button
                 onClick={() => setSelectedReceipt(null)}
-                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 cursor-pointer"
+                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 cursor-pointer print:hidden"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             {/* Official Receipt Paper Styling */}
-            <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200/80 space-y-4 font-mono text-xs relative overflow-hidden">
+            <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200/80 space-y-4 font-mono text-xs relative overflow-hidden print:bg-slate-50/50 print:border-slate-300">
               <div className="absolute right-4 bottom-4 opacity-10 pointer-events-none select-none text-6xl font-black rotate-[-20deg]">
                 VERIFIED
               </div>
@@ -1048,10 +1048,10 @@ export function RegistrationPaymentsTab() {
                 <div className="flex justify-between text-slate-700">
                   <span>
                     {selectedReceipt.paymentType === "ANNUAL_RENEWAL"
-                      ? "55 MOSA 12-Month Annual Registration Renewal"
+                      ? "MOSA 12-Month Annual Registration Renewal"
                       : selectedReceipt.isWaiver
                       ? `Administrative Fee Waiver (${selectedReceipt.waiverReason || "Community Development Grant"})`
-                      : "55 MOSA Platform Business Registration & Activation Fee"}
+                      : "MOSA Platform Business Registration & Activation Fee"}
                   </span>
                   <span>{selectedReceipt.feeAmount.toLocaleString()} {selectedReceipt.currency}</span>
                 </div>
@@ -1084,7 +1084,7 @@ export function RegistrationPaymentsTab() {
               </div>
             </div>
 
-            <div className="flex items-center justify-between pt-2">
+            <div className="flex items-center justify-between pt-2 print:hidden">
               <span className="text-xs text-slate-500">Official proof of payment for commercial registration.</span>
               <div className="flex gap-2">
                 <button
