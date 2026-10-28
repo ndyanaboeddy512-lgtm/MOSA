@@ -54,9 +54,65 @@ export async function POST(req: NextRequest) {
       phoneNumber,
     });
 
+    // If mobile money provider and not a free waiver, dispatch genuine payment request / push prompt
+    let pushResult = null;
+    if ((provider === "MTN_MOMO" || provider === "AIRTEL_MONEY") && !result.isFree && !result.isAlreadyPaid) {
+      if (!phoneNumber || !phoneNumber.trim()) {
+        return NextResponse.json(
+          { success: false, error: "A valid mobile phone number is required to request Mobile Money payment." },
+          { status: 400 }
+        );
+      }
+
+      const { detectCarrierAndValidate, requestMobileMoneyPayment } = await import("@/lib/payments/push-gateway");
+      const carrierCheck = detectCarrierAndValidate(phoneNumber, provider as any);
+      if (!carrierCheck.isValid) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: `Invalid Rwandan phone number: "${phoneNumber}". Enter a valid 10-digit number (e.g. 078... or 072...) or +250 7X XXX XXXX.`,
+          },
+          { status: 400 }
+        );
+      }
+
+      const ref = result.paymentReference || result.payment?.paymentReference;
+      const amt = result.feeAmount ?? result.payment?.feeAmount ?? 5000;
+      const curr = result.currency || result.payment?.currency || "RWF";
+
+      if (!ref) {
+        return NextResponse.json(
+          { success: false, error: "Failed to resolve payment reference for push prompt." },
+          { status: 500 }
+        );
+      }
+
+      pushResult = await requestMobileMoneyPayment({
+        paymentReference: ref,
+        amount: amt,
+        currency: curr,
+        phoneNumber: carrierCheck.normalizedPhone,
+        provider: provider as any,
+      });
+
+      if (!pushResult.success) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: pushResult.message,
+            missingRequirements: pushResult.missingRequirements,
+            payment: result.payment,
+          },
+          { status: 400 }
+        );
+      }
+    }
+
     return NextResponse.json({
       success: true,
       ...result,
+      pushResult,
+      promptDispatched: pushResult?.promptDispatched || false,
     });
   } catch (error: any) {
     console.error("[PAYMENTS_INITIATE_ERROR]:", error);

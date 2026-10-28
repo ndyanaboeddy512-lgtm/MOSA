@@ -37,6 +37,19 @@ export async function GET(req: NextRequest) {
       );
     }
 
+    // Reconcile status if pending
+    if (payment.status === "PENDING") {
+      const { checkAndReconcilePaymentStatus } = await import("@/lib/payments/push-gateway");
+      const reconciled = await checkAndReconcilePaymentStatus(payment.paymentReference);
+      if (reconciled.payment) {
+        payment.status = reconciled.payment.status;
+        payment.failureReason = reconciled.payment.failureReason;
+        if (reconciled.receipt) {
+          (payment as any).receipt = reconciled.receipt;
+        }
+      }
+    }
+
     return NextResponse.json({
       success: true,
       payment: {

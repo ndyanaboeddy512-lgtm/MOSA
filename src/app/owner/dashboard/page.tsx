@@ -78,6 +78,7 @@ import {
 } from "@/lib/taxonomy";
 
 import { SUPPORTED_COUNTRIES } from "@/components/location/SmartLocationForm";
+import { UrubutoStyleCheckout } from "@/components/payments/UrubutoStyleCheckout";
 
 const RWANDA_PROVINCES: Record<string, string[]> = {
   "City of Kigali": ["Nyarugenge", "Gasabo", "Kicukiro"],
@@ -8007,206 +8008,27 @@ export default function OwnerDashboardPage() {
               </button>
             </div>
 
-            {/* Business & Fee Summary Card */}
-            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 text-xs space-y-2">
-              <div className="flex justify-between items-center">
-                <span className="text-slate-500">Business Name:</span>
-                <span className="font-bold text-slate-900">{business.name}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-slate-500">Coverage Duration:</span>
-                <span className="font-bold text-emerald-700">+12 Months (365 Days)</span>
-              </div>
-              <div className="flex justify-between items-center border-t border-slate-200 pt-2">
-                <span className="font-bold text-slate-700">Annual Renewal Fee:</span>
-                {renewalFeeConfig?.isFree || renewalFeeConfig?.amount === 0 ? (
-                  <div className="flex items-center gap-2">
-                    {renewalFeeConfig?.baseAmount > 0 && (
-                      <span className="text-xs line-through text-slate-400 font-bold">
-                        {renewalFeeConfig.baseAmount.toLocaleString()} RWF
-                      </span>
-                    )}
-                    <span className="text-sm font-black text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
-                      FREE (0 RWF)
-                    </span>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-2">
-                    {renewalFeeConfig?.discount > 0 && (
-                      <span className="text-xs line-through text-slate-400 font-bold">
-                        {renewalFeeConfig.baseAmount.toLocaleString()} RWF
-                      </span>
-                    )}
-                    <span className="text-base font-black text-emerald-800">
-                      {renewalFeeConfig?.amount !== undefined ? renewalFeeConfig.amount.toLocaleString() : "5,000"} RWF
-                    </span>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {renewError && (
-              <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-bold flex items-center gap-2">
-                <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
-                <span>{renewError}</span>
-              </div>
-            )}
-
-            {!renewPayment ? (
-              <form onSubmit={handleInitiateRenewal} className="space-y-4 text-xs">
-                <div>
-                  <label className="font-bold text-slate-700 block mb-1">
-                    Select Payment Method / Hitamo Uburyo bwo Kwishyura
-                  </label>
-                  <div className="grid grid-cols-3 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setRenewProvider("AIRTEL_MONEY")}
-                      className={`p-3 rounded-xl border text-center transition cursor-pointer flex flex-col items-center gap-1 ${
-                        renewProvider === "AIRTEL_MONEY"
-                          ? "border-rose-500 bg-rose-50/70 font-bold text-rose-900"
-                          : "border-slate-200 hover:border-slate-300 text-slate-700"
-                      }`}
-                    >
-                      <Smartphone className="w-4 h-4 text-rose-600" />
-                      <span className="text-[11px] font-bold">Airtel Money</span>
-                      <span className="text-[9px] font-semibold text-rose-600">(Primary)</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setRenewProvider("MTN_MOMO")}
-                      className={`p-3 rounded-xl border text-center transition cursor-pointer flex flex-col items-center gap-1 ${
-                        renewProvider === "MTN_MOMO"
-                          ? "border-yellow-500 bg-yellow-50/70 font-bold text-yellow-900"
-                          : "border-slate-200 hover:border-slate-300 text-slate-700"
-                      }`}
-                    >
-                      <Smartphone className="w-4 h-4 text-yellow-600" />
-                      <span className="text-[11px]">MTN MoMo</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setRenewProvider("BANK_TRANSFER")}
-                      className={`p-3 rounded-xl border text-center transition cursor-pointer flex flex-col items-center gap-1 ${
-                        renewProvider === "BANK_TRANSFER"
-                          ? "border-blue-500 bg-blue-50/70 font-bold text-blue-900"
-                          : "border-slate-200 hover:border-slate-300 text-slate-700"
-                      }`}
-                    >
-                      <Building className="w-4 h-4 text-blue-600" />
-                      <span className="text-[11px]">Bank Transfer</span>
-                    </button>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="font-bold text-slate-700 block mb-1">
-                    Your Phone Number (For payment receipt &amp; SMS)
-                  </label>
-                  <input
-                    type="tel"
-                    required
-                    value={renewPhone}
-                    onChange={(e) => setRenewPhone(e.target.value)}
-                    placeholder={business.phone || user?.phone || "0788..."}
-                    className="w-full p-2.5 rounded-xl border border-slate-200 font-mono text-xs focus:outline-emerald-500"
-                  />
-                </div>
-
-                <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
-                  <button
-                    type="button"
-                    onClick={() => setOwnerRenewModalOpen(false)}
-                    className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 text-xs font-bold cursor-pointer"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={renewLoading}
-                    className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-xs cursor-pointer disabled:opacity-60 flex items-center gap-1.5"
-                  >
-                    {renewLoading ? (
-                      <>
-                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                        <span>Generating Ref...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Check className="w-3.5 h-3.5" />
-                        <span>
-                          {renewalFeeConfig?.isFree || renewalFeeConfig?.amount === 0
-                            ? "Confirm Free Renewal (0 RWF)"
-                            : `Proceed to Pay (${renewalFeeConfig?.amount !== undefined ? renewalFeeConfig.amount.toLocaleString() : "5,000"} RWF)`}
-                        </span>
-                      </>
-                    )}
-                  </button>
-                </div>
-              </form>
-            ) : (
-              /* Step 2: Payment Reference & Instructions */
-              <div className="space-y-4 text-xs">
-                <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-2xl space-y-2">
-                  <div className="text-[10px] text-emerald-800 font-bold uppercase tracking-wider">
-                    Your Unique Renewal Reference
-                  </div>
-                  <div className="flex items-center justify-between bg-white p-3 rounded-xl border border-emerald-300">
-                    <span className="font-mono font-black text-sm text-emerald-950">
-                      {renewPayment.paymentReference}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        navigator.clipboard?.writeText(renewPayment.paymentReference);
-                        alert("Reference copied to clipboard!");
-                      }}
-                      className="text-xs font-bold text-emerald-700 hover:text-emerald-900 cursor-pointer"
-                    >
-                      Copy
-                    </button>
-                  </div>
-                  <p className="text-[11px] text-emerald-800 font-medium">
-                    Please use this exact reference in the reason / remark field of your payment.
-                  </p>
-                </div>
-
-                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2 text-xs">
-                  <div className="font-bold text-slate-800">
-                    {renewProvider === "BANK_TRANSFER" ? "Bank Transfer Details:" : "Mobile Money Payment Instructions:"}
-                  </div>
-                  <p className="text-slate-600 whitespace-pre-line leading-relaxed">
-                    {renewPayment.instructions || `Send ${renewPayment.renewalFee !== undefined ? renewPayment.renewalFee.toLocaleString() : "5,000"} RWF via Mobile Money or Bank and enter the reference above.`}
-                  </p>
-                </div>
-
-                <div className="flex items-center justify-between pt-2 border-t border-slate-100">
-                  <button
-                    type="button"
-                    onClick={() => setRenewPayment(null)}
-                    className="text-xs font-bold text-slate-500 hover:text-slate-700 cursor-pointer"
-                  >
-                    ← Change Method
-                  </button>
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        await loadOwnerData();
-                        alert("Checked payment status. If your payment was confirmed, your business is now active!");
-                        setOwnerRenewModalOpen(false);
-                      }}
-                      className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-xs cursor-pointer flex items-center gap-1.5"
-                    >
-                      <RefreshCw className="w-3.5 h-3.5" />
-                      <span>Check Status &amp; Finish</span>
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
+            <UrubutoStyleCheckout
+              businessId={business.id}
+              businessName={business.name}
+              defaultPhone={renewPhone || business.phone || user?.phone || ""}
+              feeConfig={renewalFeeConfig}
+              checkoutType="RENEWAL"
+              onPaymentSuccess={async (receipt) => {
+                await loadOwnerData();
+                setOwnerRenewModalOpen(false);
+                setSaveSuccessMsg(
+                  lang === "rw"
+                    ? "Kuvugurura byemejwe neza! Ubucuruzi bwawe burakomeje gukora."
+                    : "Annual renewal verified & confirmed! Your business listing has been extended."
+                );
+              }}
+              onViewReceipt={(receipt) => {
+                setRegistrationReceipt(receipt);
+                setOwnerReceiptModalOpen(true);
+                setOwnerRenewModalOpen(false);
+              }}
+            />
           </div>
         </div>
       )}

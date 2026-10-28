@@ -50,6 +50,7 @@ import {
   formatCategoryClassification,
   getBusinessOperatingModel,
 } from "@/lib/taxonomy";
+import { UrubutoStyleCheckout } from "@/components/payments/UrubutoStyleCheckout";
 
 const CURRENCY_OPTIONS = [
   { code: "RWF", label: "RWF - Rwandan Franc", symbol: "Frw" },
@@ -2402,194 +2403,29 @@ export default function RegisterBusinessPage() {
                     </div>
                   </div>
                 ) : (
-                  /* PENDING PAYMENT STATE */
+                  /* URUBUTOPAY-STYLE MOBILE MONEY CHECKOUT */
                   <div className="space-y-5">
-                    {paymentConfig?.fee?.isFree || paymentConfig?.fee?.amount === 0 ? (
-                      <div className="p-6 rounded-2xl bg-gradient-to-br from-emerald-950 via-slate-900 to-emerald-900 text-white space-y-4 border border-emerald-500/40 shadow-xl">
-                        <div className="flex items-center gap-3">
-                          <div className="w-12 h-12 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center border border-emerald-500/30">
-                            <Sparkles className="w-6 h-6" />
-                          </div>
-                          <div>
-                            <div className="text-[10px] uppercase font-black text-emerald-300 tracking-wider">
-                              {paymentConfig?.fee?.promotion ? "Promotional Fee Waiver Active" : "Zero-Fee Registration Policy"}
-                            </div>
-                            <h4 className="text-lg font-black text-white">
-                              {paymentConfig?.fee?.promotion?.name || "100% Free Initial Registration"}
-                            </h4>
-                          </div>
-                        </div>
+                    <UrubutoStyleCheckout
+                      businessId={registeredBusinessId || ""}
+                      businessName={registeredBusinessName || formData.name}
+                      defaultPhone={formData.phone}
+                      feeConfig={paymentConfig?.fee}
+                      providers={paymentConfig?.providers}
+                      checkoutType="REGISTRATION"
+                      initialReference={activePayment?.paymentReference}
+                      onPaymentSuccess={(receipt, payment) => {
+                        setPaymentStatus("CONFIRMED");
+                        setConfirmedReceipt(receipt);
+                        setActivePayment(payment);
+                        setShowReceiptModal(true);
+                      }}
+                      onViewReceipt={(receipt) => {
+                        setConfirmedReceipt(receipt);
+                        setShowReceiptModal(true);
+                      }}
+                    />
 
-                        <p className="text-xs text-slate-300 leading-relaxed">
-                          {paymentConfig?.fee?.promotion?.description ||
-                            "Your business is eligible for 100% free registration. No mobile money payment is required. Click below to complete registration and receive your official MOSA receipt."}
-                        </p>
-
-                        <button
-                          type="button"
-                          disabled={initiatingPayment}
-                          onClick={() => handleInitiatePayment("ADMIN_WAIVER")}
-                          className="w-full py-3.5 px-6 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-sm flex items-center justify-center gap-2 shadow-lg transition cursor-pointer disabled:opacity-50"
-                        >
-                          {initiatingPayment ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
-                          <span>{lang === "rw" ? "Emeza Kwiyandikisha ku Buntu & Tangira Ubucuruzi" : "Activate Business for Free & Get Official Receipt"}</span>
-                        </button>
-                      </div>
-                    ) : null}
-
-                    {/* Provider Selection */}
-                    <div>
-                      <label className="font-bold text-xs text-slate-800 block mb-2">
-                        {lang === "rw" ? "Hitamo Uburyo bwo Kwishyura:" : "Select Payment Provider:"}
-                      </label>
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                        {[
-                          { id: "AIRTEL_MONEY", name: "Airtel Money", icon: Smartphone, color: "hover:border-red-400", isPrimary: true },
-                          { id: "MTN_MOMO", name: "MTN Mobile Money", icon: Smartphone, color: "hover:border-yellow-400" },
-                          { id: "BANK_TRANSFER", name: "Bank of Kigali / Bank", icon: Building, color: "hover:border-blue-400" },
-                        ].map((prov) => {
-                          const isSel = selectedProvider === prov.id;
-                          const Icon = prov.icon;
-                          return (
-                            <button
-                              key={prov.id}
-                              type="button"
-                              onClick={() => {
-                                setSelectedProvider(prov.id);
-                                handleInitiatePayment(prov.id);
-                              }}
-                              className={`p-3 rounded-2xl border text-left transition cursor-pointer flex items-center gap-2.5 relative ${
-                                isSel
-                                  ? "border-emerald-600 bg-emerald-50/60 ring-2 ring-emerald-500/20"
-                                  : "border-slate-200 bg-white " + prov.color
-                              }`}
-                            >
-                              <div className={`p-2 rounded-xl ${isSel ? "bg-emerald-600 text-white" : "bg-slate-100 text-slate-700"}`}>
-                                <Icon className="w-4 h-4" />
-                              </div>
-                              <div className="min-w-0">
-                                <div className="font-bold text-xs text-slate-900 truncate flex items-center gap-1.5">
-                                  <span>{prov.name}</span>
-                                  {prov.isPrimary && (
-                                    <span className="text-[9px] font-extrabold px-1.5 py-0.2 rounded-full bg-rose-100 text-rose-700">
-                                      Primary
-                                    </span>
-                                  )}
-                                </div>
-                                <div className="text-[10px] text-slate-500">
-                                  {prov.id === "BANK_TRANSFER" ? "Bank Transfer / Slip" : "Instant USSD"}
-                                </div>
-                              </div>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    {/* Payment Reference & Instructions */}
-                    <div className="p-5 rounded-2xl bg-slate-900 text-white space-y-4">
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-3">
-                        <div>
-                          <div className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">
-                            Your Payment Reference (Required in Narration)
-                          </div>
-                          <div className="text-lg font-black font-mono text-emerald-400 flex items-center gap-2 mt-0.5">
-                            <span>{activePayment?.paymentReference || "Generating..."}</span>
-                            {activePayment?.paymentReference && (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  navigator.clipboard.writeText(activePayment.paymentReference);
-                                  alert("Payment Reference copied to clipboard!");
-                                }}
-                                className="p-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white cursor-pointer"
-                                title="Copy Reference"
-                              >
-                                <Copy className="w-3.5 h-3.5" />
-                              </button>
-                            )}
-                          </div>
-                        </div>
-
-                        <div className="text-right">
-                          <div className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Amount Due</div>
-                          <div className="text-xl font-black text-white">
-                            {paymentConfig?.fee?.isFree || paymentConfig?.fee?.amount === 0
-                              ? "0 RWF (Free Waiver)"
-                              : `${paymentConfig?.fee?.amount !== undefined ? paymentConfig.fee.amount.toLocaleString() : "5,000"} RWF`}
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Instructions */}
-                      <div className="space-y-2 text-xs">
-                        <div className="font-bold text-slate-300 text-[11px] uppercase tracking-wider">
-                          How to Pay:
-                        </div>
-                        {(() => {
-                          const currentProvConfig = paymentConfig?.providers?.find((p: any) => p.provider === selectedProvider);
-                          const dynamicAccount = currentProvConfig?.accountNumber || (selectedProvider === "AIRTEL_MONEY" ? "0729974065" : selectedProvider === "MTN_MOMO" ? "0788123456" : "00040-06912345-67");
-                          
-                          if (selectedProvider === "AIRTEL_MONEY") {
-                            const feeAmt = paymentConfig?.fee?.amount !== undefined ? paymentConfig.fee.amount : 5000;
-                            return (
-                              <div className="space-y-2 text-slate-300 text-xs">
-                                <div className="p-2.5 rounded-xl bg-slate-800/80 border border-slate-700/80 space-y-1">
-                                  <div className="font-bold text-amber-300 text-[11px]">Option A: From Airtel Money (On-Net)</div>
-                                  <p>1. Dial <strong>*182*1*1*{dynamicAccount}*{feeAmt}#</strong></p>
-                                  <p>2. Enter Reference (Impamvu): <strong className="text-emerald-400 font-mono">{activePayment?.paymentReference}</strong></p>
-                                  <p>3. Confirm name &amp; enter your Airtel Money PIN.</p>
-                                </div>
-                                <div className="p-2.5 rounded-xl bg-slate-800/80 border border-slate-700/80 space-y-1">
-                                  <div className="font-bold text-yellow-300 text-[11px]">Option B: From MTN MoMo (Cross-Network / eKash)</div>
-                                  <p>1. Dial <strong>*182*1*2*{dynamicAccount}*{feeAmt}#</strong></p>
-                                  <p>2. Confirm recipient name &amp; enter your MTN MoMo PIN.</p>
-                                </div>
-                              </div>
-                            );
-                          }
-
-                          if (selectedProvider === "MTN_MOMO") {
-                            const feeAmt = paymentConfig?.fee?.amount !== undefined ? paymentConfig.fee.amount : 5000;
-                            return (
-                              <div className="space-y-1 text-slate-300 text-xs">
-                                <p>1. Dial <strong>*182*8*1*{dynamicAccount}#</strong> or open MoMo app.</p>
-                                <p>2. Enter Amount: <strong>{feeAmt} RWF</strong></p>
-                                <p>3. Enter Reference / Reason: <strong className="text-emerald-400 font-mono">{activePayment?.paymentReference}</strong></p>
-                                <p>4. Enter your MoMo PIN to complete payment.</p>
-                              </div>
-                            );
-                          }
-
-                          return (
-                            <div className="space-y-1 text-slate-300 text-xs">
-                              <p>1. Transfer to Account: <strong>{dynamicAccount}</strong></p>
-                              <p>2. Beneficiary: <strong>{currentProvConfig?.accountName || "MOSA Network Ltd"}</strong></p>
-                              <p>3. In narration / description, enter: <strong className="text-emerald-400 font-mono">{activePayment?.paymentReference}</strong></p>
-                              <p className="text-slate-400 text-[11px]">Bank transfers will be activated as soon as reconciled by administration.</p>
-                            </div>
-                          );
-                        })()}
-                      </div>
-
-                      {/* Polling Indicator */}
-                      <div className="pt-2 border-t border-slate-800 flex items-center justify-between text-xs">
-                        <div className="flex items-center gap-2 text-slate-400">
-                          <RefreshCw className="w-3.5 h-3.5 animate-spin text-emerald-400" />
-                          <span>Listening for payment confirmation...</span>
-                        </div>
-                        <button
-                          type="button"
-                          disabled={initiatingPayment}
-                          onClick={() => handleInitiatePayment()}
-                          className="text-[11px] text-emerald-400 hover:text-emerald-300 underline font-bold cursor-pointer"
-                        >
-                          Check Status
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Step Actions */}
+                    {/* Step Actions: Pay Later / Dashboard */}
                     <div className="flex items-center justify-between pt-2">
                       <Link
                         href="/owner/dashboard"
@@ -2606,7 +2442,6 @@ export default function RegisterBusinessPage() {
                         <ArrowRight className="w-4 h-4" />
                       </Link>
                     </div>
-
                   </div>
                 )}
 
