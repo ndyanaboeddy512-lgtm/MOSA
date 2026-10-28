@@ -65,6 +65,21 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Replay protection window check for request timestamp
+    const headerTimestamp = req.headers.get("x-mosa-timestamp") || req.headers.get("x-timestamp");
+    if (headerTimestamp) {
+      const reqTime = new Date(headerTimestamp).getTime();
+      if (isNaN(reqTime) || Math.abs(Date.now() - reqTime) > 15 * 60 * 1000) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Request timestamp is expired or outside the valid 15-minute replay window.",
+          },
+          { status: 400 }
+        );
+      }
+    }
+
     const paymentReference =
       payload.paymentReference ||
       payload.reference ||
@@ -83,10 +98,24 @@ export async function POST(req: NextRequest) {
         : parsedSms?.amount;
 
     if (!paymentReference || !providerTransactionRef) {
+      await prisma.auditLog.create({
+        data: {
+          action: "PAYMENT_UNMATCHED_REFERENCE",
+          entityType: "RegistrationPayment",
+          entityId: paymentReference || "MISSING_REF",
+          metadata: JSON.stringify({
+            provider,
+            providerTransactionRef,
+            amountPaid,
+            rawSms: rawSmsText,
+          }),
+        },
+      }).catch(() => null);
+
       return NextResponse.json(
         {
           success: false,
-          error: "Webhook payload missing required paymentReference or providerTransactionRef.",
+          error: "Webhook payload missing required paymentReference or providerTransactionRef. Transaction left pending for manual administrative reconciliation.",
           parsedSms: parsedSms || undefined,
         },
         { status: 400 }
@@ -144,6 +173,56 @@ export async function POST(req: NextRequest) {
         { success: false, error: authResult.error || "Invalid cryptographic webhook signature." },
         { status: 401 }
       );
+    }
+
+    // 5b. Destination / Recipient Validation: Ensure payment destination matches MOSA's configured SIM or till
+    const suppliedDestination =
+      payload.recipient ||
+      payload.destination ||
+      payload.accountNumber ||
+      payload.merchantNumber ||
+      payload.tillNumber;
+
+    if (suppliedDestination && typeof suppliedDestination === "string") {
+      const cleanSupplied = suppliedDestination.replace(/[\s\-\+\(\)]/g, "").replace(/^250/, "0");
+      const validDestinations = [
+        providerConfig.accountNumber,
+        authResult.device?.simPhoneNumber,
+        provider === "AIRTEL_MONEY" ? "0729974065" : null,
+        provider === "MTN_MOMO" ? "999888" : null,
+        provider === "MTN_MOMO" ? "0788123456" : null,
+      ]
+        .filter(Boolean)
+        .map((d) => String(d).replace(/[\s\-\+\(\)]/g, "").replace(/^250/, "0"));
+
+      const isMatch = validDestinations.some(
+        (v) => v === cleanSupplied || cleanSupplied.includes(v) || v.includes(cleanSupplied)
+      );
+
+      if (!isMatch) {
+        await prisma.auditLog.create({
+          data: {
+            action: "PAYMENT_WRONG_RECIPIENT_REJECTED",
+            entityType: "RegistrationPayment",
+            entityId: paymentReference || "UNKNOWN",
+            metadata: JSON.stringify({
+              provider,
+              suppliedDestination,
+              providerTransactionRef,
+              amountPaid,
+              expectedDestinations: validDestinations,
+            }),
+          },
+        }).catch(() => null);
+
+        return NextResponse.json(
+          {
+            success: false,
+            error: `Payment destination "${suppliedDestination}" does not match configured merchant recipient for ${provider}.`,
+          },
+          { status: 400 }
+        );
+      }
     }
 
     const verifiedBy = authResult.device

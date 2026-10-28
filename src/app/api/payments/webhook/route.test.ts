@@ -65,12 +65,14 @@ describe("Phase 2 — Multi-Provider Webhook Synchronization Gauntlet", () => {
     signatureOverride,
     deviceId = TEST_DEVICE_ID,
     deviceToken = TEST_DEVICE_TOKEN,
+    headersExtra,
   }: {
     payload: any;
     secret?: string;
     signatureOverride?: string;
     deviceId?: string | null;
     deviceToken?: string | null;
+    headersExtra?: Record<string, string>;
   }) {
     const rawBody = JSON.stringify(payload);
     const signature =
@@ -80,6 +82,7 @@ describe("Phase 2 — Multi-Provider Webhook Synchronization Gauntlet", () => {
     const headers: Record<string, string> = {
       "content-type": "application/json",
       "x-signature": signature,
+      ...(headersExtra || {}),
     };
 
     if (deviceId) headers["x-mosa-device-id"] = deviceId;
@@ -812,5 +815,76 @@ describe("Phase 2 — Multi-Provider Webhook Synchronization Gauntlet", () => {
     assert.strictEqual(createdReceipt.currency, "RWF");
     assert.strictEqual(updatedBusiness.status, "ACTIVE");
     assert.strictEqual(auditLogCreated.action, "PAYMENT_CONFIRMED_BUSINESS_ACTIVATED");
+  });
+
+  it("RULE 16: Should reject expired request timestamp outside 15-minute replay window", async () => {
+    const twentyMinutesAgo = new Date(Date.now() - 20 * 60 * 1000).toISOString();
+
+    const req = createSignedRequest({
+      payload: {
+        provider: "MTN_MOMO",
+        paymentReference: "MOSA-REG-REPLAY-1",
+        providerTransactionRef: "TX_REPLAY_1",
+        amount: 5000,
+        currency: "RWF",
+      },
+      headersExtra: {
+        "x-mosa-timestamp": twentyMinutesAgo,
+      },
+    });
+
+    const res = await POST(req);
+    const data = await res.json();
+
+    assert.strictEqual(res.status, 400);
+    assert.strictEqual(data.success, false);
+    assert.match(data.error, /replay window/i);
+  });
+
+  it("RULE 17: Should reject wrong recipient / unauthorized destination phone number", async () => {
+    let wrongRecipientAudited: any = null;
+    (prisma.paymentProviderConfig as any).findUnique = async () => ({
+      provider: "AIRTEL_MONEY",
+      isEnabled: true,
+      accountNumber: "0729974065",
+    });
+
+    (prisma.paymentBridgeDevice as any).findFirst = async () => ({
+      id: "dev_1",
+      deviceId: TEST_DEVICE_ID,
+      deviceToken: TEST_DEVICE_TOKEN,
+      hmacSecret: TEST_HMAC_SECRET,
+      status: "ACTIVE",
+      simPhoneNumber: "+250729974065",
+    });
+
+    (prisma.paymentBridgeDevice as any).update = async () => ({});
+
+    (prisma.auditLog as any).create = async ({ data }: any) => {
+      if (data.action === "PAYMENT_WRONG_RECIPIENT_REJECTED") {
+        wrongRecipientAudited = data;
+      }
+      return { id: "aud_wrong_rec", ...data };
+    };
+
+    const req = createSignedRequest({
+      payload: {
+        provider: "AIRTEL_MONEY",
+        paymentReference: "MOSA-REG-WRONG-REC",
+        providerTransactionRef: "AM_WRONG_DEST_99",
+        amount: 5000,
+        currency: "RWF",
+        recipient: "0788999999", // Unregistered/rogue number
+      },
+    });
+
+    const res = await POST(req);
+    const data = await res.json();
+
+    assert.strictEqual(res.status, 400);
+    assert.strictEqual(data.success, false);
+    assert.match(data.error, /does not match configured merchant recipient/i);
+    assert.ok(wrongRecipientAudited, "PAYMENT_WRONG_RECIPIENT_REJECTED must be audited");
+    assert.strictEqual(wrongRecipientAudited.action, "PAYMENT_WRONG_RECIPIENT_REJECTED");
   });
 });

@@ -52,9 +52,8 @@ export function parseMtnMoMoSms(smsText: string): ParsedMtnMoMoSms {
       }
     }
 
-    // 3. Extract MOSA Payment Reference
-    // Matches: "Ref: MOSA-REG-20261013-ABC12" or "Reference: MOSA-REG-..." or standalone "MOSA-REG-..."
-    const refMatch = text.match(/(?:Ref(?:erence)?[:\s]+)?(MOSA-REG-[A-Z0-9\-]+)/i);
+    // Matches: "Ref: MOSA-REG-20261013-ABC12", "Ref: MOSA-REN-...", or standalone
+    const refMatch = text.match(/(?:Ref(?:erence)?[:\s]+)?(MOSA-(?:REG|REN)-[A-Z0-9\-]+)/i);
     if (refMatch) {
       result.paymentReference = refMatch[1].toUpperCase().trim();
     }

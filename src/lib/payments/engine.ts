@@ -440,11 +440,15 @@ export async function confirmPaymentAndActivateBusiness({
 
     // Automatically transition business to ACTIVE and renewalStatus to CURRENT
     // Calculates and extends 12-month validity
+    // For eligible new registrations, activate as BUSINESS_VERIFIED if currently UNVERIFIED
+    const shouldVerifyBusiness = !isRenewal && payment.business.verificationStatus === "UNVERIFIED";
+
     const updatedBusiness = await tx.business.update({
       where: { id: payment.businessId },
       data: {
         status: "ACTIVE",
         renewalStatus: "CURRENT",
+        verificationStatus: shouldVerifyBusiness ? "BUSINESS_VERIFIED" : payment.business.verificationStatus,
         registrationConfirmedAt: payment.business.registrationConfirmedAt || now,
         registrationExpiresAt: periodEnd,
         gracePeriodEndsAt: null,
