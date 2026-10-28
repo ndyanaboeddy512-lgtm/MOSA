@@ -8,7 +8,7 @@ import com.google.gson.annotations.SerializedName
 data class PairRequest(
     @SerializedName("pairingCode") val pairingCode: String,
     @SerializedName("deviceHardwareId") val deviceHardwareId: String,
-    @SerializedName("appVersion") val appVersion: String = "1.0.0"
+    @SerializedName("appVersion") val appVersion: String = "1.1.0"
 )
 
 data class PairResponse(
@@ -25,7 +25,8 @@ data class PairDeviceData(
     @SerializedName("name") val name: String?,
     @SerializedName("carrier") val carrier: String?,
     @SerializedName("simPhoneNumber") val simPhoneNumber: String?,
-    @SerializedName("enrolledAt") val enrolledAt: String?
+    @SerializedName("enrolledAt") val enrolledAt: String?,
+    @SerializedName("serverUrl") val serverUrl: String? = null
 )
 
 /**
@@ -37,7 +38,16 @@ data class HeartbeatRequest(
     @SerializedName("batteryLevel") val batteryLevel: Int,
     @SerializedName("isCharging") val isCharging: Boolean,
     @SerializedName("networkType") val networkType: String,
-    @SerializedName("appVersion") val appVersion: String = "1.0.0"
+    @SerializedName("appVersion") val appVersion: String = "1.1.0",
+    @SerializedName("pendingSyncCount") val pendingSyncCount: Int = 0
+)
+
+data class TerminalRemoteConfig(
+    @SerializedName("serverUrl") val serverUrl: String? = null,
+    @SerializedName("deviceName") val deviceName: String? = null,
+    @SerializedName("carrier") val carrier: String? = null,
+    @SerializedName("simPhoneNumber") val simPhoneNumber: String? = null,
+    @SerializedName("approvedDestinations") val approvedDestinations: List<String>? = null
 )
 
 data class HeartbeatResponse(
@@ -45,7 +55,8 @@ data class HeartbeatResponse(
     @SerializedName("isDeviceActive") val isDeviceActive: Boolean,
     @SerializedName("status") val status: String?,
     @SerializedName("error") val error: String?,
-    @SerializedName("serverTime") val serverTime: String?
+    @SerializedName("serverTime") val serverTime: String?,
+    @SerializedName("configuration") val configuration: TerminalRemoteConfig? = null
 )
 
 /**

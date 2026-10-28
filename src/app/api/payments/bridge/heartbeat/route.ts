@@ -18,6 +18,7 @@ export async function POST(req: NextRequest) {
       isCharging,
       networkType,
       appVersion,
+      pendingSyncCount,
     } = body;
 
     if (!deviceId || !deviceToken) {
@@ -34,6 +35,7 @@ export async function POST(req: NextRequest) {
       isCharging,
       networkType,
       appVersion,
+      pendingSyncCount,
     });
 
     if (!result.isDeviceActive) {
@@ -53,6 +55,7 @@ export async function POST(req: NextRequest) {
       isDeviceActive: true,
       status: result.status,
       serverTime: result.serverTime,
+      configuration: result.configuration,
     });
   } catch (error: any) {
     console.error("[BRIDGE_HEARTBEAT_ERROR]:", error);

@@ -22,6 +22,7 @@ export interface RecordHeartbeatParams {
   isCharging?: boolean;
   networkType?: string;
   appVersion?: string;
+  pendingSyncCount?: number;
 }
 
 export interface WebhookAuthResult {
@@ -247,6 +248,7 @@ export async function recordDeviceHeartbeat({
   isCharging,
   networkType,
   appVersion,
+  pendingSyncCount,
 }: RecordHeartbeatParams) {
   if (!deviceId || !deviceToken) {
     throw new Error("Both deviceId and deviceToken are required for heartbeat authentication.");
@@ -281,13 +283,19 @@ export async function recordDeviceHeartbeat({
     };
   }
 
+  const cleanNetwork = networkType || device.networkType || "CELLULAR";
+  const effectiveNetwork =
+    pendingSyncCount !== undefined && pendingSyncCount > 0
+      ? `${cleanNetwork} (Queued: ${pendingSyncCount})`
+      : cleanNetwork;
+
   const updated = await prisma.paymentBridgeDevice.update({
     where: { id: device.id },
     data: {
       lastHeartbeatAt: new Date(),
       batteryLevel: batteryLevel !== undefined ? Number(batteryLevel) : device.batteryLevel,
       isCharging: isCharging !== undefined ? Boolean(isCharging) : device.isCharging,
-      networkType: networkType || device.networkType,
+      networkType: effectiveNetwork,
       appVersion: appVersion || device.appVersion,
     },
   });
@@ -297,6 +305,12 @@ export async function recordDeviceHeartbeat({
     isDeviceActive: true,
     status: updated.status,
     serverTime: new Date().toISOString(),
+    configuration: {
+      serverUrl: process.env.NEXT_PUBLIC_APP_URL || "https://mosa-one.vercel.app",
+      deviceName: updated.name,
+      carrier: updated.carrier,
+      simPhoneNumber: updated.simPhoneNumber,
+    },
   };
 }
 

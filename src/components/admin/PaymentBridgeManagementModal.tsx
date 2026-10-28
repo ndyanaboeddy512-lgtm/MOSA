@@ -92,6 +92,8 @@ export function PaymentBridgeManagementModal({ isOpen, onClose }: PaymentBridgeM
   const [newCarrier, setNewCarrier] = useState("Airtel Rwanda");
   const [latestChallenge, setLatestChallenge] = useState<any>(null);
   const [copiedCode, setCopiedCode] = useState(false);
+  const [serverUrl, setServerUrl] = useState("https://mosa-one.vercel.app");
+  const [pairingExpiryMinutes, setPairingExpiryMinutes] = useState(15);
 
   // Edit SIM form state
   const [editingDevice, setEditingDevice] = useState<BridgeDevice | null>(null);
@@ -118,6 +120,11 @@ export function PaymentBridgeManagementModal({ isOpen, onClose }: PaymentBridgeM
         setDevices(data.devices || []);
         setProviders(data.providers || []);
         setAuditLogs(data.auditLogs || []);
+        if (data.serverUrl) {
+          setServerUrl(data.serverUrl);
+        } else if (typeof window !== "undefined") {
+          setServerUrl(window.location.origin);
+        }
       } else {
         setFeedback({ type: "error", message: data.error || "Failed to load bridge devices." });
       }
@@ -151,6 +158,7 @@ export function PaymentBridgeManagementModal({ isOpen, onClose }: PaymentBridgeM
           name: newDeviceName.trim(),
           simPhoneNumber: newSimNumber.trim() || undefined,
           carrier: newCarrier.trim(),
+          expiryMinutes: pairingExpiryMinutes,
         }),
       });
       const data = await res.json();
@@ -159,10 +167,39 @@ export function PaymentBridgeManagementModal({ isOpen, onClose }: PaymentBridgeM
         setFeedback({ type: "success", message: data.message });
         fetchBridgeData();
       } else {
-        setFeedback({ type: "error", message: data.error });
+        setFeedback({ type: "error", message: data.error || "Failed to generate pairing challenge." });
       }
     } catch (err: any) {
-      setFeedback({ type: "error", message: err.message });
+      setFeedback({ type: "error", message: err.message || "Network error." });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleRePair = async (device: BridgeDevice) => {
+    setActionLoading(true);
+    setFeedback(null);
+    try {
+      const res = await fetch("/api/admin/payments/bridge/devices", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "RE_PAIR_TERMINAL",
+          deviceId: device.deviceId,
+          expiryMinutes: pairingExpiryMinutes,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setLatestChallenge(data.challenge);
+        setFeedback({ type: "success", message: data.message });
+        setActiveTab("enroll");
+        fetchBridgeData();
+      } else {
+        setFeedback({ type: "error", message: data.error || "Failed to generate re-pairing challenge." });
+      }
+    } catch (err: any) {
+      setFeedback({ type: "error", message: err.message || "Network error." });
     } finally {
       setActionLoading(false);
     }
@@ -406,6 +443,15 @@ export function PaymentBridgeManagementModal({ isOpen, onClose }: PaymentBridgeM
                     </div>
                     <div className="flex items-center gap-2">
                       <button
+                        onClick={() => handleRePair(activeDevice)}
+                        disabled={actionLoading}
+                        className="px-3 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 font-bold text-xs flex items-center gap-1.5 transition cursor-pointer"
+                        title="Generate a new one-time pairing code for this terminal without creating duplicate records"
+                      >
+                        <Key className="w-3.5 h-3.5 text-amber-700" />
+                        <span>Re-Pair Terminal</span>
+                      </button>
+                      <button
                         onClick={() => {
                           setEditingDevice(activeDevice);
                           setEditDeviceName(activeDevice.name);
@@ -423,6 +469,34 @@ export function PaymentBridgeManagementModal({ isOpen, onClose }: PaymentBridgeM
                         <Trash2 className="w-3.5 h-3.5" />
                         <span>Revoke Terminal</span>
                       </button>
+                    </div>
+                  </div>
+
+                  {/* Backend Connection & Guided Setup Banner */}
+                  <div className="bg-slate-900 text-white rounded-xl p-4 space-y-3 border border-slate-800">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div>
+                        <div className="text-[11px] font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
+                          <Radio className="w-3.5 h-3.5" />
+                          <span>Authorized MOSA Backend Connection URL</span>
+                        </div>
+                        <div className="font-mono text-sm font-bold text-slate-100 mt-0.5 select-all">
+                          {serverUrl}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => copyToClipboard(serverUrl)}
+                        className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs inline-flex items-center gap-1.5 transition cursor-pointer self-start sm:self-auto"
+                      >
+                        {copiedCode ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                        <span>{copiedCode ? "Copied!" : "Copy Backend URL"}</span>
+                      </button>
+                    </div>
+                    <div className="text-[11px] text-slate-300 grid grid-cols-1 sm:grid-cols-3 gap-2 pt-2 border-t border-slate-800">
+                      <div><strong>App Package:</strong> <span className="font-mono text-emerald-300">rw.mosa.paymentbridge.debug</span></div>
+                      <div><strong>Target Version:</strong> <span className="font-semibold text-white">v1.1.0 (Signed APK)</span></div>
+                      <div><strong>Upgrade Compatibility:</strong> <span className="text-emerald-400 font-semibold">In-Place (No Data Loss)</span></div>
                     </div>
                   </div>
 
@@ -665,6 +739,38 @@ export function PaymentBridgeManagementModal({ isOpen, onClose }: PaymentBridgeM
                   </p>
                 </div>
 
+                {/* Backend Connection & Guided Setup Banner */}
+                <div className="bg-slate-900 text-white rounded-xl p-4 space-y-3 border border-slate-800">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                      <div className="text-[11px] font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
+                        <Radio className="w-3.5 h-3.5" />
+                        <span>Authorized MOSA Backend Connection URL</span>
+                      </div>
+                      <div className="font-mono text-sm font-bold text-slate-100 mt-0.5 select-all">
+                        {serverUrl}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => copyToClipboard(serverUrl)}
+                      className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs inline-flex items-center gap-1.5 transition cursor-pointer self-start sm:self-auto"
+                    >
+                      {copiedCode ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                      <span>{copiedCode ? "Copied!" : "Copy Backend URL"}</span>
+                    </button>
+                  </div>
+                  <div className="text-[11px] text-slate-300 space-y-1 pt-2 border-t border-slate-800">
+                    <div className="font-bold text-white">Setup Instructions for Terminal Operator:</div>
+                    <ol className="list-decimal list-inside space-y-0.5 text-slate-300">
+                      <li>Install or upgrade <span className="font-mono text-emerald-300">app-debug.apk</span> (v1.1.0, Package: <span className="font-mono">rw.mosa.paymentbridge.debug</span>).</li>
+                      <li>Open the app and verify the MOSA Server URL matches the URL above.</li>
+                      <li>Enter the pairing code generated below and tap <strong>Pair Device &amp; Activate Terminal</strong>.</li>
+                      <li>Grant SMS permissions and accept the battery-optimization exemption prompt.</li>
+                    </ol>
+                  </div>
+                </div>
+
                 <form onSubmit={handleCreatePairing} className="space-y-4">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
@@ -691,16 +797,31 @@ export function PaymentBridgeManagementModal({ isOpen, onClose }: PaymentBridgeM
                     </div>
                   </div>
 
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">Telecom Carrier</label>
-                    <select
-                      value={newCarrier}
-                      onChange={(e) => setNewCarrier(e.target.value)}
-                      className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-emerald-600 focus:ring-1 focus:ring-emerald-600"
-                    >
-                      <option value="MTN Rwanda">MTN Rwanda (MoMo *182#)</option>
-                      <option value="Airtel Rwanda">Airtel Rwanda (Airtel Money)</option>
-                    </select>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">Telecom Carrier</label>
+                      <select
+                        value={newCarrier}
+                        onChange={(e) => setNewCarrier(e.target.value)}
+                        className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-emerald-600 focus:ring-1 focus:ring-emerald-600"
+                      >
+                        <option value="MTN Rwanda">MTN Rwanda (MoMo *182#)</option>
+                        <option value="Airtel Rwanda">Airtel Rwanda (Airtel Money)</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">Pairing Code Lifetime</label>
+                      <select
+                        value={pairingExpiryMinutes}
+                        onChange={(e) => setPairingExpiryMinutes(Number(e.target.value))}
+                        className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-emerald-600 focus:ring-1 focus:ring-emerald-600"
+                      >
+                        <option value={15}>15 Minutes (Default - High Security)</option>
+                        <option value={30}>30 Minutes</option>
+                        <option value={60}>60 Minutes (Field Deployment)</option>
+                      </select>
+                    </div>
                   </div>
 
                   <button
@@ -740,11 +861,21 @@ export function PaymentBridgeManagementModal({ isOpen, onClose }: PaymentBridgeM
                       </button>
                     </div>
 
-                    <div className="bg-white/80 p-4 rounded-xl text-left text-xs text-slate-700 space-y-1.5 border border-emerald-200">
-                      <div className="font-bold text-slate-900">Instructions for the Replacement Phone:</div>
-                      <div>1. Install the MOSA Payment Bridge APK on the new Android phone.</div>
-                      <div>2. Enter your server URL and this 8-character pairing code: <span className="font-mono font-bold">{latestChallenge.pairingCode}</span>.</div>
-                      <div>3. Tap <strong>Pair Device &amp; Activate Terminal</strong>. The new phone will automatically receive its encrypted credentials.</div>
+                    <div className="bg-white/80 p-4 rounded-xl text-left text-xs text-slate-700 space-y-2 border border-emerald-200">
+                      <div className="font-bold text-slate-900">Operator Setup Instructions:</div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                        <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+                          <div className="text-[10px] uppercase font-bold text-slate-400">Step 1: MOSA Server URL</div>
+                          <div className="font-mono font-bold text-slate-800 text-xs mt-0.5 select-all">{serverUrl}</div>
+                        </div>
+                        <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+                          <div className="text-[10px] uppercase font-bold text-slate-400">Step 2: Pairing Code</div>
+                          <div className="font-mono font-bold text-emerald-800 text-xs mt-0.5 select-all">{latestChallenge.pairingCode}</div>
+                        </div>
+                      </div>
+                      <div className="text-slate-600 text-[11px] pt-1">
+                        Tap <strong>Pair Device &amp; Activate Terminal</strong> on the phone. The device will be cryptographically enrolled into MOSA Command Center.
+                      </div>
                     </div>
                   </div>
                 )}

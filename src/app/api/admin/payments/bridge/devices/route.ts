@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -8,9 +9,9 @@ import {
 } from "@/lib/payments/bridge-devices";
 import { updatePaymentProviderConfig, getPaymentProviders } from "@/lib/payments/engine";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
-    const currentUser = await getCurrentUser();
+    const currentUser = await getCurrentUser(req);
     if (!currentUser || !["SUPER_ADMIN", "COMMUNITY_ADMIN"].includes(currentUser.role)) {
       return NextResponse.json(
         { success: false, error: "Unauthorized access to bridge device management." },
@@ -75,6 +76,7 @@ export async function GET() {
 
     return NextResponse.json({
       success: true,
+      serverUrl: process.env.NEXT_PUBLIC_APP_URL || "https://mosa-one.vercel.app",
       devices: sanitizedDevices,
       totalCount: sanitizedDevices.length,
       activeCount: sanitizedDevices.filter((d) => d.status === "ACTIVE").length,
@@ -92,7 +94,7 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
-    const currentUser = await getCurrentUser();
+    const currentUser = await getCurrentUser(req);
     if (!currentUser || !["SUPER_ADMIN", "COMMUNITY_ADMIN"].includes(currentUser.role)) {
       return NextResponse.json(
         { success: false, error: "Unauthorized. Admin privileges required." },
@@ -303,6 +305,69 @@ export async function POST(req: NextRequest) {
         success: true,
         message: `Payment destination for ${provider} updated successfully.`,
         provider: updated,
+      });
+    }
+
+    if (action === "RE_PAIR_TERMINAL") {
+      const { deviceId, expiryMinutes } = body;
+      if (!deviceId) {
+        return NextResponse.json(
+          { success: false, error: "Device identifier (deviceId) is required to re-pair." },
+          { status: 400 }
+        );
+      }
+
+      const device = await prisma.paymentBridgeDevice.findUnique({
+        where: { deviceId },
+      });
+
+      if (!device) {
+        return NextResponse.json(
+          { success: false, error: `Device "${deviceId}" not found.` },
+          { status: 404 }
+        );
+      }
+
+      const rawCode = crypto.randomBytes(4).toString("hex").toUpperCase();
+      const pairingCode = `${rawCode.slice(0, 4)}-${rawCode.slice(4)}`;
+      const ttlMinutes = expiryMinutes ? Number(expiryMinutes) : 15;
+      const pairingExpiresAt = new Date(Date.now() + ttlMinutes * 60 * 1000);
+
+      const updated = await prisma.paymentBridgeDevice.update({
+        where: { id: device.id },
+        data: {
+          status: "PENDING_PAIRING",
+          pairingCode,
+          pairingExpiresAt,
+        },
+      });
+
+      await prisma.auditLog.create({
+        data: {
+          actorId: currentUser.id,
+          action: "BRIDGE_TERMINAL_RE_PAIRING_INITIATED",
+          entityType: "PaymentBridgeDevice",
+          entityId: updated.id,
+          metadata: JSON.stringify({
+            deviceId: updated.deviceId,
+            name: updated.name,
+            pairingExpiresAt: pairingExpiresAt.toISOString(),
+          }),
+        },
+      }).catch(() => null);
+
+      return NextResponse.json({
+        success: true,
+        message: `New pairing challenge generated for "${updated.name}".`,
+        challenge: {
+          id: updated.id,
+          deviceId: updated.deviceId,
+          name: updated.name,
+          pairingCode,
+          pairingExpiresAt,
+          carrier: updated.carrier,
+          simPhoneNumber: updated.simPhoneNumber,
+        },
       });
     }
 

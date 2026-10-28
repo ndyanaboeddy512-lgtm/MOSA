@@ -38,13 +38,17 @@ class HeartbeatWorker(
         val batteryInfo = getBatteryStatus(applicationContext)
         val networkType = getNetworkType(applicationContext)
 
+        val db = rw.mosa.paymentbridge.data.local.BridgeDatabase.getDatabase(applicationContext)
+        val pendingCount = try { db.transactionDao().getPendingCount() } catch (_: Exception) { 0 }
+
         val request = HeartbeatRequest(
             deviceId = deviceId,
             deviceToken = deviceToken,
             batteryLevel = batteryInfo.level,
             isCharging = batteryInfo.isCharging,
             networkType = networkType,
-            appVersion = "1.0.0"
+            appVersion = "1.1.0",
+            pendingSyncCount = pendingCount
         )
 
         try {
@@ -59,6 +63,14 @@ class HeartbeatWorker(
                 val body = response.body()
                 keystoreManager.lastHeartbeatTimestamp = System.currentTimeMillis()
                 Log.d(TAG, "Heartbeat successful. Status: ${body?.status ?: "ACTIVE"}")
+
+                // Apply dynamic backend remote configuration
+                body?.configuration?.let { cfg ->
+                    cfg.deviceName?.let { if (it.isNotBlank()) keystoreManager.deviceName = it }
+                    cfg.carrier?.let { if (it.isNotBlank()) keystoreManager.carrier = it }
+                    cfg.simPhoneNumber?.let { if (it.isNotBlank()) keystoreManager.simPhoneNumber = it }
+                    cfg.serverUrl?.let { if (it.isNotBlank()) keystoreManager.serverUrl = it }
+                }
 
                 if (body?.isDeviceActive == false) {
                     keystoreManager.isRevoked = true

@@ -20,6 +20,9 @@ interface TransactionDao {
     suspend fun getPendingTransactions(): List<QueuedTransaction>
 
     @Query("SELECT COUNT(*) FROM queued_transactions WHERE status = 'PENDING'")
+    suspend fun getPendingCount(): Int
+
+    @Query("SELECT COUNT(*) FROM queued_transactions WHERE status = 'PENDING'")
     fun getPendingCountLiveData(): LiveData<Int>
 
     @Query("SELECT COUNT(*) FROM queued_transactions WHERE status = 'SYNCED'")

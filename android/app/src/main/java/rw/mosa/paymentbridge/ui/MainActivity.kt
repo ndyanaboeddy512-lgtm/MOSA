@@ -237,7 +237,7 @@ class MainActivity : AppCompatActivity() {
                         PairRequest(
                             pairingCode = pairingCode,
                             deviceHardwareId = hardwareId,
-                            appVersion = "1.0.0"
+                            appVersion = "1.1.0"
                         )
                     )
                 }
@@ -253,6 +253,9 @@ class MainActivity : AppCompatActivity() {
                             simPhone = deviceData.simPhoneNumber,
                             carrier = deviceData.carrier
                         )
+                        deviceData.serverUrl?.let { sUrl ->
+                            if (sUrl.isNotBlank()) keystoreManager.serverUrl = sUrl
+                        }
 
                         BootReceiver.schedulePeriodicHeartbeat(this@MainActivity)
                         Toast.makeText(this@MainActivity, "Terminal successfully paired!", Toast.LENGTH_LONG).show()
