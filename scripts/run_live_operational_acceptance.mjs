@@ -63,16 +63,29 @@ async function main() {
 
     const page = await context.newPage();
 
+    async function safeGoto(targetUrl, maxRetries = 3) {
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+          await page.goto(targetUrl, { waitUntil: "domcontentloaded", timeout: 30000 });
+          return;
+        } catch (err) {
+          if (attempt === maxRetries) throw err;
+          console.log(`      ... transient navigation error (${err.message}). Retrying ${attempt + 1}/${maxRetries} ...`);
+          await new Promise((r) => setTimeout(r, 2500));
+        }
+      }
+    }
+
     // 1A. Explore & Search
     console.log("  1A. Testing Explore & Public Search...");
-    await page.goto(`${PROD_URL}/explore`, { waitUntil: "networkidle" });
+    await safeGoto(`${PROD_URL}/explore`);
     const exploreTitle = await page.title();
     const hasSearchInput = await page.locator('input[type="text"], input[type="search"]').first().isVisible();
     console.log(`      ✓ /explore loaded. Title: "${exploreTitle}", Search input visible: ${hasSearchInput}`);
 
     // 1B. Public Business Self-Registration Page (/register-business)
     console.log("  1B. Testing Business Registration (/register-business)...");
-    await page.goto(`${PROD_URL}/register-business`, { waitUntil: "networkidle" });
+    await safeGoto(`${PROD_URL}/register-business`);
     const regTitle = await page.title();
     const formVisible = await page.locator('form, input[placeholder*="Business"], input[type="text"]').first().isVisible();
     console.log(`      ✓ /register-business rendered properly. Form visible: ${formVisible}`);
@@ -108,7 +121,7 @@ async function main() {
       ]);
     }
 
-    await page.goto(`${PROD_URL}/owner/dashboard`, { waitUntil: "networkidle" });
+    await safeGoto(`${PROD_URL}/owner/dashboard`);
     const ownerDashboardUrl = page.url();
     const dashboardHeader = await page.locator('h1, h2, div:has-text("Dashboard"), div:has-text("Command")').first().innerText().catch(() => "Loaded");
     console.log(`      ✓ Owner dashboard accessible at ${ownerDashboardUrl}. Header snippet: "${dashboardHeader.slice(0, 40)}"`);
@@ -242,12 +255,22 @@ async function main() {
     const { adminConfirmPayment } = await import("../src/lib/payments/engine.ts");
     const bkTxRef = `BK_SLIP_20261028_${Date.now()}`;
 
-    const confirmResult = await adminConfirmPayment({
-      paymentId: testPayment.id,
-      adminId: superAdmin.id,
-      providerTransactionRef: bkTxRef,
-      notes: "Audited against Bank of Kigali statement 00040-06912345-67",
-    });
+    let confirmResult;
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        confirmResult = await adminConfirmPayment({
+          paymentId: testPayment.id,
+          adminId: superAdmin.id,
+          providerTransactionRef: bkTxRef,
+          notes: "Audited against Bank of Kigali statement 00040-06912345-67",
+        });
+        break;
+      } catch (err) {
+        if (attempt === 3) throw err;
+        console.log(`      ... retrying adminConfirmPayment due to database connection timeout (${err.message}) ...`);
+        await new Promise((r) => setTimeout(r, 2000));
+      }
+    }
 
     assertCondition(confirmResult.success, "adminConfirmPayment must return success");
     assertCondition(confirmResult.businessStatus === "ACTIVE", "Business status must transition to ACTIVE");

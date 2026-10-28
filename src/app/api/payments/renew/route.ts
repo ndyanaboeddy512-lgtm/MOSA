@@ -4,7 +4,7 @@ import { initiateAnnualRenewalPayment } from "@/lib/payments/renewals-engine";
 
 export async function POST(req: NextRequest) {
   try {
-    const user = await getCurrentUser();
+    const user = await getCurrentUser(req);
     if (!user) {
       return NextResponse.json(
         { success: false, error: "Unauthorized. Please log in to renew registration." },

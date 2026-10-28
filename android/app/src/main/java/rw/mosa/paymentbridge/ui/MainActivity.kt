@@ -5,9 +5,14 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
+import android.net.Uri
 import android.os.BatteryManager
 import android.os.Build
 import android.os.Bundle
+import android.os.PowerManager
+import android.provider.Settings
 import android.view.View
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
@@ -90,6 +95,31 @@ class MainActivity : AppCompatActivity() {
         if (needed.isNotEmpty()) {
             permissionLauncher.launch(needed.toTypedArray())
         }
+
+        checkBatteryOptimization()
+    }
+
+    private fun checkBatteryOptimization() {
+        val powerManager = getSystemService(Context.POWER_SERVICE) as? PowerManager ?: return
+        if (!powerManager.isIgnoringBatteryOptimizations(packageName)) {
+            try {
+                val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                    data = Uri.parse("package:$packageName")
+                }
+                startActivity(intent)
+            } catch (_: Exception) {
+                try {
+                    startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+                } catch (_: Exception) {}
+            }
+        }
+    }
+
+    private fun isNetworkConnected(context: Context): Boolean {
+        val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return false
+        val network = cm.activeNetwork ?: return false
+        val caps = cm.getNetworkCapabilities(network) ?: return false
+        return caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
     }
 
     private fun setupEventListeners() {
@@ -135,6 +165,9 @@ class MainActivity : AppCompatActivity() {
             if (keystoreManager.isRevoked) {
                 binding.tvStatusBadge.text = getString(R.string.status_revoked)
                 binding.tvStatusBadge.setTextColor(ContextCompat.getColor(this, R.color.status_red))
+            } else if (!isNetworkConnected(this)) {
+                binding.tvStatusBadge.text = getString(R.string.status_offline)
+                binding.tvStatusBadge.setTextColor(ContextCompat.getColor(this, R.color.status_orange))
             } else {
                 binding.tvStatusBadge.text = getString(R.string.status_active)
                 binding.tvStatusBadge.setTextColor(ContextCompat.getColor(this, R.color.status_green))

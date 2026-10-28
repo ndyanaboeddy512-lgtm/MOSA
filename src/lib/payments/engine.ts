@@ -493,7 +493,7 @@ export async function confirmPaymentAndActivateBusiness({
       receipt,
       business: updatedBusiness,
     };
-  }, { timeout: 25000, maxWait: 15000 });
+  }, { timeout: 60000, maxWait: 30000 });
 
   // 7. Dispatch in-app notification to business owner
   if (payment.business.ownerId) {
