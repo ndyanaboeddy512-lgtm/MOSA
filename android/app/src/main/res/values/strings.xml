@@ -3,7 +3,7 @@
     <string name="pairing_title">Enroll Payment Terminal</string>
     <string name="pairing_desc">Enter the 8-character pairing code generated in the MOSA Command Center to pair this Android phone.</string>
     <string name="pairing_code_hint">e.g. D07A-6B90</string>
-    <string name="server_url_hint">https://mosa.rw</string>
+    <string name="server_url_hint">https://mosa-one.vercel.app</string>
     <string name="btn_pair">Pair Device &amp; Activate Terminal</string>
     <string name="pairing_loading">Pairing with MOSA Backend...</string>
 

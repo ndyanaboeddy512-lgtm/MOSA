@@ -119,7 +119,7 @@ class KeystoreManager(context: Context) {
 
     companion object {
         private const val PREFS_FILE_NAME = "mosa_bridge_secure_prefs"
-        private const val DEFAULT_SERVER_URL = "https://mosa.rw"
+        private const val DEFAULT_SERVER_URL = "https://mosa-one.vercel.app"
 
         private const val KEY_SERVER_URL = "server_url"
         private const val KEY_DEVICE_ID = "device_id"

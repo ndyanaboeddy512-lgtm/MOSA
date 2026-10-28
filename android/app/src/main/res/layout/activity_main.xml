@@ -122,7 +122,7 @@
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:inputType="textUri"
-                            android:text="https://mosa.rw" />
+                            android:text="https://mosa-one.vercel.app" />
                     </com.google.android.material.textfield.TextInputLayout>
 
                     <com.google.android.material.textfield.TextInputLayout
