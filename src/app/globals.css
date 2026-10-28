@@ -86,10 +86,19 @@ select,
   cursor: zoom-in;
 }
 
-/* Ensure accurate background colors and graphics for printable receipts */
+/* Ensure accurate background colors and graphics for printable receipts and placards */
 @media print {
   * {
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }
+
+  /* When an official modal (placard or receipt) is being printed, hide page chrome & dashboard background */
+  body:has(.print-modal-active) header,
+  body:has(.print-modal-active) nav,
+  body:has(.print-modal-active) footer,
+  body:has(.print-modal-active) .print-dashboard-body {
+    display: none !important;
+  }
 }
+

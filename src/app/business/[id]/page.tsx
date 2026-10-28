@@ -269,36 +269,91 @@ export default function BusinessDetailPage({
   const formattedWhatsApp = rawWhatsApp.startsWith("0")
     ? "250" + rawWhatsApp.slice(1)
     : (rawWhatsApp.length === 9 ? "250" + rawWhatsApp : rawWhatsApp);
+  const hasValidWhatsApp = Boolean(formattedWhatsApp && formattedWhatsApp.length >= 8);
 
   const hasValidCover = Boolean(business.coverImage && !isLegacyBagPlaceholder(business.coverImage));
   const isCoverVideo = hasValidCover && isVideoMedia(business.coverImage);
 
-  const jsonLd = {
+  // Calculate average rating if reviews exist
+  const avgRating = reviews.length > 0
+    ? (reviews.reduce((acc, r) => acc + r.rating, 0) / reviews.length).toFixed(1)
+    : undefined;
+
+  const validLat = business.location?.coordinates?.lat ?? business.latitude;
+  const validLng = business.location?.coordinates?.lng ?? business.longitude;
+  const hasCoordinates = typeof validLat === "number" && typeof validLng === "number" && !isNaN(validLat) && !isNaN(validLng);
+
+  const jsonLd: Record<string, any> = {
     "@context": "https://schema.org",
     "@type": "LocalBusiness",
-    name: business.name,
+    name: displayName,
+    alternateName: business.name,
     description: business.description,
-    telephone: business.phone,
-    image: hasValidCover ? business.coverImage : undefined,
+    telephone: business.phone || undefined,
+    email: business.email || undefined,
+    image: hasValidCover ? business.coverImage : (business.logo || undefined),
+    logo: business.logo || undefined,
+    url: `https://mosa-one.vercel.app/business/${business.id}`,
+    currenciesAccepted: "RWF",
+    paymentAccepted: "Cash, Mobile Money (MTN MoMo, Airtel Money)",
     address: {
       "@type": "PostalAddress",
-      streetAddress: business.streetName || business.nearestLandmark || "N/A",
-      addressLocality: business.location?.cell || (business as any).cell || "Kigali",
+      streetAddress: business.streetName || business.nearestLandmark || business.location?.addressNote || "N/A",
+      addressLocality: business.location?.cell || (business as any).cell || (business as any).district || "Kigali",
       addressRegion: business.location?.sector || (business as any).sector || "Kigali",
-      addressCountry: "RW",
+      addressCountry: business.location?.country || (business as any).country || "RW",
     },
-    geo: {
-      "@type": "GeoCoordinates",
-      latitude: business.location?.coordinates?.lat ?? business.latitude,
-      longitude: business.location?.coordinates?.lng ?? business.longitude,
-    },
-    openingHoursSpecification: business.openingHours?.map((h) => ({
-      "@type": "OpeningHoursSpecification",
-      dayOfWeek: h.day,
-      opens: h.isClosed ? undefined : h.open,
-      closes: h.isClosed ? undefined : h.close,
-    })),
+    ...(business.priceRange
+      ? { priceRange: business.priceRange }
+      : (business.priceRangeMin && business.priceRangeMax
+          ? { priceRange: `${business.priceRangeMin.toLocaleString()} - ${business.priceRangeMax.toLocaleString()} RWF` }
+          : {})),
+    ...(hasCoordinates && {
+      geo: {
+        "@type": "GeoCoordinates",
+        latitude: validLat,
+        longitude: validLng,
+      },
+    }),
+    ...(business.openingHours && business.openingHours.length > 0 && {
+      openingHoursSpecification: business.openingHours.map((h) => ({
+        "@type": "OpeningHoursSpecification",
+        dayOfWeek: h.day,
+        opens: h.isClosed ? undefined : h.open,
+        closes: h.isClosed ? undefined : h.close,
+      })),
+    }),
+    ...(avgRating && {
+      aggregateRating: {
+        "@type": "AggregateRating",
+        ratingValue: avgRating,
+        reviewCount: reviews.length,
+        bestRating: "5",
+        worstRating: "1",
+      },
+    }),
+    ...(business.products && business.products.length > 0 && {
+      hasOfferCatalog: {
+        "@type": "OfferCatalog",
+        name: `${displayName} Verified Catalogue`,
+        itemListElement: business.products.slice(0, 15).map((p) => ({
+          "@type": "Offer",
+          itemOffered: {
+            "@type": p.isService ? "Service" : "Product",
+            name: p.name,
+            description: p.description || undefined,
+          },
+          price: p.price > 0 ? p.price : undefined,
+          priceCurrency: (p as any).currency || "RWF",
+          availability: p.isAvailable === false ? "https://schema.org/OutOfStock" : "https://schema.org/InStock",
+        })),
+      },
+    }),
   };
+
+  const locationReference = business.nearestLandmark
+    ? `${business.nearestLandmark} (${business.location?.cell || (business as any).cell || "Kigali"})`
+    : `${business.location?.cell || (business as any).cell || "Kigali"}, ${business.location?.sector || (business as any).sector || "Kigali"}`;
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 content-protected">
@@ -471,16 +526,16 @@ export default function BusinessDetailPage({
                 <span>{t.common.call}</span>
               </a>
             )}
-            {(business.whatsapp || business.phone) && (
+            {hasValidWhatsApp && (
               <a
                 href={`https://wa.me/${formattedWhatsApp}?text=${encodeURIComponent(
                   lang === "rw"
                     ? (operatingModel.hasBookings
-                        ? `Muraho, nabonye serivisi zanyu kuri MOSA, ndifuza gufata gahunda kuri ${displayName}.`
-                        : `Muraho, nabonye ibicuruzwa byanyu kuri MOSA, ndifuza gutumiza/kubaza kuri ${displayName}.`)
+                        ? `Muraho ${displayName}! Nabonye serivisi zanyu kuri 55 MOSA (${locationReference}). Ndifuza kubaza amakuru / gufata gahunda:\nhttps://mosa-one.vercel.app/business/${business.id}`
+                        : `Muraho ${displayName}! Nabonye ibicuruzwa byanyu kuri 55 MOSA (${locationReference}). Ndifuza kubaza amakuru / gutumiza:\nhttps://mosa-one.vercel.app/business/${business.id}`)
                     : (operatingModel.hasBookings
-                        ? `Hello, I saw your services on MOSA and would like to make a booking at ${displayName}.`
-                        : `Hello, I saw your items on MOSA and would like to inquire/order at ${displayName}.`)
+                        ? `Hello ${displayName}! I saw your services on 55 MOSA (${locationReference}). I would like to inquire / book an appointment:\nhttps://mosa-one.vercel.app/business/${business.id}`
+                        : `Hello ${displayName}! I found your business on 55 MOSA (${locationReference}). I would like to inquire / place an order:\nhttps://mosa-one.vercel.app/business/${business.id}`)
                 )}`}
                 target="_blank"
                 rel="noopener noreferrer"
@@ -668,21 +723,22 @@ export default function BusinessDetailPage({
                     ? `${item.priceMin.toLocaleString()} – ${item.priceMax.toLocaleString()} ${itemCurrency}`
                     : `${item.price.toLocaleString()} ${itemCurrency}`;
 
+                  const itemNameStr = lang === "rw" && item.nameRw ? item.nameRw : item.name;
                   const waText = lang === "rw"
                     ? (item.isService || operatingModel.hasBookings
                         ? (isContactForPrice
-                            ? `Muraho, ndifuza kubaza igiciro no gufata gahunda ya serivisi: ${item.name} kuri ${displayName}.`
-                            : `Muraho, ndifuza gufata gahunda ya: ${item.name} (${priceLabel}) kuri ${displayName}.`)
+                            ? `Muraho ${displayName}! Nabonye serivisi yanyu kuri 55 MOSA:\n• Serivisi: ${itemNameStr}\n• Aho mukorera: ${locationReference}\nNdifuza kubaza igiciro no gufata gahunda:\nhttps://mosa-one.vercel.app/business/${business.id}`
+                            : `Muraho ${displayName}! Nabonye serivisi yanyu kuri 55 MOSA:\n• Serivisi: ${itemNameStr}\n• Igiciro: ${priceLabel}\n• Aho mukorera: ${locationReference}\nNdifuza gufata gahunda / kubaza amakuru:\nhttps://mosa-one.vercel.app/business/${business.id}`)
                         : (isContactForPrice
-                            ? `Muraho, ndifuza kubaza igiciro cy'igicuruzwa: ${item.name} kuri ${displayName}.`
-                            : `Muraho, ndifuza gutumiza: ${item.name} (${priceLabel}) kuri ${displayName}.`))
+                            ? `Muraho ${displayName}! Nabonye igicuruzwa cyanyu kuri 55 MOSA:\n• Igicuruzwa: ${itemNameStr}\n• Aho mukorera: ${locationReference}\nNdifuza kubaza igiciro n'uko kiboneka:\nhttps://mosa-one.vercel.app/business/${business.id}`
+                            : `Muraho ${displayName}! Nabonye igicuruzwa cyanyu kuri 55 MOSA:\n• Igicuruzwa: ${itemNameStr}\n• Igiciro: ${priceLabel}\n• Aho mukorera: ${locationReference}\nEse kirahari uyu munsi? Ndifuza gutumiza:\nhttps://mosa-one.vercel.app/business/${business.id}`))
                     : (item.isService || operatingModel.hasBookings
                         ? (isContactForPrice
-                            ? `Hello, I'd like to ask about the price and book service: ${item.name} at ${displayName}.`
-                            : `Hello, I'd like to book: ${item.name} (${priceLabel}) at ${displayName}.`)
+                            ? `Hello ${displayName}! I saw your service on 55 MOSA:\n• Service: ${itemNameStr}\n• Location: ${locationReference}\nI would like to inquire about pricing and book an appointment:\nhttps://mosa-one.vercel.app/business/${business.id}`
+                            : `Hello ${displayName}! I saw your service on 55 MOSA:\n• Service: ${itemNameStr}\n• Price: ${priceLabel}\n• Location: ${locationReference}\nI would like to book / inquire:\nhttps://mosa-one.vercel.app/business/${business.id}`)
                         : (isContactForPrice
-                            ? `Hello, I'd like to inquire about: ${item.name} at ${displayName}.`
-                            : `Hello, I would like to order: ${item.name} (${priceLabel}) at ${displayName}.`));
+                            ? `Hello ${displayName}! I found your product on 55 MOSA:\n• Product: ${itemNameStr}\n• Location: ${locationReference}\nI would like to inquire about price and availability:\nhttps://mosa-one.vercel.app/business/${business.id}`
+                            : `Hello ${displayName}! I found your product on 55 MOSA:\n• Product: ${itemNameStr}\n• Price: ${priceLabel}\n• Location: ${locationReference}\nIs this item available today? I would like to order:\nhttps://mosa-one.vercel.app/business/${business.id}`));
 
                   return (
                     <div key={item.id} className="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 group">
@@ -790,7 +846,7 @@ export default function BusinessDetailPage({
                           </div>
                         </div>
 
-                        {(business.whatsapp || business.phone) && (
+                        {hasValidWhatsApp && (
                           item.isAvailable !== false ? (
                             <a
                               href={`https://wa.me/${formattedWhatsApp}?text=${encodeURIComponent(waText)}`}

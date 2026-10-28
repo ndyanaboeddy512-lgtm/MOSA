@@ -124,6 +124,7 @@ model User {
   feeConfigsCreated    RegistrationFeeConfig[] @relation("AdminFeeConfigs")
   enrolledDevices      PaymentBridgeDevice[] @relation("EnrolledBridgeDevices")
   revokedDevices       PaymentBridgeDevice[] @relation("RevokedBridgeDevices")
+  feePromotionsCreated FeePromotion[]        @relation("AdminFeePromotions")
 
   @@index([phone])
   @@index([email])
@@ -1108,6 +1109,9 @@ model RegistrationPayment {
   isWaiver               Boolean                @default(false)
   waiverReason           String?
   waiverAdminId          String?
+  promotionId            String?
+  promotion              FeePromotion?          @relation(fields: [promotionId], references: [id])
+  discountApplied        Float?                 @default(0)
   paymentReference       String                 @unique // e.g. "MOSA-REG-2026-XXXXX", "MOSA-REN-2026-XXXXX"
   providerTransactionRef String?                @unique // External transaction ID from telco/bank
   phoneNumber            String?                // MSISDN used for MoMo
@@ -1130,7 +1134,38 @@ model RegistrationPayment {
   @@index([paymentType])
   @@index([paymentReference])
   @@index([providerTransactionRef])
+  @@index([promotionId])
   @@index([createdAt])
+}
+
+model FeePromotion {
+  id                 String    @id @default(cuid())
+  name               String    // Friendly promotion name e.g. "Youth Tech Entrepreneurship 100% Waiver"
+  code               String?   // Optional promo code e.g. "YOUTH2026"
+  description        String?   // Public/internal description of benefit
+  reason             String    // Mandatory administrative justification for audit
+  promotionType      String    @default("FREE_WAIVER") // "FREE_WAIVER", "PERCENTAGE", "FIXED_DISCOUNT", "EXACT_PRICE"
+  discountValue      Float     @default(0) // 100 for 100% waiver, or discount in RWF, or exact price in RWF
+  appliesTo          String    @default("REGISTRATION") // "REGISTRATION", "ANNUAL_RENEWAL", "BOTH"
+  targetScope        String    @default("ALL") // "ALL", "CATEGORY", "BUSINESS"
+  targetCategory     String?   // e.g. "RETAIL", "SERVICES", "AGRICULTURE", or subCategory
+  targetBusinessIds  String[]  @default([])
+  status             String    @default("ACTIVE") // "ACTIVE", "PAUSED", "SCHEDULED", "ARCHIVED"
+  startDate          DateTime  @default(now())
+  endDate            DateTime? // Optional expiry date
+  maxUsageCount      Int?      // Optional maximum number of businesses that can claim
+  currentUsageCount  Int       @default(0)
+  createdById        String?
+  createdBy          User?     @relation("AdminFeePromotions", fields: [createdById], references: [id])
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  payments           RegistrationPayment[]
+
+  @@index([status])
+  @@index([targetScope])
+  @@index([appliesTo])
+  @@index([startDate, endDate])
 }
 
 model RegistrationReceipt {

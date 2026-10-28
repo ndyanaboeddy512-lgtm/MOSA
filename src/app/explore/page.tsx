@@ -21,6 +21,7 @@ import {
   Filter,
   Store,
   Mail,
+  Briefcase,
 } from "lucide-react";
 
 export default function ExplorePage() {
@@ -29,6 +30,7 @@ export default function ExplorePage() {
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [selectedDataStatus, setSelectedDataStatus] = useState<"all" | "VERIFIED" | "DEMO">("all");
+  const [opportunitiesOnly, setOpportunitiesOnly] = useState(false);
   const [viewMode, setViewMode] = useState<"grid" | "map">("grid");
   const [selectedPin, setSelectedPin] = useState<Business | null>(null);
 
@@ -61,6 +63,7 @@ export default function ExplorePage() {
         if (currentSector && currentSector !== "all") params.set("sector", currentSector);
         if (currentCell && currentCell !== "all") params.set("cell", currentCell);
         if (selectedDataStatus !== "all") params.set("dataStatus", selectedDataStatus);
+        if (opportunitiesOnly) params.set("hasOpportunities", "true");
 
         const res = await fetch(`/api/businesses?${params.toString()}`);
         if (res.ok) {
@@ -79,7 +82,7 @@ export default function ExplorePage() {
       setBusinesses([]);
     }
     loadBusinesses();
-  }, [selectedCategory, currentSector, currentCell, selectedDataStatus]);
+  }, [selectedCategory, currentSector, currentCell, selectedDataStatus, opportunitiesOnly]);
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14 space-y-8">
@@ -184,9 +187,21 @@ export default function ExplorePage() {
             })}
           </div>
 
-          {/* Data Lifecycle Filter */}
-          <div className="flex items-center gap-1.5 shrink-0">
-            <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mr-1.5">
+          {/* Data Lifecycle Filter & Opportunities */}
+          <div className="flex items-center gap-2 shrink-0 flex-wrap">
+            <button
+              onClick={() => setOpportunitiesOnly(!opportunitiesOnly)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer ${
+                opportunitiesOnly
+                  ? "bg-emerald-700 text-white shadow-xs"
+                  : "bg-emerald-50 text-emerald-800 border border-emerald-200/80 hover:bg-emerald-100"
+              }`}
+            >
+              <Briefcase className="w-3.5 h-3.5" />
+              <span>{lang === "rw" ? "Akazi n'Amashyirahamwe" : "Hiring & Opportunities"}</span>
+            </button>
+
+            <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mr-1 ml-1 hidden sm:inline">
               Status:
             </span>
             {(

@@ -63,6 +63,7 @@ import {
   Printer,
   CreditCard,
   Building,
+  QrCode,
 } from "lucide-react";
 import { MosaMap } from "@/components/discovery/MosaMap";
 import { calculateLocationCompleteness, getGoogleMapsDirectionsUrl } from "@/lib/location-quality";
@@ -135,6 +136,9 @@ export default function OwnerDashboardPage() {
   const [isUploadingVideo, setIsUploadingVideo] = useState(false);
   const updateFileInputRef = useRef<HTMLInputElement>(null);
   const [isUploadingUpdate, setIsUploadingUpdate] = useState(false);
+
+  // Storefront QR Window Badge Modal State
+  const [qrBadgeModalOpen, setQrBadgeModalOpen] = useState(false);
 
   // Quick Price Modal State
   const [quickPriceModalOpen, setQuickPriceModalOpen] = useState(false);
@@ -387,11 +391,25 @@ export default function OwnerDashboardPage() {
 
   // Annual Registration Renewal State
   const [ownerRenewModalOpen, setOwnerRenewModalOpen] = useState(false);
-  const [renewProvider, setRenewProvider] = useState<"MTN_MOMO" | "AIRTEL_MONEY" | "BANK_TRANSFER">("MTN_MOMO");
+  const [renewProvider, setRenewProvider] = useState<"MTN_MOMO" | "AIRTEL_MONEY" | "BANK_TRANSFER">("AIRTEL_MONEY");
   const [renewPhone, setRenewPhone] = useState("");
   const [renewLoading, setRenewLoading] = useState(false);
   const [renewPayment, setRenewPayment] = useState<any>(null);
   const [renewError, setRenewError] = useState("");
+  const [renewalFeeConfig, setRenewalFeeConfig] = useState<any>(null);
+
+  useEffect(() => {
+    if (ownerRenewModalOpen && business?.id) {
+      fetch(`/api/payments/config?businessId=${business.id}&feeType=ANNUAL_RENEWAL`)
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.success) {
+            setRenewalFeeConfig(data.fee);
+          }
+        })
+        .catch(() => null);
+    }
+  }, [ownerRenewModalOpen, business?.id]);
 
   const handleInitiateRenewal = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -410,7 +428,14 @@ export default function OwnerDashboardPage() {
       });
       const data = await res.json();
       if (data.success) {
-        setRenewPayment(data);
+        if (data.isFree) {
+          alert("🎉 " + (data.message || "Annual renewal confirmed for free under active promotional waiver!"));
+          await loadOwnerData();
+          setOwnerRenewModalOpen(false);
+          setRenewPayment(null);
+        } else {
+          setRenewPayment(data);
+        }
       } else {
         setRenewError(data.error || "Failed to initiate renewal payment.");
       }
@@ -1880,6 +1905,7 @@ export default function OwnerDashboardPage() {
 
   return (
     <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6">
+      <div className="space-y-6 print-dashboard-body">
       
       {/* Toast Notifications */}
       {saveSuccessMsg && (
@@ -2215,7 +2241,7 @@ export default function OwnerDashboardPage() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <button
               type="button"
               onClick={() => setOwnerReceiptModalOpen(true)}
@@ -2223,6 +2249,14 @@ export default function OwnerDashboardPage() {
             >
               <Printer className="w-3.5 h-3.5" />
               <span>{lang === "rw" ? "Reba Inyemezabwishyu" : "View & Print Receipt"}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setQrBadgeModalOpen(true)}
+              className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs flex items-center gap-1.5 shadow-xs transition cursor-pointer shrink-0"
+            >
+              <QrCode className="w-3.5 h-3.5 text-amber-400" />
+              <span>{lang === "rw" ? "Icyapa cy'Ubucuruzi (QR Badge)" : "Storefront QR Badge"}</span>
             </button>
           </div>
         </div>
@@ -7733,10 +7767,11 @@ export default function OwnerDashboardPage() {
           </div>
         </div>
       )}
+      </div>
 
       {/* Official Registration Receipt Modal */}
       {ownerReceiptModalOpen && registrationReceipt && (
-        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4 print:fixed print:inset-0 print:bg-white print:p-6 print:z-[9999] print:block">
+        <div className="print-modal-active fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4 print:fixed print:inset-0 print:bg-white print:p-6 print:z-[9999] print:block">
           <div className="bg-white rounded-3xl max-w-xl w-full p-8 shadow-2xl border border-slate-200 text-slate-900 space-y-6 print:shadow-none print:border-none print:p-0 print:max-w-none">
             <div className="flex items-start justify-between border-b border-slate-100 pb-4">
               <div>
@@ -7844,6 +7879,107 @@ export default function OwnerDashboardPage() {
         </div>
       )}
 
+      {/* Official Storefront QR Window Badge / Placard Modal */}
+      {qrBadgeModalOpen && business && (
+        <div className="print-modal-active fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-xs flex items-center justify-center p-4 print:fixed print:inset-0 print:bg-white print:p-6 print:z-[9999] print:block overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-8 shadow-2xl border border-slate-200 text-slate-900 space-y-6 print:shadow-none print:border-none print:p-0 print:max-w-none">
+            {/* Placard Header */}
+            <div className="text-center space-y-2 border-b-2 border-slate-900 pb-5">
+              <div className="flex items-center justify-center gap-2">
+                <div className="w-9 h-9 rounded-xl bg-slate-950 text-amber-400 font-extrabold text-base flex items-center justify-center shadow-xs">
+                  55
+                </div>
+                <div className="text-left">
+                  <div className="font-black text-xl tracking-tight text-slate-950 leading-none">55 MOSA</div>
+                  <div className="text-[9px] font-black uppercase tracking-[0.25em] text-emerald-800 mt-0.5">
+                    {business.verificationStatus !== "UNVERIFIED"
+                      ? "UBUTAKA BWEMEJWE • VERIFIED COMMERCE"
+                      : "UBURANGA BW'UBUCURUZI • REGISTERED COMMERCE"}
+                  </div>
+                </div>
+              </div>
+              <p className="text-[11px] text-slate-500 font-semibold tracking-wide uppercase pt-1">
+                Official Street Verification Placard
+              </p>
+            </div>
+
+            {/* Placard Body */}
+            <div className="text-center space-y-4 py-2">
+              <div className="space-y-1">
+                <span className="inline-block px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-200">
+                  {business.verificationStatus === "AGENT_VERIFIED"
+                    ? (lang === "rw" ? "✓ Byemejwe n'Intumwa ya MOSA (Agent Verified)" : "✓ Verified by Community Field Agent")
+                    : business.verificationStatus === "BUSINESS_VERIFIED"
+                    ? (lang === "rw" ? "✓ Ubucuruzi Bwemejwe (Business Verified)" : "✓ Verified Official Business")
+                    : (lang === "rw" ? "✓ Ubucuruzi Bwanditse kuri 55 MOSA" : "✓ Registered 55 MOSA Business")}
+                </span>
+                <h2 className="text-2xl sm:text-3xl font-black text-slate-950 tracking-tight pt-1">
+                  {business.name}
+                </h2>
+                <p className="text-xs font-bold text-slate-600">
+                  {business.categoryDisplay || business.category}
+                </p>
+                <p className="text-xs text-slate-500 font-medium">
+                  {business.nearestLandmark
+                    ? `${business.nearestLandmark} • ${business.location?.cell || business.cell || "Kigali"}, ${business.location?.sector || business.sector || "Rwanda"}`
+                    : `${business.location?.cell || business.cell || "Kigali"}, ${business.location?.sector || business.sector || "Rwanda"}`}
+                </p>
+              </div>
+
+              {/* High-Resolution QR Code */}
+              <div className="flex flex-col items-center justify-center py-2">
+                <div className="p-4 bg-white rounded-2xl border-2 border-slate-900 shadow-md inline-block">
+                  <img
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=280x280&data=${encodeURIComponent(
+                      `https://mosa-one.vercel.app/business/${business.id}`
+                    )}`}
+                    alt={`QR Code for ${business.name}`}
+                    className="w-48 h-48 sm:w-56 sm:h-56 object-contain"
+                  />
+                </div>
+                <div className="mt-3 space-y-1 max-w-xs text-center">
+                  <span className="text-xs font-black uppercase tracking-wider text-slate-900 block">
+                    Koresha Telefoni Yawe (Scan with Phone)
+                  </span>
+                  <p className="text-[11px] text-slate-600 leading-snug">
+                    {lang === "rw"
+                      ? "Kanda hano kugira ngo urebe amakuru n'ibiciro by'ukuri byemejwe kuri 55 MOSA."
+                      : "Scan to verify authentic prices, view products & services, and confirm live operating hours."}
+                  </p>
+                </div>
+              </div>
+
+              {/* Placard Authenticity Stamp */}
+              <div className="pt-3 border-t border-slate-200 flex items-center justify-between text-[10px] text-slate-400 font-mono">
+                <span>MOSA-ID: {business.id.slice(0, 12)}</span>
+                <span>
+                  STATUS: {business.verificationStatus !== "UNVERIFIED" ? "ACTIVE & VERIFIED" : "ACTIVE & REGISTERED"}
+                </span>
+              </div>
+            </div>
+
+            {/* Print & Close Buttons (Hidden on Print) */}
+            <div className="flex items-center justify-between pt-2 border-t border-slate-100 print:hidden">
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl flex items-center gap-2 shadow-xs transition cursor-pointer"
+              >
+                <Printer className="w-4 h-4 text-amber-400" />
+                <span>{lang === "rw" ? "Gucapa Icyapa (Print Window Badge)" : "Print Window Badge"}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setQrBadgeModalOpen(false)}
+                className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Annual Registration Renewal Checkout Modal */}
       {ownerRenewModalOpen && business && (
         <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4">
@@ -7883,7 +8019,29 @@ export default function OwnerDashboardPage() {
               </div>
               <div className="flex justify-between items-center border-t border-slate-200 pt-2">
                 <span className="font-bold text-slate-700">Annual Renewal Fee:</span>
-                <span className="text-base font-black text-emerald-800">5,000 RWF</span>
+                {renewalFeeConfig?.isFree || renewalFeeConfig?.amount === 0 ? (
+                  <div className="flex items-center gap-2">
+                    {renewalFeeConfig?.baseAmount > 0 && (
+                      <span className="text-xs line-through text-slate-400 font-bold">
+                        {renewalFeeConfig.baseAmount.toLocaleString()} RWF
+                      </span>
+                    )}
+                    <span className="text-sm font-black text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
+                      FREE (0 RWF)
+                    </span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    {renewalFeeConfig?.discount > 0 && (
+                      <span className="text-xs line-through text-slate-400 font-bold">
+                        {renewalFeeConfig.baseAmount.toLocaleString()} RWF
+                      </span>
+                    )}
+                    <span className="text-base font-black text-emerald-800">
+                      {renewalFeeConfig?.amount !== undefined ? renewalFeeConfig.amount.toLocaleString() : "5,000"} RWF
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -7903,6 +8061,20 @@ export default function OwnerDashboardPage() {
                   <div className="grid grid-cols-3 gap-2">
                     <button
                       type="button"
+                      onClick={() => setRenewProvider("AIRTEL_MONEY")}
+                      className={`p-3 rounded-xl border text-center transition cursor-pointer flex flex-col items-center gap-1 ${
+                        renewProvider === "AIRTEL_MONEY"
+                          ? "border-rose-500 bg-rose-50/70 font-bold text-rose-900"
+                          : "border-slate-200 hover:border-slate-300 text-slate-700"
+                      }`}
+                    >
+                      <Smartphone className="w-4 h-4 text-rose-600" />
+                      <span className="text-[11px] font-bold">Airtel Money</span>
+                      <span className="text-[9px] font-semibold text-rose-600">(Primary)</span>
+                    </button>
+
+                    <button
+                      type="button"
                       onClick={() => setRenewProvider("MTN_MOMO")}
                       className={`p-3 rounded-xl border text-center transition cursor-pointer flex flex-col items-center gap-1 ${
                         renewProvider === "MTN_MOMO"
@@ -7912,19 +8084,6 @@ export default function OwnerDashboardPage() {
                     >
                       <Smartphone className="w-4 h-4 text-yellow-600" />
                       <span className="text-[11px]">MTN MoMo</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setRenewProvider("AIRTEL_MONEY")}
-                      className={`p-3 rounded-xl border text-center transition cursor-pointer flex flex-col items-center gap-1 ${
-                        renewProvider === "AIRTEL_MONEY"
-                          ? "border-rose-500 bg-rose-50/70 font-bold text-rose-900"
-                          : "border-slate-200 hover:border-slate-300 text-slate-700"
-                      }`}
-                    >
-                      <Smartphone className="w-4 h-4 text-rose-600" />
-                      <span className="text-[11px]">Airtel Money</span>
                     </button>
 
                     <button
@@ -7977,7 +8136,11 @@ export default function OwnerDashboardPage() {
                     ) : (
                       <>
                         <Check className="w-3.5 h-3.5" />
-                        <span>Proceed to Pay (5,000 RWF)</span>
+                        <span>
+                          {renewalFeeConfig?.isFree || renewalFeeConfig?.amount === 0
+                            ? "Confirm Free Renewal (0 RWF)"
+                            : `Proceed to Pay (${renewalFeeConfig?.amount !== undefined ? renewalFeeConfig.amount.toLocaleString() : "5,000"} RWF)`}
+                        </span>
                       </>
                     )}
                   </button>
@@ -8015,7 +8178,7 @@ export default function OwnerDashboardPage() {
                     {renewProvider === "BANK_TRANSFER" ? "Bank Transfer Details:" : "Mobile Money Payment Instructions:"}
                   </div>
                   <p className="text-slate-600 whitespace-pre-line leading-relaxed">
-                    {renewPayment.instructions || "Send 5,000 RWF via Mobile Money or Bank and enter the reference above."}
+                    {renewPayment.instructions || `Send ${renewPayment.renewalFee !== undefined ? renewPayment.renewalFee.toLocaleString() : "5,000"} RWF via Mobile Money or Bank and enter the reference above.`}
                   </p>
                 </div>
 

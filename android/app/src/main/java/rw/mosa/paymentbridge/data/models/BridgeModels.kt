@@ -72,7 +72,7 @@ data class PaymentWebhookResponse(
 )
 
 /**
- * Internal parsing result from MtnSmsParser.
+ * Internal parsing result from MtnSmsParser and AirtelSmsParser.
  */
 data class ParsedSmsResult(
     val isValidMoMoSms: Boolean,
@@ -83,5 +83,8 @@ data class ParsedSmsResult(
     val senderPhone: String? = null,
     val senderName: String? = null,
     val timestamp: String? = null,
-    val rawText: String
+    val rawText: String,
+    val provider: String = "MTN_MOMO",
+    val isEkash: Boolean = false,
+    val balance: Double? = null
 )

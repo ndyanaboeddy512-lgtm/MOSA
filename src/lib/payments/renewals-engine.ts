@@ -2,6 +2,7 @@ import crypto from "crypto";
 import { Resend } from "resend";
 import { prisma } from "@/lib/prisma";
 import { getActiveFeeConfig, getPaymentProviders } from "./engine";
+import { calculateEffectiveFee } from "./promotions-engine";
 import { renderRenewalEmail } from "@/lib/email/renewal-templates";
 import { isEmailConfigured, getSenderEmail, isValidEmail } from "@/lib/email";
 
@@ -52,9 +53,126 @@ export async function initiateAnnualRenewalPayment({
     throw new Error(`Business with ID ${businessId} was not found.`);
   }
 
-  const feeConfig = await getActiveFeeConfig();
-  const renewalFee = (feeConfig as any).renewalAmount || feeConfig.amount || DEFAULT_ANNUAL_RENEWAL_FEE;
-  const currency = feeConfig.currency || "RWF";
+  const feeResult = await calculateEffectiveFee({
+    businessId,
+    category: business.category || business.categoryDisplay || undefined,
+    feeType: "ANNUAL_RENEWAL",
+  });
+
+  const { periodStart, periodEnd } = calculateRenewalPeriod(business.registrationExpiresAt);
+
+  // If renewal fee is 0 RWF (via 0 RWF renewal tariff or 100% renewal promo), automatically confirm renewal
+  if (feeResult.isFree) {
+    const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+    const randomSuffix = crypto.randomBytes(3).toString("hex").toUpperCase();
+    const paymentReference = `MOSA-REN-WAIVE-${dateStr}-${randomSuffix}`;
+
+    const receiptCount = await prisma.registrationReceipt.count();
+    const seqNum = String(receiptCount + 1).padStart(5, "0");
+    const receiptNumber = `MOSA-REC-${dateStr}-${seqNum}`;
+
+    const promo = feeResult.promotion;
+    const waiverReasonText = promo
+      ? `Promotional 100% Renewal Waiver: ${promo.name} (${promo.reason})`
+      : `Zero-Fee Renewal Policy (Tariff: 0 RWF, reason: ${feeResult.feeConfig.reminderSchedule || "Free Renewal Tier"})`;
+
+    const result = await prisma.$transaction(async (tx) => {
+      const payment = await tx.registrationPayment.create({
+        data: {
+          businessId,
+          payerUserId,
+          feeConfigId: feeResult.feeConfig.id,
+          feeAmount: 0,
+          discountApplied: feeResult.baseFee,
+          promotionId: promo?.id || null,
+          currency: feeResult.currency,
+          provider: "ADMIN_WAIVER",
+          paymentType: "ANNUAL_RENEWAL",
+          periodCoveredStart: periodStart,
+          periodCoveredEnd: periodEnd,
+          isWaiver: true,
+          waiverReason: waiverReasonText,
+          paymentReference,
+          providerTransactionRef: `FREE-REN-${dateStr}-${randomSuffix}`,
+          status: "CONFIRMED",
+          verifiedAt: new Date(),
+          verifiedBy: promo ? `PROMOTION_${promo.id}` : "FREE_TARIFF_POLICY",
+        },
+      });
+
+      const receipt = await tx.registrationReceipt.create({
+        data: {
+          receiptNumber,
+          paymentId: payment.id,
+          businessId: business.id,
+          businessName: business.name,
+          ownerName: business.owner?.name || "Business Owner",
+          ownerPhone: business.owner?.phone || business.phone,
+          amountPaid: 0,
+          currency: feeResult.currency,
+          paymentMethod: promo ? "PROMOTION_WAIVER" : "ADMIN_WAIVER",
+          receiptType: "ANNUAL_RENEWAL",
+          periodCoveredStart: periodStart,
+          periodCoveredEnd: periodEnd,
+        },
+      });
+
+      await tx.business.update({
+        where: { id: business.id },
+        data: {
+          status: "ACTIVE",
+          renewalStatus: "CURRENT",
+          registrationExpiresAt: periodEnd,
+          gracePeriodEndsAt: null,
+          renewalCount: { increment: 1 },
+          lastRenewalAt: new Date(),
+        },
+      });
+
+      if (promo) {
+        await tx.feePromotion.update({
+          where: { id: promo.id },
+          data: { currentUsageCount: { increment: 1 } },
+        });
+      }
+
+      await tx.auditLog.create({
+        data: {
+          actorId: payerUserId,
+          action: "ANNUAL_RENEWAL_CONFIRMED_ZERO_FEE",
+          entityType: "Business",
+          entityId: business.id,
+          metadata: JSON.stringify({
+            paymentId: payment.id,
+            receiptNumber: receipt.receiptNumber,
+            renewalFee: 0,
+            promotionId: promo?.id || null,
+            periodCoveredStart: periodStart,
+            periodCoveredEnd: periodEnd,
+          }),
+        },
+      });
+
+      return { payment, receipt };
+    });
+
+    return {
+      success: true,
+      isFree: true,
+      payment: result.payment,
+      receipt: result.receipt,
+      renewalFee: 0,
+      baseRenewalFee: feeResult.baseFee,
+      discountApplied: feeResult.discount,
+      currency: feeResult.currency,
+      paymentReference,
+      receiptNumber,
+      periodCoveredStart: periodStart,
+      periodCoveredEnd: periodEnd,
+      promotion: feeResult.promotion,
+      message: "Annual renewal successfully confirmed for free under active promotional policy.",
+    };
+  }
 
   const providerConfigs = await getPaymentProviders(true);
   const providerConfig = providerConfigs.find((p) => p.provider === provider);
@@ -62,8 +180,6 @@ export async function initiateAnnualRenewalPayment({
   if (!providerConfig) {
     throw new Error(`Payment provider ${provider} is not currently enabled.`);
   }
-
-  const { periodStart, periodEnd } = calculateRenewalPeriod(business.registrationExpiresAt);
 
   // Generate unique renewal reference: MOSA-REN-YYYYMMDD-XXXXX
   const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, "");
@@ -74,9 +190,11 @@ export async function initiateAnnualRenewalPayment({
     data: {
       businessId,
       payerUserId,
-      feeConfigId: feeConfig.id,
-      feeAmount: renewalFee,
-      currency,
+      feeConfigId: feeResult.feeConfig.id,
+      feeAmount: feeResult.effectiveFee,
+      discountApplied: feeResult.discount,
+      promotionId: feeResult.promotion?.id || null,
+      currency: feeResult.currency,
       provider,
       paymentType: "ANNUAL_RENEWAL",
       periodCoveredStart: periodStart,
@@ -89,9 +207,13 @@ export async function initiateAnnualRenewalPayment({
 
   return {
     success: true,
+    isFree: false,
     payment,
-    renewalFee,
-    currency,
+    renewalFee: feeResult.effectiveFee,
+    baseRenewalFee: feeResult.baseFee,
+    discountApplied: feeResult.discount,
+    promotion: feeResult.promotion,
+    currency: feeResult.currency,
     paymentReference,
     periodCoveredStart: periodStart,
     periodCoveredEnd: periodEnd,

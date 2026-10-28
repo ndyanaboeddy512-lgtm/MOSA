@@ -87,9 +87,9 @@ export function PaymentBridgeManagementModal({ isOpen, onClose }: PaymentBridgeM
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
   // Enrollment form state
-  const [newDeviceName, setNewDeviceName] = useState("Primary MTN MoMo Android Terminal");
-  const [newSimNumber, setNewSimNumber] = useState("+250 ");
-  const [newCarrier, setNewCarrier] = useState("MTN Rwanda");
+  const [newDeviceName, setNewDeviceName] = useState("Primary Airtel Money Android Terminal");
+  const [newSimNumber, setNewSimNumber] = useState("+250729974065");
+  const [newCarrier, setNewCarrier] = useState("Airtel Rwanda");
   const [latestChallenge, setLatestChallenge] = useState<any>(null);
   const [copiedCode, setCopiedCode] = useState(false);
 

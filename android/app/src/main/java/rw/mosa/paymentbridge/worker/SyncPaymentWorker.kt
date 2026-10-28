@@ -64,7 +64,7 @@ class SyncPaymentWorker(
         for (tx in pendingList) {
             try {
                 val payload = PaymentWebhookPayload(
-                    provider = "MTN_MOMO",
+                    provider = tx.provider,
                     paymentReference = tx.paymentReference,
                     providerTransactionRef = tx.transactionId,
                     amount = tx.amount,

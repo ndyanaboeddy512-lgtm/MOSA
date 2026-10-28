@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Business } from "@/types";
 import { useLanguage } from "@/lib/i18n";
 import { VerificationBadge, DataStatusBadge } from "@/components/common/Badge";
-import { MapPin, Phone, MessageCircle, Clock, ChevronRight, Tag } from "lucide-react";
+import { MapPin, Phone, MessageCircle, Clock, ChevronRight, Tag, Briefcase } from "lucide-react";
 
 import { isVideoMedia, isLegacyBagPlaceholder } from "@/lib/media-upload";
 
@@ -189,6 +189,18 @@ export function BusinessCard({ business, variant = "standard", className = "" }:
             </div>
           )}
 
+          {/* Active Opportunities / Local Hiring Pill */}
+          {business.opportunities && business.opportunities.length > 0 && (
+            <div className="mt-2.5 flex items-center gap-1.5 text-xs text-emerald-950 bg-emerald-50/90 border border-emerald-200/90 px-2.5 py-1 rounded-xl">
+              <Briefcase className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
+              <span className="text-[11px] font-bold truncate">
+                {lang === "rw"
+                  ? `${business.opportunities.length} ${business.opportunities.length === 1 ? "Umwanya w'Akazi / Gahunda" : "Imyanya y'Akazi / Gahunda"}`
+                  : `${business.opportunities.length} Active Opportunity / Hiring`}
+              </span>
+            </div>
+          )}
+
           {/* Sample Prices */}
           {business.products && business.products.length > 0 && (
             <div className="mt-4 pt-3 border-t border-slate-100 space-y-2">
@@ -241,12 +253,19 @@ export function BusinessCard({ business, variant = "standard", className = "" }:
                 <Phone className="w-3.5 h-3.5 text-slate-700" />
               </a>
             )}
-            {business.whatsapp && (() => {
-              const cleanWa = business.whatsapp.replace(/\D/g, "");
+            {(() => {
+              const rawWa = (business.whatsapp || business.phone || "").replace(/\D/g, "");
+              if (!rawWa || rawWa.length < 8) return null;
+              const cleanWa = rawWa.startsWith("0")
+                ? "250" + rawWa.slice(1)
+                : rawWa.length === 9
+                ? "250" + rawWa
+                : rawWa;
+              const locationStr = business.nearestLandmark || locationLabel;
               const waText = encodeURIComponent(
                 lang === "rw"
-                  ? "Muraho, nabonye ubucuruzi bwanyu kuri 55 MOSA."
-                  : "Hello, I found your business on 55 MOSA."
+                  ? `Muraho ${displayName}! Nabonye ubucuruzi bwanyu kuri 55 MOSA (${locationStr}). Ndifuza kubaza amakuru n'ibicuruzwa/serivisi mukora:\nhttps://mosa-one.vercel.app/business/${business.id}`
+                  : `Hello ${displayName}! I found your business on 55 MOSA (${locationStr}). I would like to inquire about your products and services:\nhttps://mosa-one.vercel.app/business/${business.id}`
               );
               return (
                 <a

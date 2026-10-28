@@ -1,18 +1,35 @@
-import { NextResponse } from "next/server";
-import { getActiveFeeConfig, getPaymentProviders } from "@/lib/payments/engine";
+import { NextRequest, NextResponse } from "next/server";
+import { getPaymentProviders } from "@/lib/payments/engine";
+import { calculateEffectiveFee } from "@/lib/payments/promotions-engine";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
-    const feeConfig = await getActiveFeeConfig();
+    const { searchParams } = new URL(req.url);
+    const businessId = searchParams.get("businessId") || undefined;
+    const category = searchParams.get("category") || undefined;
+    const feeTypeParam = searchParams.get("feeType");
+    const feeType = feeTypeParam === "ANNUAL_RENEWAL" ? "ANNUAL_RENEWAL" : "REGISTRATION";
+
+    const feeCalculation = await calculateEffectiveFee({
+      businessId,
+      category,
+      feeType,
+    });
+
     const providers = await getPaymentProviders(true);
 
     return NextResponse.json({
       success: true,
       fee: {
-        amount: feeConfig.amount,
-        currency: feeConfig.currency,
-        reason: feeConfig.reason,
-        effectiveFrom: feeConfig.effectiveFrom,
+        amount: feeCalculation.effectiveFee,
+        baseAmount: feeCalculation.baseFee,
+        discount: feeCalculation.discount,
+        isFree: feeCalculation.isFree,
+        currency: feeCalculation.currency,
+        promotion: feeCalculation.promotion,
+        renewalAmount: feeCalculation.feeConfig.renewalAmount,
+        gracePeriodDays: feeCalculation.feeConfig.gracePeriodDays,
+        reminderSchedule: feeCalculation.feeConfig.reminderSchedule,
       },
       providers: providers.map((p) => ({
         id: p.id,

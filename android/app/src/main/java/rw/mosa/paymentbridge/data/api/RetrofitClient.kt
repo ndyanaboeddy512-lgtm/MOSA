@@ -14,7 +14,7 @@ object RetrofitClient {
 
     @Synchronized
     fun getApiService(keystoreManager: KeystoreManager): MosaApiService {
-        val serverUrl = keystoreManager.serverUrl
+        val serverUrl = keystoreManager.serverUrl.trim().trimEnd('/')
         if (apiService != null && currentBaseUrl == serverUrl) {
             return apiService!!
         }

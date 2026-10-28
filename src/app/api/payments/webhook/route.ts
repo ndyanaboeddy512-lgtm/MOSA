@@ -3,9 +3,19 @@ import { prisma } from "@/lib/prisma";
 import {
   verifyWebhookSignature,
   confirmPaymentAndActivateBusiness,
+  getPaymentProviders,
 } from "@/lib/payments/engine";
 import { parseMtnMoMoSms } from "@/lib/payments/momo-sms";
+import { parseAirtelMoneySms } from "@/lib/payments/airtel-sms";
 import { authenticateWebhookRequest } from "@/lib/payments/bridge-devices";
+
+export const ALLOWED_WEBHOOK_PROVIDERS = [
+  "MTN_MOMO",
+  "AIRTEL_MONEY",
+  "BANK_TRANSFER",
+] as const;
+
+export type AllowedWebhookProvider = (typeof ALLOWED_WEBHOOK_PROVIDERS)[number];
 
 export async function POST(req: NextRequest) {
   try {
@@ -29,13 +39,30 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const provider = providerParam || payload.provider || "MTN_MOMO";
+    // 1. Strict Provider Allowlist Validation
+    // Reject UNKNOWN, missing, or unsupported providers immediately
+    const rawProvider = (providerParam || payload.provider || "").trim().toUpperCase();
+    if (!rawProvider || !ALLOWED_WEBHOOK_PROVIDERS.includes(rawProvider as AllowedWebhookProvider)) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Unsupported, missing, or unclassified payment provider: "${rawProvider || "EMPTY"}". Inbound payments labeled UNKNOWN are rejected for manual reconciliation.`,
+        },
+        { status: 400 }
+      );
+    }
 
-    // If incoming payload has raw SMS text from Android forwarder, parse it
+    const provider = rawProvider as AllowedWebhookProvider;
+
+    // 2. Provider-Aware Evidence Extraction from Raw SMS (if provided by bridge forwarder)
     let parsedSms: any = null;
     const rawSmsText = payload.rawSms || payload.sms || payload.body;
     if (rawSmsText && typeof rawSmsText === "string") {
-      parsedSms = parseMtnMoMoSms(rawSmsText);
+      if (provider === "AIRTEL_MONEY") {
+        parsedSms = parseAirtelMoneySms(rawSmsText);
+      } else if (provider === "MTN_MOMO") {
+        parsedSms = parseMtnMoMoSms(rawSmsText);
+      }
     }
 
     const paymentReference =
@@ -66,10 +93,29 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Look up provider config to ensure provider is enabled
-    const providerConfig = await prisma.paymentProviderConfig.findUnique({
+    // 3. Currency Validation
+    const currency = (payload.currency || parsedSms?.currency || "RWF").trim().toUpperCase();
+    if (currency !== "RWF") {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Unsupported payment currency: "${currency}". Only RWF payments are accepted for settlement.`,
+        },
+        { status: 400 }
+      );
+    }
+
+    // 4. Look up provider config to ensure provider is enabled
+    let providerConfig = await prisma.paymentProviderConfig.findUnique({
       where: { provider },
     });
+
+    if (!providerConfig) {
+      await getPaymentProviders(false);
+      providerConfig = await prisma.paymentProviderConfig.findUnique({
+        where: { provider },
+      });
+    }
 
     if (!providerConfig || !providerConfig.isEnabled) {
       return NextResponse.json(
@@ -78,7 +124,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Dual-mode authentication: Enrolled Android Bridge Device credentials OR Provider Webhook Secret
+    // 5. Dual-mode authentication: Enrolled Android Bridge Device credentials OR Provider Webhook Secret
     const deviceIdHeader = req.headers.get("x-mosa-device-id") || payload.bridgeDeviceId;
     const authHeader = req.headers.get("authorization");
 
@@ -106,12 +152,14 @@ export async function POST(req: NextRequest) {
       ? `ANDROID_BRIDGE_${payload.bridgeDeviceId}`
       : `WEBHOOK_${provider}`;
 
-    // Process idempotent confirmation, activation, and receipt generation
+    // 6. Process idempotent confirmation, activation, and receipt generation
+    // Actual settled provider is strictly persisted across payment, receipt, and audit log
     const result = await confirmPaymentAndActivateBusiness({
       paymentReference,
       providerTransactionRef: String(providerTransactionRef),
       provider,
       amountPaid,
+      currency,
       rawPayload: rawBody,
       verifiedBy,
     });

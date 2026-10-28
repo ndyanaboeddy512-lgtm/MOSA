@@ -29,6 +29,12 @@ data class QueuedTransaction(
     @ColumnInfo(name = "currency")
     val currency: String = "RWF",
 
+    @ColumnInfo(name = "provider", defaultValue = "MTN_MOMO")
+    val provider: String = PROVIDER_MTN_MOMO,
+
+    @ColumnInfo(name = "is_ekash", defaultValue = "0")
+    val isEkash: Boolean = false,
+
     @ColumnInfo(name = "sender_phone")
     val senderPhone: String?,
 
@@ -61,5 +67,9 @@ data class QueuedTransaction(
         const val STATUS_SYNCED = "SYNCED"
         const val STATUS_FAILED = "FAILED"
         const val STATUS_UNMATCHED = "UNMATCHED"
+
+        const val PROVIDER_MTN_MOMO = "MTN_MOMO"
+        const val PROVIDER_AIRTEL_MONEY = "AIRTEL_MONEY"
+        const val PROVIDER_UNKNOWN = "UNKNOWN"
     }
 }

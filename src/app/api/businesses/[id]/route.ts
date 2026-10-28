@@ -27,7 +27,7 @@ export async function GET(
           orderBy: { createdAt: "desc" },
         },
         opportunities: {
-          where: { status: "OPEN", moderationStatus: { not: "REMOVED" } },
+          where: { status: "OPEN", moderationStatus: "APPROVED" },
           orderBy: { createdAt: "desc" },
         },
       },

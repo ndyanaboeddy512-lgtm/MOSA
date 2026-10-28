@@ -6,6 +6,7 @@ export interface CreatePairingChallengeParams {
   simPhoneNumber?: string;
   carrier?: string;
   adminId: string;
+  expiryMinutes?: number;
 }
 
 export interface CompletePairingParams {
@@ -40,6 +41,7 @@ export async function createDevicePairingChallenge({
   simPhoneNumber,
   carrier = "MTN Rwanda",
   adminId,
+  expiryMinutes,
 }: CreatePairingChallengeParams) {
   if (!name || name.trim().length === 0) {
     throw new Error("Device friendly name is required (e.g. 'Hub Office Primary Phone').");
@@ -54,8 +56,9 @@ export async function createDevicePairingChallenge({
   const rawCode = crypto.randomBytes(4).toString("hex").toUpperCase();
   const pairingCode = `${rawCode.slice(0, 4)}-${rawCode.slice(4)}`;
 
-  // Valid for 15 minutes
-  const pairingExpiresAt = new Date(Date.now() + 15 * 60 * 1000);
+  // Valid for expiryMinutes (default 15 minutes)
+  const ttlMinutes = expiryMinutes && expiryMinutes > 0 ? expiryMinutes : 15;
+  const pairingExpiresAt = new Date(Date.now() + ttlMinutes * 60 * 1000);
 
   const device = await prisma.paymentBridgeDevice.create({
     data: {
@@ -166,7 +169,31 @@ export async function completeDevicePairing({
       where: { deviceId: deviceHardwareId },
     });
     if (existing && existing.id !== device.id) {
-      throw new Error(`Device hardware identifier "${deviceHardwareId}" is already bound to another profile.`);
+      // Archive previous device profile's deviceId to free up the hardware identifier for the new pairing
+      const archivedId = `${existing.deviceId}_archived_${Date.now()}`;
+      await prisma.paymentBridgeDevice.update({
+        where: { id: existing.id },
+        data: {
+          deviceId: archivedId,
+          status: "REVOKED",
+          revokedAt: new Date(),
+          revokedReason: `Hardware re-enrolled into new profile "${device.name}"`,
+        },
+      });
+
+      await prisma.auditLog.create({
+        data: {
+          action: "BRIDGE_DEVICE_HARDWARE_REBOUND",
+          entityType: "PaymentBridgeDevice",
+          entityId: existing.id,
+          metadata: JSON.stringify({
+            previousDeviceId: existing.deviceId,
+            archivedAs: archivedId,
+            newProfileId: device.id,
+            newProfileName: device.name,
+          }),
+        },
+      }).catch(() => null);
     }
   }
 
@@ -408,10 +435,8 @@ export async function authenticateWebhookRequest({
   if (deviceId || deviceToken) {
     const device = await prisma.paymentBridgeDevice.findFirst({
       where: {
-        OR: [
-          ...(deviceId ? [{ deviceId }] : []),
-          ...(deviceToken ? [{ deviceToken }] : []),
-        ],
+        ...(deviceId ? { deviceId } : {}),
+        ...(deviceToken ? { deviceToken } : {}),
       },
     });
 

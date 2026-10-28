@@ -78,6 +78,7 @@ export async function GET(request: Request) {
   const provinceId = searchParams.get("provinceId") || undefined;
   const checkDuplicate = searchParams.get("checkDuplicate") === "true";
   const locationVerification = searchParams.get("locationVerification") || searchParams.get("locationVerificationStatus") || undefined;
+  const hasOpportunities = searchParams.get("hasOpportunities") === "true";
   const targetLat = searchParams.get("lat") ? parseFloat(searchParams.get("lat")!) : (searchParams.get("latitude") ? parseFloat(searchParams.get("latitude")!) : undefined);
   const targetLng = searchParams.get("lng") ? parseFloat(searchParams.get("lng")!) : (searchParams.get("longitude") ? parseFloat(searchParams.get("longitude")!) : undefined);
 
@@ -224,6 +225,15 @@ export async function GET(request: Request) {
       where.locationVerificationStatus = locationVerification as LocationVerificationStatus;
     }
 
+    if (hasOpportunities) {
+      where.opportunities = {
+        some: {
+          status: "OPEN",
+          moderationStatus: "APPROVED",
+        },
+      };
+    }
+
     let parsedNlp: any = null;
 
     if (search) {
@@ -321,6 +331,12 @@ export async function GET(request: Request) {
         businessHours: true,
         localArea: true,
         media: true,
+        opportunities: {
+          where: {
+            status: "OPEN",
+            moderationStatus: "APPROVED",
+          },
+        },
       },
       orderBy: { updatedAt: "desc" },
     });

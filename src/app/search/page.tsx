@@ -28,7 +28,8 @@ import {
   DollarSign,
   Compass,
   ExternalLink,
-  ShieldCheck
+  ShieldCheck,
+  Briefcase,
 } from "lucide-react";
 
 function SearchContent() {
@@ -41,6 +42,7 @@ function SearchContent() {
   const [results, setResults] = useState<Business[]>([]);
   const [openNowOnly, setOpenNowOnly] = useState(false);
   const [verifiedOnly, setVerifiedOnly] = useState(false);
+  const [opportunitiesOnly, setOpportunitiesOnly] = useState(false);
   const [selectedCell, setSelectedCell] = useState("all");
   const [viewMode, setViewMode] = useState<"list" | "map">("list");
   const [selectedPin, setSelectedPin] = useState<Business | null>(null);
@@ -58,6 +60,7 @@ function SearchContent() {
           params.set("search", initialQuery);
           if (openNowOnly) params.set("openNowOnly", "true");
           if (selectedCell !== "all") params.set("community", selectedCell);
+          if (opportunitiesOnly) params.set("hasOpportunities", "true");
           const res = await fetch(`/api/businesses?${params.toString()}`);
           if (res.ok) {
             const data = await res.json();
@@ -81,13 +84,20 @@ function SearchContent() {
       } else {
         setNlpIntent(null);
         try {
-          const res = await fetch("/api/businesses");
+          const params = new URLSearchParams();
+          if (openNowOnly) params.set("openNowOnly", "true");
+          if (selectedCell !== "all") params.set("community", selectedCell);
+          if (opportunitiesOnly) params.set("hasOpportunities", "true");
+          const url = `/api/businesses${params.toString() ? `?${params.toString()}` : ""}`;
+          const res = await fetch(url);
           if (res.ok) {
             const data = await res.json();
             if (data.businesses) {
-              setResults(data.businesses);
-              if (data.businesses.length > 0) {
-                setSelectedPin(data.businesses[0]);
+              let list: Business[] = data.businesses;
+              if (verifiedOnly) list = list.filter((b) => b.verificationStatus !== "UNVERIFIED");
+              setResults(list);
+              if (list.length > 0) {
+                setSelectedPin(list[0]);
               }
               return;
             }
@@ -99,7 +109,7 @@ function SearchContent() {
       }
     }
     loadSearch();
-  }, [initialQuery, openNowOnly, verifiedOnly, selectedCell]);
+  }, [initialQuery, openNowOnly, verifiedOnly, selectedCell, opportunitiesOnly]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -250,6 +260,19 @@ function SearchContent() {
             }`}
           >
             ✓ {lang === "rw" ? "Ibyemejwe Gusa" : "Verified Only"}
+          </button>
+
+          {/* Opportunities & Hiring toggle */}
+          <button
+            onClick={() => setOpportunitiesOnly(!opportunitiesOnly)}
+            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full font-semibold border transition-all cursor-pointer ${
+              opportunitiesOnly
+                ? "bg-emerald-700 text-white border-emerald-700 shadow-xs"
+                : "bg-emerald-50 text-emerald-800 border-emerald-200/80 hover:bg-emerald-100"
+            }`}
+          >
+            <Briefcase className="w-3.5 h-3.5" />
+            <span>{lang === "rw" ? "Akazi n'Amashyirahamwe" : "Hiring & Opportunities"}</span>
           </button>
 
           {/* Cell Selector */}

@@ -104,17 +104,22 @@ export async function POST(req: NextRequest) {
     const { action } = body;
 
     if (action === "CREATE_PAIRING") {
-      const { name, simPhoneNumber, carrier } = body;
+      const { name, simPhoneNumber, carrier, expiryMinutes } = body;
       const challenge = await createDevicePairingChallenge({
         name,
         simPhoneNumber,
         carrier,
         adminId: currentUser.id,
+        expiryMinutes: expiryMinutes ? Number(expiryMinutes) : undefined,
       });
+
+      const expiryText = challenge.pairingExpiresAt
+        ? `expires at ${challenge.pairingExpiresAt.toLocaleTimeString()}`
+        : "expires in 15 minutes";
 
       return NextResponse.json({
         success: true,
-        message: `Pairing challenge generated for "${challenge.name}". Code expires in 15 minutes.`,
+        message: `Pairing challenge generated for "${challenge.name}". Code ${expiryText}.`,
         challenge,
       });
     }

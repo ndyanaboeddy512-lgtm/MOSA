@@ -1,5 +1,6 @@
 import crypto from "crypto";
 import { prisma } from "@/lib/prisma";
+import { calculateEffectiveFee, confirmFreeRegistrationWithWaiver } from "./promotions-engine";
 
 export const DEFAULT_REGISTRATION_FEE = 5000;
 export const DEFAULT_CURRENCY = "RWF";
@@ -7,7 +8,7 @@ export const DEFAULT_CURRENCY = "RWF";
 export interface InitiatePaymentParams {
   businessId: string;
   payerUserId: string;
-  provider: "MTN_MOMO" | "AIRTEL_MONEY" | "BANK_TRANSFER";
+  provider: "MTN_MOMO" | "AIRTEL_MONEY" | "BANK_TRANSFER" | "ADMIN_WAIVER" | "FREE_PROMOTION";
   phoneNumber?: string;
 }
 
@@ -16,6 +17,7 @@ export interface WebhookPaymentConfirmationParams {
   providerTransactionRef: string;
   provider: string;
   amountPaid?: number;
+  currency?: string;
   rawPayload?: string;
   verifiedBy?: string;
 }
@@ -47,58 +49,70 @@ export async function getActiveFeeConfig() {
  * Ensures default payment providers (MTN MoMo, Airtel Money, Bank Transfer) exist in database.
  */
 export async function getPaymentProviders(onlyEnabled = true) {
-  let providers = await prisma.paymentProviderConfig.findMany({
-    where: onlyEnabled ? { isEnabled: true } : undefined,
-    orderBy: { provider: "asc" },
-  });
+  const defaultProviders = [
+    {
+      provider: "AIRTEL_MONEY",
+      name: "Airtel Money",
+      isEnabled: true,
+      accountNumber: "0729974065",
+      accountName: "MOSA Network (Rwanda) Ltd",
+      instructions: "From Airtel: Dial *182*1*1*0729974065*AMOUNT# and enter reference. From MTN (eKash): Dial *182*1*2*0729974065*AMOUNT#.",
+      instructionsRw: "Kuri Airtel: Kanda *182*1*1*0729974065*AMOUNT# ushyiremo reference. Kuri MTN (eKash): Kanda *182*1*2*0729974065*AMOUNT#.",
+      webhookSecret: process.env.AIRTEL_MONEY_WEBHOOK_SECRET || "mosa_airtel_secret_key_rwanda_2026",
+    },
+    {
+      provider: "MTN_MOMO",
+      name: "MTN Mobile Money",
+      isEnabled: true,
+      accountNumber: "0788123456",
+      accountName: "MOSA Network (Rwanda) Ltd",
+      instructions: "Dial *182*8*1*0788123456# or use MoMo Pay Merchant Code. Enter your Payment Reference in the reason field.",
+      instructionsRw: "Kanda *182*8*1*0788123456# cyangwa ukoreshe MoMo Pay Code. Shyiramo Payment Reference.",
+      webhookSecret: process.env.MTN_MOMO_WEBHOOK_SECRET || "mosa_momo_secret_key_rwanda_2026",
+    },
+    {
+      provider: "BANK_TRANSFER",
+      name: "Bank of Kigali / I&M Bank Transfer",
+      isEnabled: true,
+      accountNumber: "00040-06912345-67 (BK) / 1000-45678-90 (I&M)",
+      accountName: "MOSA Network (Rwanda) Ltd",
+      instructions: "Transfer to Bank of Kigali Account 00040-06912345-67. Put your MOSA Payment Reference in transfer narration.",
+      instructionsRw: "Ohereza kuri Konti ya Bank of Kigali 00040-06912345-67. Shyiramo Payment Reference muri transfer narration.",
+      webhookSecret: process.env.BANK_WEBHOOK_SECRET || "mosa_bank_secret_key_rwanda_2026",
+    },
+  ];
 
-  if (providers.length === 0) {
-    const defaultProviders = [
-      {
-        provider: "MTN_MOMO",
-        name: "MTN Mobile Money",
-        isEnabled: true,
-        accountNumber: "0788123456",
-        accountName: "MOSA Network (Rwanda) Ltd",
-        instructions: "Dial *182*8*1*0788123456# or use MoMo Pay Merchant Code. Enter your Payment Reference in the reason field.",
-        instructionsRw: "Kanda *182*8*1*0788123456# cyangwa ukoreshe MoMo Pay Code. Shyiramo Payment Reference.",
-        webhookSecret: process.env.MTN_MOMO_WEBHOOK_SECRET || "mosa_momo_secret_key_rwanda_2026",
-      },
-      {
-        provider: "AIRTEL_MONEY",
-        name: "Airtel Money",
-        isEnabled: true,
-        accountNumber: "0733123456",
-        accountName: "MOSA Network (Rwanda) Ltd",
-        instructions: "Dial *182*8*1*0733123456# or use Airtel Pay. Enter your Payment Reference in the reference field.",
-        instructionsRw: "Kanda *182*8*1*0733123456# cyangwa ukoreshe Airtel Pay. Shyiramo nimero yawe ya Payment Reference.",
-        webhookSecret: process.env.AIRTEL_MONEY_WEBHOOK_SECRET || "mosa_airtel_secret_key_rwanda_2026",
-      },
-      {
-        provider: "BANK_TRANSFER",
-        name: "Bank of Kigali / I&M Bank Transfer",
-        isEnabled: true,
-        accountNumber: "00040-06912345-67 (BK) / 1000-45678-90 (I&M)",
-        accountName: "MOSA Network (Rwanda) Ltd",
-        instructions: "Transfer to Bank of Kigali Account 00040-06912345-67. Put your MOSA Payment Reference in transfer narration.",
-        instructionsRw: "Ohereza kuri Konti ya Bank of Kigali 00040-06912345-67. Shyiramo Payment Reference muri transfer narration.",
-        webhookSecret: process.env.BANK_WEBHOOK_SECRET || "mosa_bank_secret_key_rwanda_2026",
-      },
-    ];
-
-    for (const p of defaultProviders) {
-      await prisma.paymentProviderConfig.upsert({
-        where: { provider: p.provider },
-        create: p,
-        update: {},
+  for (const def of defaultProviders) {
+    const existing = await prisma.paymentProviderConfig.findUnique({
+      where: { provider: def.provider },
+    });
+    if (!existing) {
+      await prisma.paymentProviderConfig.create({
+        data: def,
+      });
+    } else if (def.provider === "AIRTEL_MONEY" && (existing.accountNumber === "0733123456" || !existing.accountNumber)) {
+      await prisma.paymentProviderConfig.update({
+        where: { provider: "AIRTEL_MONEY" },
+        data: {
+          accountNumber: "0729974065",
+          instructions: def.instructions,
+          instructionsRw: def.instructionsRw,
+        },
       });
     }
-
-    providers = await prisma.paymentProviderConfig.findMany({
-      where: onlyEnabled ? { isEnabled: true } : undefined,
-      orderBy: { provider: "asc" },
-    });
   }
+
+  let providers = await prisma.paymentProviderConfig.findMany({
+    where: onlyEnabled ? { isEnabled: true } : undefined,
+  });
+
+  // Prioritize primary enabled providers: Airtel Money first, MTN second, Bank Transfer third
+  const PROVIDER_ORDER: Record<string, number> = {
+    AIRTEL_MONEY: 1,
+    MTN_MOMO: 2,
+    BANK_TRANSFER: 3,
+  };
+  providers.sort((a, b) => (PROVIDER_ORDER[a.provider] || 99) - (PROVIDER_ORDER[b.provider] || 99));
 
   return providers;
 }
@@ -157,7 +171,37 @@ export async function initiateRegistrationPayment({
     };
   }
 
-  const feeConfig = await getActiveFeeConfig();
+  const feeResult = await calculateEffectiveFee({
+    businessId,
+    category: business.category || business.categoryDisplay || undefined,
+    feeType: "REGISTRATION",
+  });
+
+  // If effective fee is 0 RWF (via 0 RWF tariff or 100% promo waiver), immediately confirm waiver and issue receipt
+  if (feeResult.isFree) {
+    const waiverResult = await confirmFreeRegistrationWithWaiver({
+      businessId,
+      payerUserId,
+      promotionId: feeResult.promotion?.id,
+      reason: feeResult.promotion?.reason,
+    });
+
+    return {
+      isAlreadyPaid: false,
+      isFree: true,
+      payment: waiverResult.payment,
+      receipt: waiverResult.receipt,
+      feeAmount: 0,
+      baseFeeAmount: feeResult.baseFee,
+      discountApplied: feeResult.discount,
+      currency: feeResult.currency,
+      paymentReference: waiverResult.payment.paymentReference,
+      receiptNumber: waiverResult.receiptNumber,
+      promotion: feeResult.promotion,
+      message: waiverResult.message,
+    };
+  }
+
   const providerConfigs = await getPaymentProviders(true);
   const providerConfig = providerConfigs.find((p) => p.provider === provider);
 
@@ -174,9 +218,11 @@ export async function initiateRegistrationPayment({
     data: {
       businessId,
       payerUserId,
-      feeConfigId: feeConfig.id,
-      feeAmount: feeConfig.amount,
-      currency: feeConfig.currency,
+      feeConfigId: feeResult.feeConfig.id,
+      feeAmount: feeResult.effectiveFee,
+      discountApplied: feeResult.discount,
+      promotionId: feeResult.promotion?.id || null,
+      currency: feeResult.currency,
       provider,
       phoneNumber: phoneNumber || null,
       paymentReference,
@@ -186,9 +232,13 @@ export async function initiateRegistrationPayment({
 
   return {
     isAlreadyPaid: false,
+    isFree: false,
     payment,
-    feeAmount: feeConfig.amount,
-    currency: feeConfig.currency,
+    feeAmount: feeResult.effectiveFee,
+    baseFeeAmount: feeResult.baseFee,
+    discountApplied: feeResult.discount,
+    promotion: feeResult.promotion,
+    currency: feeResult.currency,
     paymentReference,
     providerConfig: {
       name: providerConfig.name,
@@ -212,9 +262,15 @@ export async function confirmPaymentAndActivateBusiness({
   providerTransactionRef,
   provider,
   amountPaid,
+  currency,
   rawPayload,
   verifiedBy = "PROVIDER_WEBHOOK",
 }: WebhookPaymentConfirmationParams) {
+  // Validate currency invariant
+  if (currency && currency.trim().toUpperCase() !== "RWF") {
+    throw new Error(`Invalid settlement currency "${currency}". Only RWF payments are accepted.`);
+  }
+
   // 1. Locate payment
   const payment = await prisma.registrationPayment.findUnique({
     where: { paymentReference },
@@ -343,6 +399,7 @@ export async function confirmPaymentAndActivateBusiness({
     const updatedPayment = await tx.registrationPayment.update({
       where: { id: payment.id },
       data: {
+        provider,
         status: "CONFIRMED",
         providerTransactionRef: providerTransactionRef || null,
         periodCoveredStart: periodStart,
@@ -364,7 +421,7 @@ export async function confirmPaymentAndActivateBusiness({
         ownerPhone: payment.business.phone || payment.business.owner?.phone || "N/A",
         amountPaid: payment.feeAmount,
         currency: payment.currency,
-        paymentMethod: payment.provider,
+        paymentMethod: provider,
         receiptType: payment.paymentType || (isRenewal ? "ANNUAL_RENEWAL" : "REGISTRATION"),
         periodCoveredStart: periodStart,
         periodCoveredEnd: periodEnd,
@@ -376,6 +433,7 @@ export async function confirmPaymentAndActivateBusiness({
           paymentReference: payment.paymentReference,
           periodCoveredStart: periodStart,
           periodCoveredEnd: periodEnd,
+          settledProvider: provider,
         }),
       },
     });
@@ -394,6 +452,14 @@ export async function confirmPaymentAndActivateBusiness({
         lastRenewalAt: isRenewal ? now : undefined,
       },
     });
+
+    // Increment promotion usage if applied
+    if (payment.promotionId) {
+      await tx.feePromotion.update({
+        where: { id: payment.promotionId },
+        data: { currentUsageCount: { increment: 1 } },
+      }).catch(() => null);
+    }
 
     // Create persistent audit log
     await tx.auditLog.create({

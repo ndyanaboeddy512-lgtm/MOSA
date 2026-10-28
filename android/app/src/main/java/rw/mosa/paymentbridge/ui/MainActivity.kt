@@ -30,6 +30,7 @@ import rw.mosa.paymentbridge.data.local.QueuedTransaction
 import rw.mosa.paymentbridge.data.models.PairRequest
 import rw.mosa.paymentbridge.data.security.KeystoreManager
 import rw.mosa.paymentbridge.databinding.ActivityMainBinding
+import rw.mosa.paymentbridge.sms.AirtelSmsParser
 import rw.mosa.paymentbridge.sms.MtnSmsParser
 import rw.mosa.paymentbridge.worker.BootReceiver
 import rw.mosa.paymentbridge.worker.SyncPaymentWorker
@@ -102,7 +103,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         binding.btnSimulateSms.setOnClickListener {
-            simulateTestPaymentSms()
+            showSimulationDialog()
         }
 
         binding.btnUnpair.setOnClickListener {
@@ -156,7 +157,7 @@ class MainActivity : AppCompatActivity() {
 
         db.transactionDao().getRecentTransactionsLiveData().observe(this) { list ->
             if (list.isNullOrEmpty()) {
-                binding.tvLogFeed.text = "No transactions recorded yet.\nWaiting for incoming MTN MoMo notifications..."
+                binding.tvLogFeed.text = "No transactions recorded yet.\nWaiting for incoming telecom notifications (Airtel / MTN)..."
             } else {
                 val sb = StringBuilder()
                 val dateFormat = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
@@ -255,11 +256,61 @@ class MainActivity : AppCompatActivity() {
         )
     }
 
+    private fun showSimulationDialog() {
+        val options = arrayOf(
+            "Airtel Money (+250729974065) [Primary]",
+            "MTN Mobile Money"
+        )
+        AlertDialog.Builder(this)
+            .setTitle("Simulate Payment SMS")
+            .setItems(options) { _, which ->
+                when (which) {
+                    0 -> simulateTestAirtelPaymentSms()
+                    1 -> simulateTestMtnPaymentSms()
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
     /**
-     * Development testing harness: allows injecting a simulated MTN MoMo SMS on the device
+     * Development testing harness: allows injecting a simulated Airtel Money SMS on the device
      * without spending real money or needing a physical SIM during development.
      */
-    private fun simulateTestPaymentSms() {
+    private fun simulateTestAirtelPaymentSms() {
+        val randomSuffix = (1000..9999).random()
+        val testRef = "MOSA-REG-SIM-$randomSuffix"
+        val testTxId = "AM${System.currentTimeMillis()}"
+        val simulatedSms = "Mwakiriye 5,000 RWF yavuye kuri +250729974065 (TEST USER). Txn ID: $testTxId. Impamvu: $testRef. Amafaranga asigaye ni 250,000 RWF."
+
+        val parsed = AirtelSmsParser.parse(simulatedSms)
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            val tx = QueuedTransaction(
+                transactionId = parsed.providerTransactionRef ?: testTxId,
+                paymentReference = parsed.paymentReference,
+                amount = parsed.amount,
+                currency = parsed.currency,
+                provider = parsed.provider,
+                isEkash = parsed.isEkash,
+                senderPhone = parsed.senderPhone,
+                senderName = parsed.senderName,
+                rawSms = simulatedSms,
+                status = QueuedTransaction.STATUS_PENDING
+            )
+            db.transactionDao().insertTransaction(tx)
+            triggerImmediateSync()
+
+            withContext(Dispatchers.Main) {
+                Toast.makeText(this@MainActivity, "Simulated Airtel SMS queued: $testRef", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    /**
+     * Development testing harness: allows injecting a simulated MTN MoMo SMS on the device.
+     */
+    private fun simulateTestMtnPaymentSms() {
         val randomSuffix = (1000..9999).random()
         val testRef = "MOSA-REG-SIM-$randomSuffix"
         val testTxId = "MOMO${System.currentTimeMillis()}"
@@ -273,6 +324,8 @@ class MainActivity : AppCompatActivity() {
                 paymentReference = parsed.paymentReference,
                 amount = parsed.amount,
                 currency = parsed.currency,
+                provider = parsed.provider,
+                isEkash = parsed.isEkash,
                 senderPhone = parsed.senderPhone,
                 senderName = parsed.senderName,
                 rawSms = simulatedSms,
@@ -282,7 +335,7 @@ class MainActivity : AppCompatActivity() {
             triggerImmediateSync()
 
             withContext(Dispatchers.Main) {
-                Toast.makeText(this@MainActivity, "Simulated SMS queued: $testRef", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this@MainActivity, "Simulated MTN SMS queued: $testRef", Toast.LENGTH_SHORT).show()
             }
         }
     }

@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (!["MTN_MOMO", "AIRTEL_MONEY", "BANK_TRANSFER"].includes(provider)) {
+    if (!["MTN_MOMO", "AIRTEL_MONEY", "BANK_TRANSFER", "ADMIN_WAIVER", "FREE_PROMOTION"].includes(provider)) {
       return NextResponse.json(
         { success: false, error: "Invalid payment provider specified." },
         { status: 400 }

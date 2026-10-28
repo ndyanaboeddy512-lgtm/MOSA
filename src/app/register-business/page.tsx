@@ -89,7 +89,7 @@ export default function RegisterBusinessPage() {
   const [registeredBusinessId, setRegisteredBusinessId] = useState<string | null>(null);
   const [registeredBusinessName, setRegisteredBusinessName] = useState<string>("");
   const [paymentConfig, setPaymentConfig] = useState<{ fee: any; providers: any[] } | null>(null);
-  const [selectedProvider, setSelectedProvider] = useState<string>("MTN_MOMO");
+  const [selectedProvider, setSelectedProvider] = useState<string>("AIRTEL_MONEY");
   const [initiatingPayment, setInitiatingPayment] = useState<boolean>(false);
   const [activePayment, setActivePayment] = useState<any>(null);
   const [paymentStatus, setPaymentStatus] = useState<"PENDING" | "CONFIRMED" | "FAILED">("PENDING");
@@ -137,12 +137,14 @@ export default function RegisterBusinessPage() {
       const data = await res.json();
       if (data.success) {
         setActivePayment(data.payment);
-        setPollingActive(true);
-        if (data.isAlreadyPaid) {
+        if (data.isFree || data.isAlreadyPaid || data.payment?.status === "CONFIRMED") {
           setPaymentStatus("CONFIRMED");
           setConfirmedReceipt(data.receipt);
+          setPollingActive(false);
+          setShowReceiptModal(true);
         } else {
           setPaymentStatus("PENDING");
+          setPollingActive(true);
         }
       } else {
         setErrorMsg(data.error || "Failed to initiate payment reference.");
@@ -791,30 +793,46 @@ export default function RegisterBusinessPage() {
       setRegisteredBusinessId(createdBizId);
       setRegisteredBusinessName(formData.name.trim());
 
-      // Fetch payment configuration (fee & providers)
+      // Fetch dynamic payment configuration (promotional fee & providers)
+      let primaryProvider = "AIRTEL_MONEY";
       try {
-        const configRes = await fetch("/api/payments/config");
+        const configUrl = `/api/payments/config?businessId=${createdBizId}&category=${encodeURIComponent(formData.category || "")}`;
+        const configRes = await fetch(configUrl);
         const configData = await configRes.json();
         if (configData.success) {
           setPaymentConfig(configData);
+          if (configData.fee?.isFree) {
+            primaryProvider = "ADMIN_WAIVER";
+          } else if (configData.providers && configData.providers.length > 0) {
+            const airtel = configData.providers.find((p: any) => p.provider === "AIRTEL_MONEY");
+            primaryProvider = airtel ? "AIRTEL_MONEY" : configData.providers[0].provider;
+          }
+          setSelectedProvider(primaryProvider);
         }
       } catch {}
 
-      // Automatically initiate payment for the primary provider (MTN MoMo)
+      // Automatically initiate payment or free waiver for the primary provider
       try {
         const initRes = await fetch("/api/payments/initiate", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             businessId: createdBizId,
-            provider: "MTN_MOMO",
+            provider: primaryProvider,
             phoneNumber: formData.phone.trim(),
           }),
         });
         const initData = await initRes.json();
         if (initData.success) {
           setActivePayment(initData.payment);
-          setPollingActive(true);
+          if (initData.isFree || initData.isAlreadyPaid || initData.payment?.status === "CONFIRMED") {
+            setPaymentStatus("CONFIRMED");
+            setConfirmedReceipt(initData.receipt);
+            setPollingActive(false);
+            setShowReceiptModal(true);
+          } else {
+            setPollingActive(true);
+          }
         }
       } catch {}
 
@@ -2309,9 +2327,34 @@ export default function RegisterBusinessPage() {
                   </div>
                   <div className="text-right">
                     <div className="text-[10px] uppercase font-bold text-slate-400">Registration Fee</div>
-                    <div className="text-base font-black text-emerald-700">
-                      {paymentConfig?.fee?.amount ? paymentConfig.fee.amount.toLocaleString() : "5,000"} {paymentConfig?.fee?.currency || "RWF"}
-                    </div>
+                    {paymentConfig?.fee?.isFree || paymentConfig?.fee?.amount === 0 ? (
+                      <div className="flex items-center gap-2 justify-end">
+                        {paymentConfig?.fee?.baseAmount > 0 && (
+                          <span className="text-xs line-through text-slate-400 font-bold">
+                            {paymentConfig?.fee?.baseAmount?.toLocaleString()} RWF
+                          </span>
+                        )}
+                        <span className="text-sm font-black text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
+                          FREE (0 RWF)
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2 justify-end">
+                        {paymentConfig?.fee?.discount > 0 && (
+                          <span className="text-xs line-through text-slate-400 font-bold">
+                            {paymentConfig?.fee?.baseAmount?.toLocaleString()} RWF
+                          </span>
+                        )}
+                        <span className="text-base font-black text-emerald-700">
+                          {paymentConfig?.fee?.amount !== undefined ? paymentConfig.fee.amount.toLocaleString() : "5,000"} {paymentConfig?.fee?.currency || "RWF"}
+                        </span>
+                        {paymentConfig?.fee?.promotion && (
+                          <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
+                            Promo Applied
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -2361,7 +2404,39 @@ export default function RegisterBusinessPage() {
                 ) : (
                   /* PENDING PAYMENT STATE */
                   <div className="space-y-5">
-                    
+                    {paymentConfig?.fee?.isFree || paymentConfig?.fee?.amount === 0 ? (
+                      <div className="p-6 rounded-2xl bg-gradient-to-br from-emerald-950 via-slate-900 to-emerald-900 text-white space-y-4 border border-emerald-500/40 shadow-xl">
+                        <div className="flex items-center gap-3">
+                          <div className="w-12 h-12 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center border border-emerald-500/30">
+                            <Sparkles className="w-6 h-6" />
+                          </div>
+                          <div>
+                            <div className="text-[10px] uppercase font-black text-emerald-300 tracking-wider">
+                              {paymentConfig?.fee?.promotion ? "Promotional Fee Waiver Active" : "Zero-Fee Registration Policy"}
+                            </div>
+                            <h4 className="text-lg font-black text-white">
+                              {paymentConfig?.fee?.promotion?.name || "100% Free Initial Registration"}
+                            </h4>
+                          </div>
+                        </div>
+
+                        <p className="text-xs text-slate-300 leading-relaxed">
+                          {paymentConfig?.fee?.promotion?.description ||
+                            "Your business is eligible for 100% free registration. No mobile money payment is required. Click below to complete registration and receive your official MOSA receipt."}
+                        </p>
+
+                        <button
+                          type="button"
+                          disabled={initiatingPayment}
+                          onClick={() => handleInitiatePayment("ADMIN_WAIVER")}
+                          className="w-full py-3.5 px-6 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-sm flex items-center justify-center gap-2 shadow-lg transition cursor-pointer disabled:opacity-50"
+                        >
+                          {initiatingPayment ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                          <span>{lang === "rw" ? "Emeza Kwiyandikisha ku Buntu & Tangira Ubucuruzi" : "Activate Business for Free & Get Official Receipt"}</span>
+                        </button>
+                      </div>
+                    ) : null}
+
                     {/* Provider Selection */}
                     <div>
                       <label className="font-bold text-xs text-slate-800 block mb-2">
@@ -2369,8 +2444,8 @@ export default function RegisterBusinessPage() {
                       </label>
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                         {[
+                          { id: "AIRTEL_MONEY", name: "Airtel Money", icon: Smartphone, color: "hover:border-red-400", isPrimary: true },
                           { id: "MTN_MOMO", name: "MTN Mobile Money", icon: Smartphone, color: "hover:border-yellow-400" },
-                          { id: "AIRTEL_MONEY", name: "Airtel Money", icon: Smartphone, color: "hover:border-red-400" },
                           { id: "BANK_TRANSFER", name: "Bank of Kigali / Bank", icon: Building, color: "hover:border-blue-400" },
                         ].map((prov) => {
                           const isSel = selectedProvider === prov.id;
@@ -2383,7 +2458,7 @@ export default function RegisterBusinessPage() {
                                 setSelectedProvider(prov.id);
                                 handleInitiatePayment(prov.id);
                               }}
-                              className={`p-3 rounded-2xl border text-left transition cursor-pointer flex items-center gap-2.5 ${
+                              className={`p-3 rounded-2xl border text-left transition cursor-pointer flex items-center gap-2.5 relative ${
                                 isSel
                                   ? "border-emerald-600 bg-emerald-50/60 ring-2 ring-emerald-500/20"
                                   : "border-slate-200 bg-white " + prov.color
@@ -2393,7 +2468,14 @@ export default function RegisterBusinessPage() {
                                 <Icon className="w-4 h-4" />
                               </div>
                               <div className="min-w-0">
-                                <div className="font-bold text-xs text-slate-900 truncate">{prov.name}</div>
+                                <div className="font-bold text-xs text-slate-900 truncate flex items-center gap-1.5">
+                                  <span>{prov.name}</span>
+                                  {prov.isPrimary && (
+                                    <span className="text-[9px] font-extrabold px-1.5 py-0.2 rounded-full bg-rose-100 text-rose-700">
+                                      Primary
+                                    </span>
+                                  )}
+                                </div>
                                 <div className="text-[10px] text-slate-500">
                                   {prov.id === "BANK_TRANSFER" ? "Bank Transfer / Slip" : "Instant USSD"}
                                 </div>
@@ -2432,7 +2514,9 @@ export default function RegisterBusinessPage() {
                         <div className="text-right">
                           <div className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Amount Due</div>
                           <div className="text-xl font-black text-white">
-                            {paymentConfig?.fee?.amount ? paymentConfig.fee.amount.toLocaleString() : "5,000"} RWF
+                            {paymentConfig?.fee?.isFree || paymentConfig?.fee?.amount === 0
+                              ? "0 RWF (Free Waiver)"
+                              : `${paymentConfig?.fee?.amount !== undefined ? paymentConfig.fee.amount.toLocaleString() : "5,000"} RWF`}
                           </div>
                         </div>
                       </div>
@@ -2442,30 +2526,50 @@ export default function RegisterBusinessPage() {
                         <div className="font-bold text-slate-300 text-[11px] uppercase tracking-wider">
                           How to Pay:
                         </div>
-                        {selectedProvider === "MTN_MOMO" && (
-                          <div className="space-y-1 text-slate-300 text-xs">
-                            <p>1. Dial <strong>*182*8*1*0788123456#</strong> or open MoMo app.</p>
-                            <p>2. Enter Amount: <strong>{paymentConfig?.fee?.amount || 5000} RWF</strong></p>
-                            <p>3. Enter Reference / Reason: <strong className="text-emerald-400 font-mono">{activePayment?.paymentReference}</strong></p>
-                            <p>4. Enter your MoMo PIN to complete payment.</p>
-                          </div>
-                        )}
-                        {selectedProvider === "AIRTEL_MONEY" && (
-                          <div className="space-y-1 text-slate-300 text-xs">
-                            <p>1. Dial <strong>*182*8*1*0733123456#</strong> or use Airtel Money.</p>
-                            <p>2. Enter Amount: <strong>{paymentConfig?.fee?.amount || 5000} RWF</strong></p>
-                            <p>3. Enter Reference: <strong className="text-emerald-400 font-mono">{activePayment?.paymentReference}</strong></p>
-                            <p>4. Confirm with Airtel Money PIN.</p>
-                          </div>
-                        )}
-                        {selectedProvider === "BANK_TRANSFER" && (
-                          <div className="space-y-1 text-slate-300 text-xs">
-                            <p>1. Transfer to <strong>Bank of Kigali</strong> Account: <strong>00040-06912345-67</strong></p>
-                            <p>2. Beneficiary: <strong>MOSA Network Ltd</strong></p>
-                            <p>3. In narration / description, enter: <strong className="text-emerald-400 font-mono">{activePayment?.paymentReference}</strong></p>
-                            <p className="text-slate-400 text-[11px]">Bank transfers will be activated as soon as reconciled by administration.</p>
-                          </div>
-                        )}
+                        {(() => {
+                          const currentProvConfig = paymentConfig?.providers?.find((p: any) => p.provider === selectedProvider);
+                          const dynamicAccount = currentProvConfig?.accountNumber || (selectedProvider === "AIRTEL_MONEY" ? "0729974065" : selectedProvider === "MTN_MOMO" ? "0788123456" : "00040-06912345-67");
+                          
+                          if (selectedProvider === "AIRTEL_MONEY") {
+                            const feeAmt = paymentConfig?.fee?.amount !== undefined ? paymentConfig.fee.amount : 5000;
+                            return (
+                              <div className="space-y-2 text-slate-300 text-xs">
+                                <div className="p-2.5 rounded-xl bg-slate-800/80 border border-slate-700/80 space-y-1">
+                                  <div className="font-bold text-amber-300 text-[11px]">Option A: From Airtel Money (On-Net)</div>
+                                  <p>1. Dial <strong>*182*1*1*{dynamicAccount}*{feeAmt}#</strong></p>
+                                  <p>2. Enter Reference (Impamvu): <strong className="text-emerald-400 font-mono">{activePayment?.paymentReference}</strong></p>
+                                  <p>3. Confirm name &amp; enter your Airtel Money PIN.</p>
+                                </div>
+                                <div className="p-2.5 rounded-xl bg-slate-800/80 border border-slate-700/80 space-y-1">
+                                  <div className="font-bold text-yellow-300 text-[11px]">Option B: From MTN MoMo (Cross-Network / eKash)</div>
+                                  <p>1. Dial <strong>*182*1*2*{dynamicAccount}*{feeAmt}#</strong></p>
+                                  <p>2. Confirm recipient name &amp; enter your MTN MoMo PIN.</p>
+                                </div>
+                              </div>
+                            );
+                          }
+
+                          if (selectedProvider === "MTN_MOMO") {
+                            const feeAmt = paymentConfig?.fee?.amount !== undefined ? paymentConfig.fee.amount : 5000;
+                            return (
+                              <div className="space-y-1 text-slate-300 text-xs">
+                                <p>1. Dial <strong>*182*8*1*{dynamicAccount}#</strong> or open MoMo app.</p>
+                                <p>2. Enter Amount: <strong>{feeAmt} RWF</strong></p>
+                                <p>3. Enter Reference / Reason: <strong className="text-emerald-400 font-mono">{activePayment?.paymentReference}</strong></p>
+                                <p>4. Enter your MoMo PIN to complete payment.</p>
+                              </div>
+                            );
+                          }
+
+                          return (
+                            <div className="space-y-1 text-slate-300 text-xs">
+                              <p>1. Transfer to Account: <strong>{dynamicAccount}</strong></p>
+                              <p>2. Beneficiary: <strong>{currentProvConfig?.accountName || "MOSA Network Ltd"}</strong></p>
+                              <p>3. In narration / description, enter: <strong className="text-emerald-400 font-mono">{activePayment?.paymentReference}</strong></p>
+                              <p className="text-slate-400 text-[11px]">Bank transfers will be activated as soon as reconciled by administration.</p>
+                            </div>
+                          );
+                        })()}
                       </div>
 
                       {/* Polling Indicator */}
@@ -2564,13 +2668,25 @@ export default function RegisterBusinessPage() {
                       </div>
                       <div className="flex justify-between text-slate-700">
                         <span>MOSA Platform Business Registration & Activation Fee</span>
-                        <span>{paymentConfig?.fee?.amount || 5000} RWF</span>
+                        <span>
+                          {confirmedReceipt?.amountPaid !== undefined
+                            ? `${confirmedReceipt.amountPaid.toLocaleString()} RWF`
+                            : paymentConfig?.fee?.isFree || paymentConfig?.fee?.amount === 0
+                            ? "0 RWF (Free Waiver)"
+                            : `${paymentConfig?.fee?.amount !== undefined ? paymentConfig.fee.amount.toLocaleString() : "5,000"} RWF`}
+                        </span>
                       </div>
                     </div>
 
                     <div className="flex justify-between items-center font-bold text-sm text-slate-900">
                       <span>TOTAL PAID</span>
-                      <span className="text-emerald-700">{paymentConfig?.fee?.amount || 5000} RWF</span>
+                      <span className="text-emerald-700">
+                        {confirmedReceipt?.amountPaid !== undefined
+                          ? `${confirmedReceipt.amountPaid.toLocaleString()} RWF`
+                          : paymentConfig?.fee?.isFree || paymentConfig?.fee?.amount === 0
+                          ? "0 RWF (Free Waiver)"
+                          : `${paymentConfig?.fee?.amount !== undefined ? paymentConfig.fee.amount.toLocaleString() : "5,000"} RWF`}
+                      </span>
                     </div>
 
                     <div className="pt-2 text-[10px] text-slate-500 border-t border-slate-200">
