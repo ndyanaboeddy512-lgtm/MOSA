@@ -150,7 +150,9 @@ async function runTests() {
   // Test 3B: Mobile Money Push Request Dispatch (Simulator / Test Mode)
   // -------------------------------------------------------------
   console.log("\nTest 3B: Mobile Money Push Request Dispatch in Sandbox Simulator");
+  (process.env as any).NODE_ENV = "test";
   process.env.ENABLE_PAYMENT_SIMULATOR = "true";
+  process.env.ALLOW_STAGING_PAYMENT_SIMULATION = "true";
 
   const refMtn = `MOSA-REG-${Date.now()}-MTN1`;
   await prisma.registrationPayment.create({

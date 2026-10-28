@@ -2,9 +2,33 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { initiateRegistrationPayment } from "@/lib/payments/engine";
+import {
+  checkPaymentRateLimit,
+  getRateLimitClientIp,
+  getRateLimitHeaders,
+} from "@/lib/payments/rate-limiter";
 
 export async function POST(req: NextRequest) {
   try {
+    const clientIp = getRateLimitClientIp(req);
+
+    // 1. IP-Level Rate Limit: Max 10 initiate requests per 60 seconds
+    const ipRateLimit = await checkPaymentRateLimit({
+      key: `initiate:ip:${clientIp}`,
+      limit: 10,
+      windowSeconds: 60,
+    });
+
+    if (!ipRateLimit.isAllowed) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Too many payment requests from this IP. Please wait a moment before trying again.",
+        },
+        { status: 429, headers: getRateLimitHeaders(ipRateLimit) }
+      );
+    }
+
     const body = await req.json();
     const { businessId, provider, phoneNumber } = body;
 
@@ -15,6 +39,23 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // 2. Business-Level Rate Limit: Max 5 initiate requests per 120 seconds
+    const bizRateLimit = await checkPaymentRateLimit({
+      key: `initiate:biz:${businessId}`,
+      limit: 5,
+      windowSeconds: 120,
+    });
+
+    if (!bizRateLimit.isAllowed) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Payment was recently initiated for this business. Please check status or wait before retrying.",
+        },
+        { status: 429, headers: getRateLimitHeaders(bizRateLimit) }
+      );
+    }
+
     if (!["MTN_MOMO", "AIRTEL_MONEY", "BANK_TRANSFER", "ADMIN_WAIVER", "FREE_PROMOTION"].includes(provider)) {
       return NextResponse.json(
         { success: false, error: "Invalid payment provider specified." },
@@ -22,22 +63,37 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Determine payer user
-    let payerUserId: string | null = null;
-    const currentUser = await getCurrentUser();
-    if (currentUser) {
-      payerUserId = currentUser.id;
+    // Determine target business and owner
+    const business = await prisma.business.findUnique({
+      where: { id: businessId },
+      select: { id: true, ownerId: true, name: true, status: true },
+    });
+
+    if (!business) {
+      return NextResponse.json(
+        { success: false, error: `Business with ID "${businessId}" not found.` },
+        { status: 404 }
+      );
     }
 
-    if (!payerUserId) {
-      // Find business owner
-      const business = await prisma.business.findUnique({
-        where: { id: businessId },
-        select: { ownerId: true },
-      });
-      if (business?.ownerId) {
-        payerUserId = business.ownerId;
+    // Determine payer user and enforce authorization
+    let payerUserId: string | null = null;
+    const currentUser = await getCurrentUser(req);
+
+    if (currentUser) {
+      const isSuperAdmin = currentUser.role === "SUPER_ADMIN";
+      const isCommunityAdmin = currentUser.role === "COMMUNITY_ADMIN";
+      const isOwner = business.ownerId === currentUser.id;
+
+      if (!isSuperAdmin && !isCommunityAdmin && !isOwner) {
+        return NextResponse.json(
+          { success: false, error: "You are not authorized to initiate payments for this business." },
+          { status: 403 }
+        );
       }
+      payerUserId = currentUser.id;
+    } else {
+      payerUserId = business.ownerId;
     }
 
     if (!payerUserId) {
@@ -93,6 +149,7 @@ export async function POST(req: NextRequest) {
         currency: curr,
         phoneNumber: carrierCheck.normalizedPhone,
         provider: provider as any,
+        businessName: business.name,
       });
 
       if (!pushResult.success) {
@@ -108,12 +165,15 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    return NextResponse.json({
-      success: true,
-      ...result,
-      pushResult,
-      promptDispatched: pushResult?.promptDispatched || false,
-    });
+    return NextResponse.json(
+      {
+        success: true,
+        ...result,
+        pushResult,
+        promptDispatched: pushResult?.promptDispatched || false,
+      },
+      { headers: getRateLimitHeaders(ipRateLimit) }
+    );
   } catch (error: any) {
     console.error("[PAYMENTS_INITIATE_ERROR]:", error);
     return NextResponse.json(

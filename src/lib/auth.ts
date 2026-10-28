@@ -1,5 +1,6 @@
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
+import type { NextRequest } from "next/server";
 import bcrypt from "bcryptjs";
 import { prisma } from "./prisma";
 import { Role, User } from "@prisma/client";
@@ -90,10 +91,32 @@ export * from "./crypto";
  * Retrieves the currently authenticated User from the database using the session cookie.
  * Strictly verifies against Neon PostgreSQL User & Session tables.
  */
-export async function getCurrentUser(): Promise<User | null> {
+export async function getCurrentUser(req?: Request | NextRequest): Promise<User | null> {
   try {
-    const cookieStore = await cookies();
-    const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
+    let token: string | undefined | null;
+
+    if (req) {
+      if ("cookies" in req && typeof (req as any).cookies?.get === "function") {
+        token = (req as any).cookies.get(SESSION_COOKIE_NAME)?.value;
+      }
+      if (!token) {
+        const cookieHeader = req.headers.get("cookie");
+        if (cookieHeader) {
+          const match = cookieHeader.match(/mosa_session=([^;]+)/);
+          if (match) token = match[1];
+        }
+      }
+    }
+
+    if (!token) {
+      try {
+        const cookieStore = await cookies();
+        token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
+      } catch {
+        // Outside Next.js AsyncLocalStorage context
+      }
+    }
+
     if (!token) return null;
 
     const payload = await verifySessionToken(token);

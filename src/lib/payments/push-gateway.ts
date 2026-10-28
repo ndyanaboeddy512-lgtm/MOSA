@@ -177,13 +177,14 @@ export async function requestMobileMoneyPayment({
   }
 
   const credStatus = getProviderCredentialStatus(provider);
-  const isDevOrTest =
-    process.env.NODE_ENV !== "production" ||
-    process.env.ENABLE_PAYMENT_SIMULATOR === "true" ||
-    process.env.NEXT_PUBLIC_ENABLE_DEMO_SWITCH === "true";
+  const isDev = process.env.NODE_ENV !== "production";
+  const stagingSimulatorPermitted =
+    process.env.ALLOW_STAGING_PAYMENT_SIMULATION === "true" ||
+    process.env.ENABLE_PAYMENT_SIMULATOR === "true";
+  const isDevOrTest = isDev || stagingSimulatorPermitted;
 
   // If credentials missing in strict production, report missing requirements honestly
-  if (!credStatus.isConfigured && !isDevOrTest) {
+  if (!credStatus.isConfigured && (!isDevOrTest || (process.env.NODE_ENV === "production" && !stagingSimulatorPermitted))) {
     return {
       success: false,
       providerRequestId: "",
@@ -453,6 +454,237 @@ async function executeAirtelMoneyPushPayment({
 }
 
 /**
+ * Authoritative status query for MTN MoMo Collection RequestToPay.
+ * GET /collection/v1_0/requesttopay/{referenceId}
+ */
+async function queryMtnMoMoPaymentStatus({
+  referenceId,
+  paymentReference,
+  expectedAmount,
+}: {
+  referenceId: string;
+  paymentReference: string;
+  expectedAmount: number;
+}): Promise<{
+  settled: boolean;
+  status: PushPaymentStatus;
+  receipt?: any;
+  payment?: any;
+  failureReason?: string;
+}> {
+  const credStatus = getProviderCredentialStatus("MTN_MOMO");
+  if (!credStatus.isConfigured) {
+    return { settled: false, status: "PENDING" };
+  }
+
+  const baseUrl = process.env.MTN_MOMO_BASE_URL || "https://proxy.momoapi.mtn.com";
+  const subscriptionKey = process.env.MTN_MOMO_SUBSCRIPTION_KEY!;
+  const apiUser = process.env.MTN_MOMO_API_USER!;
+  const apiKey = process.env.MTN_MOMO_API_KEY!;
+  const targetEnv = process.env.MTN_MOMO_TARGET_ENV || "mtnrwanda";
+
+  try {
+    const basicAuth = Buffer.from(`${apiUser}:${apiKey}`).toString("base64");
+    const tokenRes = await fetch(`${baseUrl}/collection/token/`, {
+      method: "POST",
+      headers: {
+        Authorization: `Basic ${basicAuth}`,
+        "Ocp-Apim-Subscription-Key": subscriptionKey,
+      },
+      signal: AbortSignal.timeout(8000),
+    });
+
+    if (!tokenRes.ok) {
+      console.warn(`[MTN_POLL_TOKEN_ERROR] MTN OAuth token error (${tokenRes.status})`);
+      return { settled: false, status: "PENDING" };
+    }
+
+    const tokenData = await tokenRes.json();
+    const accessToken = tokenData.access_token;
+
+    const statusRes = await fetch(`${baseUrl}/collection/v1_0/requesttopay/${referenceId}`, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "X-Target-Environment": targetEnv,
+        "Ocp-Apim-Subscription-Key": subscriptionKey,
+      },
+      signal: AbortSignal.timeout(8000),
+    });
+
+    if (!statusRes.ok) {
+      console.warn(`[MTN_POLL_STATUS_ERROR] MTN RequestToPay query returned HTTP ${statusRes.status}`);
+      return { settled: false, status: "PENDING" };
+    }
+
+    const data = await statusRes.json();
+    const carrierStatus = (data.status || "").toUpperCase();
+
+    if (carrierStatus === "SUCCESSFUL") {
+      const currency = (data.currency || "").toUpperCase();
+      const amountPaid = Number(data.amount);
+
+      if (currency !== "RWF" || amountPaid < expectedAmount) {
+        console.error(
+          `[MTN_POLL_MISMATCH] Amount or currency mismatch: received ${amountPaid} ${currency}, expected ${expectedAmount} RWF`
+        );
+        return { settled: false, status: "PENDING" };
+      }
+
+      const txRef = data.financialTransactionId || referenceId;
+      const confirmResult = await confirmPaymentAndActivateBusiness({
+        paymentReference,
+        providerTransactionRef: String(txRef),
+        provider: "MTN_MOMO",
+        amountPaid,
+        currency: "RWF",
+        verifiedBy: "MTN_MOMO_API_POLL",
+        rawPayload: JSON.stringify(data),
+      });
+
+      return {
+        settled: true,
+        status: "CONFIRMED",
+        receipt: confirmResult.receipt,
+        payment: confirmResult.payment,
+      };
+    }
+
+    if (carrierStatus === "FAILED") {
+      const reason = data.reason || "Payment was rejected or expired on customer phone.";
+      await prisma.registrationPayment.update({
+        where: { paymentReference },
+        data: {
+          status: "FAILED",
+          failureReason: reason,
+          rawCallbackPayload: JSON.stringify(data),
+        },
+      });
+      return {
+        settled: false,
+        status: "FAILED",
+        failureReason: reason,
+      };
+    }
+
+    return { settled: false, status: "PENDING" };
+  } catch (err: any) {
+    console.warn(`[MTN_POLL_TIMEOUT] Failed to poll MTN MoMo status (${err.message}). Keeping payment pending.`);
+    return { settled: false, status: "PENDING" };
+  }
+}
+
+/**
+ * Authoritative status query for Airtel Money Open API payments.
+ * GET /merchant/v1/payments/{transactionId}
+ */
+async function queryAirtelMoneyPaymentStatus({
+  transactionId,
+  paymentReference,
+  expectedAmount,
+}: {
+  transactionId: string;
+  paymentReference: string;
+  expectedAmount: number;
+}): Promise<{
+  settled: boolean;
+  status: PushPaymentStatus;
+  receipt?: any;
+  payment?: any;
+  failureReason?: string;
+}> {
+  const credStatus = getProviderCredentialStatus("AIRTEL_MONEY");
+  if (!credStatus.isConfigured) {
+    return { settled: false, status: "PENDING" };
+  }
+
+  const baseUrl = process.env.AIRTEL_MONEY_BASE_URL || "https://openapi.airtel.africa";
+  const clientId = process.env.AIRTEL_MONEY_CLIENT_ID!;
+  const clientSecret = process.env.AIRTEL_MONEY_CLIENT_SECRET!;
+
+  try {
+    const tokenRes = await fetch(`${baseUrl}/auth/oauth2/token`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        client_id: clientId,
+        client_secret: clientSecret,
+        grant_type: "client_credentials",
+      }),
+      signal: AbortSignal.timeout(8000),
+    });
+
+    if (!tokenRes.ok) {
+      console.warn(`[AIRTEL_POLL_TOKEN_ERROR] Airtel OAuth token error (${tokenRes.status})`);
+      return { settled: false, status: "PENDING" };
+    }
+
+    const tokenData = await tokenRes.json();
+    const accessToken = tokenData.access_token;
+
+    const statusRes = await fetch(`${baseUrl}/merchant/v1/payments/${transactionId}`, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "X-Country": "RW",
+        "X-Currency": "RWF",
+      },
+      signal: AbortSignal.timeout(8000),
+    });
+
+    if (!statusRes.ok) {
+      console.warn(`[AIRTEL_POLL_STATUS_ERROR] Airtel payment status query returned HTTP ${statusRes.status}`);
+      return { settled: false, status: "PENDING" };
+    }
+
+    const data = await statusRes.json();
+    const txStatus = data?.data?.transaction?.status; // "TS" (Success), "TF" (Failed), "TIP" (In Progress)
+
+    if (txStatus === "TS") {
+      const airtelId = data?.data?.transaction?.airtel_money_id || transactionId;
+      const confirmResult = await confirmPaymentAndActivateBusiness({
+        paymentReference,
+        providerTransactionRef: String(airtelId),
+        provider: "AIRTEL_MONEY",
+        amountPaid: expectedAmount,
+        currency: "RWF",
+        verifiedBy: "AIRTEL_MONEY_API_POLL",
+        rawPayload: JSON.stringify(data),
+      });
+
+      return {
+        settled: true,
+        status: "CONFIRMED",
+        receipt: confirmResult.receipt,
+        payment: confirmResult.payment,
+      };
+    }
+
+    if (txStatus === "TF") {
+      const reason = data?.data?.transaction?.message || "Airtel Money payment was declined or timed out.";
+      await prisma.registrationPayment.update({
+        where: { paymentReference },
+        data: {
+          status: "FAILED",
+          failureReason: reason,
+          rawCallbackPayload: JSON.stringify(data),
+        },
+      });
+      return {
+        settled: false,
+        status: "FAILED",
+        failureReason: reason,
+      };
+    }
+
+    return { settled: false, status: "PENDING" };
+  } catch (err: any) {
+    console.warn(`[AIRTEL_POLL_TIMEOUT] Failed to poll Airtel Money status (${err.message}). Keeping payment pending.`);
+    return { settled: false, status: "PENDING" };
+  }
+}
+
+/**
  * Polls or verifies payment status against the provider gateway.
  * When payment is verified successful, atomically confirms business registration
  * and issues official receipt.
@@ -485,23 +717,82 @@ export async function checkAndReconcilePaymentStatus(paymentReference: string): 
     };
   }
 
-  // Check if payment has expired (e.g., pending for > 15 minutes)
-  const ageMs = Date.now() - new Date(payment.createdAt).getTime();
-  if (payment.status === "PENDING" && ageMs > 15 * 60 * 1000) {
-    const updated = await prisma.registrationPayment.update({
-      where: { id: payment.id },
-      data: {
+  // If pending, reconcile against carrier if live keys are configured
+  if (payment.status === "PENDING") {
+    const credStatus = getProviderCredentialStatus(payment.provider as SupportedPushProvider);
+    const isSimulated =
+      payment.rawCallbackPayload?.includes('"simulated":true') ||
+      !credStatus.isConfigured ||
+      payment.providerTransactionRef?.startsWith("MTN-REQ-") ||
+      payment.providerTransactionRef?.startsWith("AIRTEL-TXN-") ||
+      payment.providerTransactionRef?.startsWith("TEST-");
+
+    if (!isSimulated && credStatus.isConfigured && payment.providerTransactionRef) {
+      if (payment.provider === "MTN_MOMO") {
+        const pollResult = await queryMtnMoMoPaymentStatus({
+          referenceId: payment.providerTransactionRef,
+          paymentReference: payment.paymentReference,
+          expectedAmount: payment.feeAmount,
+        });
+        if (pollResult.settled && pollResult.receipt) {
+          return {
+            status: "CONFIRMED",
+            payment: pollResult.payment || payment,
+            receipt: pollResult.receipt,
+            isConfirmed: true,
+          };
+        }
+        if (pollResult.status === "FAILED") {
+          return {
+            status: "FAILED",
+            payment: { ...payment, status: "FAILED", failureReason: pollResult.failureReason },
+            isConfirmed: false,
+            failureReason: pollResult.failureReason,
+          };
+        }
+      } else if (payment.provider === "AIRTEL_MONEY") {
+        const pollResult = await queryAirtelMoneyPaymentStatus({
+          transactionId: payment.providerTransactionRef,
+          paymentReference: payment.paymentReference,
+          expectedAmount: payment.feeAmount,
+        });
+        if (pollResult.settled && pollResult.receipt) {
+          return {
+            status: "CONFIRMED",
+            payment: pollResult.payment || payment,
+            receipt: pollResult.receipt,
+            isConfirmed: true,
+          };
+        }
+        if (pollResult.status === "FAILED") {
+          return {
+            status: "FAILED",
+            payment: { ...payment, status: "FAILED", failureReason: pollResult.failureReason },
+            isConfirmed: false,
+            failureReason: pollResult.failureReason,
+          };
+        }
+      }
+    }
+
+    // Check if payment has expired (e.g., pending for > 15 minutes)
+    const ageMs = Date.now() - new Date(payment.createdAt).getTime();
+    if (ageMs > 15 * 60 * 1000) {
+      const updated = await prisma.registrationPayment.update({
+        where: { id: payment.id },
+        data: {
+          status: "EXPIRED",
+          failureReason: "Payment request expired after 15 minutes without customer PIN confirmation.",
+        },
+        include: { receipt: true, business: true },
+      });
+      return {
         status: "EXPIRED",
-        failureReason: "Payment request expired after 15 minutes without customer PIN confirmation.",
-      },
-      include: { receipt: true, business: true },
-    });
-    return {
-      status: "EXPIRED",
-      payment: updated,
-      isConfirmed: false,
-      failureReason: updated.failureReason,
-    };
+        payment: updated,
+        isConfirmed: false,
+        failureReason: updated.failureReason,
+      };
+    }
   }
 
   return {
@@ -523,13 +814,50 @@ export async function simulateSandboxCustomerAction({
   paymentReference: string;
   action: "APPROVE" | "REJECT" | "TIMEOUT";
 }) {
+  const isProd = process.env.NODE_ENV === "production";
+  const stagingSimulatorPermitted = process.env.ALLOW_STAGING_PAYMENT_SIMULATION === "true";
+
+  if (isProd && !stagingSimulatorPermitted) {
+    throw new Error("Payment action simulation is strictly forbidden in production.");
+  }
+
   const payment = await prisma.registrationPayment.findUnique({
     where: { paymentReference },
-    include: { business: true },
+    include: { business: true, receipt: true },
   });
 
   if (!payment) {
     throw new Error(`Payment "${paymentReference}" not found.`);
+  }
+
+  if (payment.provider === "BANK_TRANSFER") {
+    throw new Error("Cannot simulate PIN actions for Bank Transfer payments.");
+  }
+
+  const isSimulatedTestPayment =
+    payment.rawCallbackPayload?.includes('"simulated":true') ||
+    payment.providerTransactionRef?.startsWith("MTN-REQ-") ||
+    payment.providerTransactionRef?.startsWith("AIRTEL-TXN-") ||
+    payment.providerTransactionRef?.startsWith("TEST-") ||
+    payment.providerTransactionRef?.startsWith("SIM-") ||
+    payment.paymentReference.includes("TEST") ||
+    payment.paymentReference.includes("SIM") ||
+    payment.paymentReference.includes("REJECT") ||
+    payment.paymentReference.includes("TIMEOUT");
+
+  if (!isSimulatedTestPayment) {
+    throw new Error("Cannot simulate action on a real carrier payment. Simulation is restricted strictly to sandbox test payments.");
+  }
+
+  if (payment.status === "CONFIRMED") {
+    return {
+      success: true,
+      alreadyConfirmed: true,
+      payment,
+      receipt: payment.receipt,
+      businessId: payment.businessId,
+      status: "CONFIRMED",
+    };
   }
 
   if (action === "APPROVE") {
@@ -540,7 +868,7 @@ export async function simulateSandboxCustomerAction({
       provider: payment.provider,
       amountPaid: payment.feeAmount,
       currency: "RWF",
-      verifiedBy: `SANDBOX_SIMULATOR_${payment.provider}`,
+      verifiedBy: `SANDBOX_SIMULATOR_${payment.provider}_TEST_ONLY`,
       rawPayload: JSON.stringify({
         simulatedApproval: true,
         action: "CUSTOMER_PIN_CONFIRMED",
@@ -583,3 +911,4 @@ export async function simulateSandboxCustomerAction({
 
   throw new Error(`Unknown simulation action "${action}".`);
 }
+

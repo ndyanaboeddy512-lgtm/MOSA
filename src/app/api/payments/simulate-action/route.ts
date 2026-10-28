@@ -4,14 +4,24 @@ import { simulateSandboxCustomerAction } from "@/lib/payments/push-gateway";
 
 export async function POST(req: NextRequest) {
   try {
-    const isDev = process.env.NODE_ENV !== "production";
-    const demoEnabled = process.env.NEXT_PUBLIC_ENABLE_DEMO_SWITCH === "true" || process.env.ENABLE_PAYMENT_SIMULATOR === "true";
-    const currentUser = await getCurrentUser();
-    const isAdminOrOwner = currentUser && ["SUPER_ADMIN", "COMMUNITY_ADMIN", "BUSINESS_OWNER"].includes(currentUser.role);
+    const isProd = process.env.NODE_ENV === "production";
+    // A deliberately configured, server-only staging flag must explicitly permit simulation in production-like builds.
+    // Public environment variables (e.g., NEXT_PUBLIC_*) must NEVER permit production simulation.
+    const stagingSimulatorPermitted = process.env.ALLOW_STAGING_PAYMENT_SIMULATION === "true";
 
-    if (!isDev && !demoEnabled && !isAdminOrOwner) {
+    if (isProd && !stagingSimulatorPermitted) {
       return NextResponse.json(
-        { success: false, error: "Access denied. Action simulator is restricted." },
+        { success: false, error: "Payment simulation is strictly forbidden in production." },
+        { status: 403 }
+      );
+    }
+
+    // Only SUPER_ADMIN may simulate sandbox payment actions.
+    // BUSINESS_OWNER, CUSTOMER, COMMUNITY_AGENT, and anonymous users are strictly denied.
+    const currentUser = await getCurrentUser(req);
+    if (!currentUser || currentUser.role !== "SUPER_ADMIN") {
+      return NextResponse.json(
+        { success: false, error: "Access denied. Only Super Administrators can execute sandbox payment simulation." },
         { status: 403 }
       );
     }
@@ -46,7 +56,7 @@ export async function POST(req: NextRequest) {
     console.error("[PAYMENTS_SIMULATE_ACTION_ERROR]:", error);
     return NextResponse.json(
       { success: false, error: error.message || "Failed to simulate payment action." },
-      { status: 500 }
+      { status: 400 }
     );
   }
 }

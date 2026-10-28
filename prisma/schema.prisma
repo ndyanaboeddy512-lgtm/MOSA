@@ -1255,3 +1255,13 @@ model PaymentBridgeDevice {
   @@index([pairingCode])
   @@index([enrolledById])
 }
+
+model PaymentRateLimit {
+  key       String   @id @db.VarChar(255)
+  count     Int      @default(1)
+  resetAt   DateTime @map("reset_at") @db.Timestamptz
+
+  @@map("payment_rate_limits")
+  @@index([resetAt])
+}
+
