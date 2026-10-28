@@ -15,8 +15,10 @@
             android:id="@+id/toolbar"
             android:layout_width="match_parent"
             android:layout_height="?attr/actionBarSize"
-            app:title="MOSA Payment Bridge"
-            app:titleTextColor="@color/surface" />
+            app:title="55 MOSA Payment Bridge"
+            app:subtitle="Connect • Grow • Prosper"
+            app:titleTextColor="@color/surface"
+            app:subtitleTextColor="#D1FAE5" />
 
     </com.google.android.material.appbar.AppBarLayout>
 
@@ -50,6 +52,47 @@
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
                     android:padding="20dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginBottom="16dp">
+
+                        <ImageView
+                            android:id="@+id/imgMosaLogoPairing"
+                            android:layout_width="64dp"
+                            android:layout_height="48dp"
+                            android:src="@drawable/mosa_logo"
+                            android:scaleType="fitCenter"
+                            android:contentDescription="MOSA Official Logo"
+                            android:background="@drawable/badge_card"
+                            android:padding="3dp" />
+
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:layout_marginStart="12dp"
+                            android:orientation="vertical">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="55 MOSA"
+                                android:textColor="@color/primary"
+                                android:textSize="18sp"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Micro-Opportunity &amp; Service Access"
+                                android:textColor="@color/text_muted"
+                                android:textSize="12sp" />
+                        </LinearLayout>
+                    </LinearLayout>
 
                     <TextView
                         android:layout_width="wrap_content"
@@ -159,6 +202,17 @@
                         android:gravity="center_vertical"
                         android:orientation="horizontal">
 
+                        <ImageView
+                            android:id="@+id/imgMosaLogoDashboard"
+                            android:layout_width="48dp"
+                            android:layout_height="36dp"
+                            android:src="@drawable/mosa_logo"
+                            android:scaleType="fitCenter"
+                            android:contentDescription="MOSA Official Logo"
+                            android:background="@drawable/badge_card"
+                            android:padding="2dp"
+                            android:layout_marginEnd="10dp" />
+
                         <TextView
                             android:id="@+id/tvDeviceName"
                             android:layout_width="0dp"
@@ -166,7 +220,7 @@
                             android:layout_weight="1"
                             android:text="Hub Office Primary Phone"
                             android:textColor="@color/text_main"
-                            android:textSize="18sp"
+                            android:textSize="17sp"
                             android:textStyle="bold" />
 
                         <TextView
@@ -318,14 +372,33 @@
             <!-- ============================================== -->
             <!-- SECTION 3: RECENT TRANSACTIONS / AUDIT LOG -->
             <!-- ============================================== -->
-            <TextView
-                android:layout_width="wrap_content"
+            <LinearLayout
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:gravity="center_vertical"
                 android:layout_marginBottom="8dp"
-                android:text="Recent Terminal Activity"
-                android:textColor="@color/text_main"
-                android:textSize="16sp"
-                android:textStyle="bold" />
+                android:orientation="horizontal">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Payment Activity &amp; Audit Log"
+                    android:textColor="@color/text_main"
+                    android:textSize="16sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:background="@drawable/badge_card"
+                    android:paddingHorizontal="8dp"
+                    android:paddingVertical="3dp"
+                    android:text="Airtel / MTN MoMo"
+                    android:textColor="@color/primary"
+                    android:textSize="11sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
 
             <TextView
                 android:id="@+id/tvLogFeed"

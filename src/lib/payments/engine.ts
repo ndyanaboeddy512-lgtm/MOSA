@@ -1,5 +1,5 @@
 import crypto from "crypto";
-import { prisma } from "@/lib/prisma";
+import { prisma } from "../prisma";
 import { calculateEffectiveFee, confirmFreeRegistrationWithWaiver } from "./promotions-engine";
 
 export const DEFAULT_REGISTRATION_FEE = 5000;
