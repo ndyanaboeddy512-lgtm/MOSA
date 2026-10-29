@@ -1,5 +1,6 @@
 import crypto from "crypto";
 import { prisma } from "@/lib/prisma";
+import { getCanonicalServerUrl, getApprovedDomains } from "@/lib/domain-config";
 
 export interface CreatePairingChallengeParams {
   name: string;
@@ -225,6 +226,9 @@ export async function completeDevicePairing({
     },
   }).catch(() => null);
 
+  const canonicalServerUrl = await getCanonicalServerUrl();
+  const approvedDomains = await getApprovedDomains();
+
   return {
     success: true,
     deviceId: updatedDevice.deviceId,
@@ -234,6 +238,8 @@ export async function completeDevicePairing({
     carrier: updatedDevice.carrier,
     simPhoneNumber: updatedDevice.simPhoneNumber,
     enrolledAt: updatedDevice.enrolledAt,
+    serverUrl: canonicalServerUrl,
+    approvedDomains,
   };
 }
 
@@ -300,19 +306,17 @@ export async function recordDeviceHeartbeat({
     },
   });
 
+  const canonicalServerUrl = await getCanonicalServerUrl();
+  const approvedDomains = await getApprovedDomains();
+
   return {
     success: true,
     isDeviceActive: true,
     status: updated.status,
     serverTime: new Date().toISOString(),
     configuration: {
-      serverUrl: (() => {
-        const configured = process.env.PAYMENT_BRIDGE_SERVER_URL || process.env.NEXT_PUBLIC_APP_URL;
-        if (!configured || configured.includes("localhost") || configured.includes("127.0.0.1")) {
-          return "https://mosa-one.vercel.app";
-        }
-        return configured;
-      })(),
+      serverUrl: canonicalServerUrl,
+      approvedDomains,
       deviceName: updated.name,
       carrier: updated.carrier,
       simPhoneNumber: updated.simPhoneNumber,

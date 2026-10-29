@@ -6,6 +6,17 @@ import { GET as bridgeDevicesGet, POST as bridgeDevicesPost } from "@/app/api/ad
 import { simulateSandboxCustomerAction, checkAndReconcilePaymentStatus } from "@/lib/payments/push-gateway";
 import { checkPaymentRateLimit } from "@/lib/payments/rate-limiter";
 import { recordDeviceHeartbeat } from "@/lib/payments/bridge-devices";
+import {
+  getCanonicalServerUrl,
+  getApprovedDomains,
+  getDomainMigrationState,
+  validateCustomDomainSyntax,
+  isDomainAuthorized,
+  submitCustomDomain,
+  verifyCustomDomain,
+  activateCustomDomain,
+  rollbackCustomDomain,
+} from "@/lib/domain-config";
 import { NextRequest } from "next/server";
 
 // Mock auth module dynamically for role testing
@@ -424,6 +435,154 @@ async function runSecurityAuditTests() {
   }
   console.log("✓ Test 10 Passed: Heartbeat dynamically delivered HTTPS serverUrl and safely excluded HMAC secrets.");
 
+  // -------------------------------------------------------------
+  // TEST 11: Custom Domain Submission & Untrusted Domain Blocking
+  // -------------------------------------------------------------
+  console.log("\n--- TEST 11: Custom Domain Submission & Untrusted Domain Blocking ---");
+  // 11A: Insecure HTTP domain must be rejected
+  const insecureHttpRes = validateCustomDomainSyntax("http://insecure.mosa.rw");
+  if (insecureHttpRes.isValid) {
+    throw new Error("TEST 11A FAILED: Insecure HTTP domain was accepted!");
+  }
+  console.log("✓ Test 11A Passed: Plain HTTP custom domain strictly rejected.");
+
+  // 11B: Broad arbitrary vercel subdomain must be rejected
+  const arbitraryVercelRes = validateCustomDomainSyntax("https://attacker.vercel.app");
+  if (arbitraryVercelRes.isValid) {
+    throw new Error("TEST 11B FAILED: Arbitrary *.vercel.app domain was accepted!");
+  }
+  console.log("✓ Test 11B Passed: Arbitrary *.vercel.app domain strictly rejected.");
+
+  // 11C: BUSINESS_OWNER blocked from SUBMIT_CUSTOM_DOMAIN via API (HTTP 403)
+  const ownerDomainPostReq = new NextRequest("http://localhost:3000/api/admin/payments/bridge/devices", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${ownerToken}`,
+      cookie: `mosa_session=${ownerToken}`,
+    },
+    body: JSON.stringify({ action: "SUBMIT_CUSTOM_DOMAIN", customDomain: "https://mosa.rw" }),
+  });
+  const ownerDomainPostRes = await bridgeDevicesPost(ownerDomainPostReq);
+  if (ownerDomainPostRes.status !== 403) {
+    throw new Error(`TEST 11C FAILED: Non-admin SUBMIT_CUSTOM_DOMAIN did not return 403! Got: ${ownerDomainPostRes.status}`);
+  }
+  console.log("✓ Test 11C Passed: Non-admin SUBMIT_CUSTOM_DOMAIN strictly received HTTP 403.");
+
+  // 11D: SUPER_ADMIN submits valid domain https://mosa.rw and receives verification token
+  const submitRes = await submitCustomDomain({
+    customDomain: "https://mosa.rw",
+    actorId: superAdminUser.id,
+    actorName: superAdminUser.name,
+  });
+  if (!submitRes.success || !submitRes.verificationToken.startsWith("mosa_verify_")) {
+    throw new Error("TEST 11D FAILED: submitCustomDomain did not produce valid verification token!");
+  }
+  console.log("✓ Test 11D Passed: Valid domain https://mosa.rw generated verification token.");
+
+  // -------------------------------------------------------------
+  // TEST 12: Custom Domain Verification & Strict Activation Invariant
+  // -------------------------------------------------------------
+  console.log("\n--- TEST 12: Custom Domain Verification & Strict Activation Invariant ---");
+  // 12A: Attempting to activate an unverified domain must throw/fail
+  try {
+    await activateCustomDomain({ actorId: superAdminUser.id, actorName: superAdminUser.name });
+    throw new Error("TEST 12A FAILED: Unverified domain was activated!");
+  } catch (err: any) {
+    if (!err.message.includes("Cannot activate unverified custom domain")) {
+      throw err;
+    }
+  }
+  console.log("✓ Test 12A Passed: Activation of unverified custom domain was strictly rejected.");
+
+  // 12B: Verify domain using controlled simulation probe
+  const verifyRes = await verifyCustomDomain({
+    actorId: superAdminUser.id,
+    actorName: superAdminUser.name,
+    simulateSuccess: true,
+  });
+  if (!verifyRes.success || !verifyRes.verified) {
+    throw new Error("TEST 12B FAILED: verifyCustomDomain failed!");
+  }
+  console.log("✓ Test 12B Passed: Domain verification check succeeded.");
+
+  // 12C: Activate verified domain
+  const activateRes = await activateCustomDomain({
+    actorId: superAdminUser.id,
+    actorName: superAdminUser.name,
+  });
+  if (!activateRes.success || activateRes.newCanonicalUrl !== "https://mosa.rw") {
+    throw new Error("TEST 12C FAILED: activateCustomDomain failed!");
+  }
+  const currentCanonical = await getCanonicalServerUrl();
+  if (currentCanonical !== "https://mosa.rw") {
+    throw new Error(`TEST 12C FAILED: Canonical URL is not https://mosa.rw! Got: ${currentCanonical}`);
+  }
+  const approvedList = await getApprovedDomains();
+  if (!approvedList.includes("mosa.rw")) {
+    throw new Error("TEST 12C FAILED: mosa.rw not added to approved domains!");
+  }
+  console.log("✓ Test 12C Passed: Custom domain https://mosa.rw is now active canonical endpoint.");
+
+  // -------------------------------------------------------------
+  // TEST 13: Terminal Migration via Heartbeat & Zero Credential Leakage
+  // -------------------------------------------------------------
+  console.log("\n--- TEST 13: Terminal Migration via Heartbeat & Zero Credential Leakage ---");
+  const hbMigration = await recordDeviceHeartbeat({
+    deviceId: tempDeviceId,
+    deviceToken: tempDeviceToken,
+    batteryLevel: 90,
+    isCharging: false,
+    networkType: "CELLULAR",
+    appVersion: "1.1.0",
+    pendingSyncCount: 0,
+  });
+  if (!hbMigration.success || !hbMigration.isDeviceActive) {
+    throw new Error("TEST 13 FAILED: Heartbeat after migration failed!");
+  }
+  const hbMigratedConfig = (hbMigration as any).configuration;
+  if (hbMigratedConfig.serverUrl !== "https://mosa.rw") {
+    throw new Error(`TEST 13 FAILED: Terminal heartbeat did not receive migrated canonical URL! Got: ${hbMigratedConfig.serverUrl}`);
+  }
+  if (!hbMigratedConfig.approvedDomains.includes("mosa.rw")) {
+    throw new Error("TEST 13 FAILED: Terminal heartbeat did not receive approved domains list!");
+  }
+  if ((hbMigratedConfig as any).hmacSecret !== undefined || (hbMigratedConfig as any).deviceToken !== undefined) {
+    throw new Error("TEST 13 FAILED: Heartbeat leaked sensitive credentials!");
+  }
+  console.log("✓ Test 13 Passed: Terminal seamlessly received new canonical endpoint https://mosa.rw and approved domains with zero credential leakage.");
+
+  // -------------------------------------------------------------
+  // TEST 14: Safe Rollback Execution & Terminal Reconnection
+  // -------------------------------------------------------------
+  console.log("\n--- TEST 14: Safe Rollback Execution & Terminal Reconnection ---");
+  const rollbackRes = await rollbackCustomDomain({
+    actorId: superAdminUser.id,
+    actorName: superAdminUser.name,
+    reason: "Integration test rollback verification",
+  });
+  if (!rollbackRes.success) {
+    throw new Error("TEST 14 FAILED: rollbackCustomDomain failed!");
+  }
+  const restoredCanonical = await getCanonicalServerUrl();
+  if (restoredCanonical !== "https://mosa-one.vercel.app") {
+    throw new Error(`TEST 14 FAILED: Rollback did not restore https://mosa-one.vercel.app! Got: ${restoredCanonical}`);
+  }
+  const hbRollback = await recordDeviceHeartbeat({
+    deviceId: tempDeviceId,
+    deviceToken: tempDeviceToken,
+    batteryLevel: 88,
+    isCharging: false,
+    networkType: "WIFI",
+    appVersion: "1.1.0",
+    pendingSyncCount: 0,
+  });
+  const hbRollbackConfig = (hbRollback as any).configuration;
+  if (hbRollbackConfig.serverUrl !== "https://mosa-one.vercel.app") {
+    throw new Error(`TEST 14 FAILED: Post-rollback heartbeat did not return restored serverUrl! Got: ${hbRollbackConfig.serverUrl}`);
+  }
+  console.log("✓ Test 14 Passed: Safe rollback restored canonical URL to https://mosa-one.vercel.app and terminal reconnected.");
+
   // Cleanup temp device
   await prisma.paymentBridgeDevice.delete({ where: { id: tempDevice.id } });
 
@@ -437,7 +596,7 @@ async function runSecurityAuditTests() {
   });
 
   console.log("\n=================================================================");
-  console.log("ALL 10 CRITICAL SECURITY & REGRESSION TESTS PASSED SUCCESSFULLY!");
+  console.log("ALL 14 CRITICAL SECURITY & REGRESSION TESTS PASSED SUCCESSFULLY!");
   console.log("=================================================================");
 }
 

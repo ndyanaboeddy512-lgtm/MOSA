@@ -113,16 +113,48 @@ class KeystoreManager(context: Context) {
         return "${token.take(6)}...${token.takeLast(4)}"
     }
 
+    val approvedDomains: Set<String>
+        get() {
+            val stored = sharedPreferences.getStringSet(KEY_APPROVED_DOMAINS, null)
+            val defaults = setOf("mosa-one.vercel.app", "mosa.rw", "*.mosa.rw")
+            return if (stored != null) (defaults + stored) else defaults
+        }
+
+    fun updateApprovedDomains(domains: List<String>) {
+        val current = approvedDomains.toMutableSet()
+        for (raw in domains) {
+            val clean = raw.trim().lowercase().removePrefix("https://").removePrefix("http://").trimEnd('/')
+            if (clean.isBlank()) continue
+            // Disallow arbitrary *.vercel.app subdomains. Only official mosa-one.vercel.app is permitted.
+            if (clean.endsWith(".vercel.app") && clean != "mosa-one.vercel.app") {
+                android.util.Log.w("KeystoreManager", "Rejected untrusted vercel subdomain: $clean")
+                continue
+            }
+            current.add(clean)
+        }
+        sharedPreferences.edit().putStringSet(KEY_APPROVED_DOMAINS, current).apply()
+    }
+
     fun isTrustedServerUrl(url: String): Boolean {
         return try {
             val uri = java.net.URI(cleanUrl(url))
             val host = uri.host?.lowercase() ?: return false
             val isHttps = uri.scheme.equals("https", ignoreCase = true)
 
-            val isTrustedDomain = host == "mosa-one.vercel.app" ||
-                    host.endsWith(".vercel.app") ||
-                    host == "mosa.rw" ||
-                    host.endsWith(".mosa.rw")
+            // Strictly disallow arbitrary *.vercel.app subdomains
+            if (host.endsWith(".vercel.app") && host != "mosa-one.vercel.app") {
+                return false
+            }
+
+            val domains = approvedDomains
+            val isTrustedDomain = domains.any { pattern ->
+                if (pattern.startsWith("*.")) {
+                    val root = pattern.removePrefix("*.")
+                    host == root || host.endsWith(".$root")
+                } else {
+                    host == pattern
+                }
+            }
 
             if (rw.mosa.paymentbridge.BuildConfig.DEBUG) {
                 val isLocalHost = host == "10.0.2.2" || host == "localhost" || host.startsWith("192.168.")
@@ -151,6 +183,7 @@ class KeystoreManager(context: Context) {
         private const val DEFAULT_SERVER_URL = "https://mosa-one.vercel.app"
 
         private const val KEY_SERVER_URL = "server_url"
+        private const val KEY_APPROVED_DOMAINS = "approved_domains"
         private const val KEY_DEVICE_ID = "device_id"
         private const val KEY_DEVICE_TOKEN = "device_token"
         private const val KEY_HMAC_SECRET = "hmac_secret"

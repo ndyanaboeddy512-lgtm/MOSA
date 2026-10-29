@@ -25,7 +25,23 @@ import {
   ShieldAlert,
   Sliders,
   Radio,
+  Globe,
+  RotateCcw,
+  Server,
+  ShieldCheck,
 } from "lucide-react";
+
+interface DomainConfigState {
+  canonicalUrl: string;
+  status: "ACTIVE" | "PENDING_VERIFICATION" | "VERIFIED" | "FAILED_VERIFICATION" | "ROLLED_BACK";
+  pendingCustomDomain: string | null;
+  verificationToken: string | null;
+  verificationMethod: string | null;
+  verifiedAt: string | null;
+  rollbackUrl: string | null;
+  approvedDomains: string[];
+  diagnostics: string | null;
+}
 
 interface BridgeDevice {
   id: string;
@@ -78,13 +94,19 @@ interface PaymentBridgeModalProps {
 }
 
 export function PaymentBridgeManagementModal({ isOpen, onClose }: PaymentBridgeModalProps) {
-  const [activeTab, setActiveTab] = useState<"terminal" | "destinations" | "enroll" | "history" | "audit">("terminal");
+  const [activeTab, setActiveTab] = useState<"terminal" | "destinations" | "domain" | "enroll" | "history" | "audit">("terminal");
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [devices, setDevices] = useState<BridgeDevice[]>([]);
   const [providers, setProviders] = useState<PaymentProvider[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
+
+  // Domain configuration & migration state
+  const [domainConfig, setDomainConfig] = useState<DomainConfigState | null>(null);
+  const [domainAuditHistory, setDomainAuditHistory] = useState<any[]>([]);
+  const [inputCustomDomain, setInputCustomDomain] = useState("https://mosa.rw");
+  const [rollbackReason, setRollbackReason] = useState("");
 
   // Enrollment form state
   const [newDeviceName, setNewDeviceName] = useState("Primary Airtel Money Android Terminal");
@@ -125,6 +147,15 @@ export function PaymentBridgeManagementModal({ isOpen, onClose }: PaymentBridgeM
         } else if (typeof window !== "undefined") {
           setServerUrl(window.location.origin);
         }
+        if (data.domainConfig) {
+          setDomainConfig(data.domainConfig);
+          if (data.domainConfig.pendingCustomDomain) {
+            setInputCustomDomain(data.domainConfig.pendingCustomDomain);
+          }
+        }
+        if (data.domainAuditHistory) {
+          setDomainAuditHistory(data.domainAuditHistory);
+        }
       } else {
         setFeedback({ type: "error", message: data.error || "Failed to load bridge devices." });
       }
@@ -132,6 +163,117 @@ export function PaymentBridgeManagementModal({ isOpen, onClose }: PaymentBridgeM
       setFeedback({ type: "error", message: err.message || "Network error loading bridge data." });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSubmitCustomDomain = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setActionLoading(true);
+    setFeedback(null);
+    try {
+      const res = await fetch("/api/admin/payments/bridge/devices", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "SUBMIT_CUSTOM_DOMAIN",
+          customDomain: inputCustomDomain.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setFeedback({ type: "success", message: data.message });
+        fetchBridgeData();
+      } else {
+        setFeedback({ type: "error", message: data.error || "Failed to submit custom domain." });
+      }
+    } catch (err: any) {
+      setFeedback({ type: "error", message: err.message || "Network error." });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleVerifyCustomDomain = async () => {
+    setActionLoading(true);
+    setFeedback(null);
+    try {
+      const res = await fetch("/api/admin/payments/bridge/devices", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "VERIFY_CUSTOM_DOMAIN",
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setFeedback({ type: "success", message: data.message });
+        fetchBridgeData();
+      } else {
+        setFeedback({ type: "error", message: data.message || data.error || "Verification failed." });
+        fetchBridgeData();
+      }
+    } catch (err: any) {
+      setFeedback({ type: "error", message: err.message || "Network error verifying domain." });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleActivateCustomDomain = async () => {
+    if (!confirm(`Are you sure you want to activate "${domainConfig?.pendingCustomDomain}" as the canonical production endpoint for MOSA? All payment bridge terminals will migrate automatically on their next heartbeat.`)) {
+      return;
+    }
+    setActionLoading(true);
+    setFeedback(null);
+    try {
+      const res = await fetch("/api/admin/payments/bridge/devices", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "ACTIVATE_CUSTOM_DOMAIN",
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setFeedback({ type: "success", message: data.message });
+        fetchBridgeData();
+      } else {
+        setFeedback({ type: "error", message: data.error || "Failed to activate domain." });
+      }
+    } catch (err: any) {
+      setFeedback({ type: "error", message: err.message || "Network error." });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleRollbackCustomDomain = async () => {
+    if (!confirm(`Are you sure you want to rollback the canonical endpoint to "${domainConfig?.rollbackUrl || "https://mosa-one.vercel.app"}"?`)) {
+      return;
+    }
+    setActionLoading(true);
+    setFeedback(null);
+    try {
+      const res = await fetch("/api/admin/payments/bridge/devices", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "ROLLBACK_CUSTOM_DOMAIN",
+          reason: rollbackReason.trim() || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setFeedback({ type: "success", message: data.message });
+        setRollbackReason("");
+        fetchBridgeData();
+      } else {
+        setFeedback({ type: "error", message: data.error || "Failed to rollback domain." });
+      }
+    } catch (err: any) {
+      setFeedback({ type: "error", message: err.message || "Network error." });
+    } finally {
+      setActionLoading(false);
     }
   };
 
@@ -399,6 +541,17 @@ export function PaymentBridgeManagementModal({ isOpen, onClose }: PaymentBridgeM
           {[
             { id: "terminal", label: "Active Terminal & SIM", icon: Smartphone },
             { id: "destinations", label: "Payment Destinations", icon: Sliders },
+            {
+              id: "domain",
+              label: "Custom Domain & Migration",
+              icon: Globe,
+              badge:
+                domainConfig?.status === "PENDING_VERIFICATION"
+                  ? "Verify"
+                  : domainConfig?.status === "VERIFIED"
+                  ? "Ready"
+                  : null,
+            },
             { id: "enroll", label: "Enroll Replacement Phone", icon: Plus, badge: pendingDevices.length > 0 ? pendingDevices.length : null },
             { id: "history", label: "Terminal History", icon: Clock },
             { id: "audit", label: "Audit Trail", icon: Shield },
@@ -724,6 +877,287 @@ export function PaymentBridgeManagementModal({ isOpen, onClose }: PaymentBridgeM
                     </div>
                   ))}
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB: CUSTOM DOMAIN & MIGRATION */}
+          {activeTab === "domain" && (
+            <div className="space-y-6">
+              {/* Active Canonical Endpoint Card */}
+              <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-6">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-slate-100 gap-3">
+                  <div>
+                    <div className="text-xs font-bold uppercase tracking-wider text-slate-400">Canonical Production Endpoint</div>
+                    <div className="flex items-center gap-2 mt-1">
+                      <Globe className="w-5 h-5 text-emerald-600" />
+                      <h3 className="text-xl font-mono font-black text-slate-900">
+                        {domainConfig?.canonicalUrl || "https://mosa-one.vercel.app"}
+                      </h3>
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(domainConfig?.canonicalUrl || "https://mosa-one.vercel.app");
+                          setFeedback({ type: "success", message: "Canonical URL copied to clipboard!" });
+                        }}
+                        className="p-1 rounded text-slate-400 hover:text-slate-700 transition cursor-pointer"
+                        title="Copy URL"
+                      >
+                        <Copy className="w-4 h-4" />
+                      </button>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Authoritative URL used by Android Bridge terminals, payer checkouts, and public APIs.
+                    </p>
+                  </div>
+
+                  <div className="flex flex-col sm:items-end gap-1.5">
+                    <span
+                      className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider ${
+                        domainConfig?.status === "ACTIVE"
+                          ? "bg-emerald-100 text-emerald-800"
+                          : domainConfig?.status === "VERIFIED"
+                          ? "bg-blue-100 text-blue-800"
+                          : domainConfig?.status === "PENDING_VERIFICATION"
+                          ? "bg-amber-100 text-amber-800"
+                          : domainConfig?.status === "ROLLED_BACK"
+                          ? "bg-slate-100 text-slate-800"
+                          : "bg-red-100 text-red-800"
+                      }`}
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      {domainConfig?.status || "ACTIVE"}
+                    </span>
+                    <span className="text-[11px] text-slate-400 font-medium">
+                      Zero-rebuild migration enabled
+                    </span>
+                  </div>
+                </div>
+
+                {/* Approved Domains List */}
+                <div>
+                  <div className="text-xs font-bold text-slate-700 mb-2 flex items-center justify-between">
+                    <span>Explicitly Approved Trusted Domains:</span>
+                    <span className="text-[11px] text-emerald-700 font-semibold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                      Broad *.vercel.app disabled
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {(domainConfig?.approvedDomains || ["mosa-one.vercel.app", "mosa.rw", "*.mosa.rw"]).map((d) => (
+                      <span
+                        key={d}
+                        className="px-3 py-1 rounded-lg text-xs font-mono font-semibold bg-slate-100 text-slate-700 border border-slate-200 flex items-center gap-1.5"
+                      >
+                        <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                        {d}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Custom Domain Migration & Verification Card */}
+              <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-6">
+                <div>
+                  <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
+                    <Server className="w-5 h-5 text-emerald-600" />
+                    Migrate to Custom Domain
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Transition MOSA to its canonical custom domain (e.g. <code className="font-mono text-slate-700 font-bold">https://mosa.rw</code>). 
+                    The Android Bridge will automatically re-point upon receiving configuration without requiring physical device reinstallation.
+                  </p>
+                </div>
+
+                <form onSubmit={handleSubmitCustomDomain} className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                      New Production Domain (HTTPS only)
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        type="url"
+                        value={inputCustomDomain}
+                        onChange={(e) => setInputCustomDomain(e.target.value)}
+                        placeholder="https://mosa.rw"
+                        className="flex-1 px-4 py-2.5 rounded-xl border border-slate-300 font-mono text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                        required
+                      />
+                      <button
+                        type="submit"
+                        disabled={actionLoading}
+                        className="px-5 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs transition cursor-pointer disabled:opacity-50 whitespace-nowrap"
+                      >
+                        {actionLoading ? "Generating..." : "Generate Challenge"}
+                      </button>
+                    </div>
+                  </div>
+                </form>
+
+                {/* Challenge Details */}
+                {domainConfig?.verificationToken && (
+                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-4">
+                    <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                      <span className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                        <Lock className="w-4 h-4 text-emerald-600" />
+                        Domain Ownership Verification Challenge
+                      </span>
+                      <span
+                        className={`text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider ${
+                          domainConfig.status === "VERIFIED"
+                            ? "bg-emerald-100 text-emerald-800"
+                            : "bg-amber-100 text-amber-800"
+                        }`}
+                      >
+                        {domainConfig.status}
+                      </span>
+                    </div>
+
+                    <div className="space-y-2 text-xs">
+                      <div>
+                        <span className="text-slate-500 font-bold block mb-0.5">Option A: DNS TXT Record</span>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                          <div className="bg-white p-2.5 rounded-lg border border-slate-200 font-mono">
+                            <span className="text-[10px] text-slate-400 block font-sans">Host:</span>
+                            _mosa-challenge.{domainConfig.pendingCustomDomain?.replace(/^https?:\/\//, "").replace(/\/.*$/, "")}
+                          </div>
+                          <div className="bg-white p-2.5 rounded-lg border border-slate-200 font-mono break-all flex items-center justify-between">
+                            <div>
+                              <span className="text-[10px] text-slate-400 block font-sans">Value:</span>
+                              {domainConfig.verificationToken}
+                            </div>
+                            <button
+                              onClick={() => {
+                                navigator.clipboard.writeText(domainConfig.verificationToken || "");
+                                setFeedback({ type: "success", message: "Verification token copied!" });
+                              }}
+                              className="p-1 text-slate-400 hover:text-slate-700 cursor-pointer"
+                            >
+                              <Copy className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
+                      {domainConfig.diagnostics && (
+                        <div className="bg-amber-50 text-amber-900 border border-amber-200 rounded-lg p-2.5 text-[11px] font-mono">
+                          <span className="font-bold font-sans">Diagnostics:</span> {domainConfig.diagnostics}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Verification Actions */}
+                    <div className="flex flex-wrap items-center gap-3 pt-2">
+                      <button
+                        onClick={handleVerifyCustomDomain}
+                        disabled={actionLoading}
+                        className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-2 transition cursor-pointer disabled:opacity-50"
+                      >
+                        <RefreshCw className={`w-3.5 h-3.5 ${actionLoading ? "animate-spin" : ""}`} />
+                        Verify Domain Now
+                      </button>
+
+                      <button
+                        onClick={handleActivateCustomDomain}
+                        disabled={actionLoading || domainConfig.status !== "VERIFIED"}
+                        className={`px-4 py-2 rounded-xl font-bold text-xs flex items-center gap-2 transition cursor-pointer ${
+                          domainConfig.status === "VERIFIED"
+                            ? "bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
+                            : "bg-slate-200 text-slate-400 cursor-not-allowed"
+                        }`}
+                        title={domainConfig.status === "VERIFIED" ? "Activate verified custom domain" : "Domain must pass verification before activation"}
+                      >
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        Activate Custom Domain
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Safe Rollback Card */}
+              <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
+                      <RotateCcw className="w-4 h-4 text-slate-600" />
+                      Safe Endpoint Rollback
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Instantly revert to the previous verified endpoint (or default Vercel URL) if DNS or certificate issues arise.
+                    </p>
+                  </div>
+                  <span className="text-xs font-mono bg-slate-100 text-slate-700 px-3 py-1 rounded-lg border border-slate-200">
+                    Target: {domainConfig?.rollbackUrl || "https://mosa-one.vercel.app"}
+                  </span>
+                </div>
+
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={rollbackReason}
+                    onChange={(e) => setRollbackReason(e.target.value)}
+                    placeholder="Optional rollback rationale (e.g. DNS propagation delay)"
+                    className="flex-1 px-4 py-2 rounded-xl border border-slate-300 text-xs focus:ring-2 focus:ring-slate-500 focus:outline-none"
+                  />
+                  <button
+                    onClick={handleRollbackCustomDomain}
+                    disabled={actionLoading}
+                    className="px-4 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-xs flex items-center gap-1.5 transition cursor-pointer disabled:opacity-50 whitespace-nowrap"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    Rollback to Previous URL
+                  </button>
+                </div>
+              </div>
+
+              {/* Migration Audit Trail */}
+              <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
+                    <Shield className="w-4 h-4 text-emerald-600" />
+                    Domain Migration Audit Trail
+                  </h3>
+                  <span className="text-xs text-slate-400 font-medium">
+                    {domainAuditHistory.length} recorded events
+                  </span>
+                </div>
+
+                {domainAuditHistory.length === 0 ? (
+                  <div className="text-center py-6 text-xs text-slate-400">
+                    No domain migration events recorded yet.
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead>
+                        <tr className="border-b border-slate-100 text-slate-400 uppercase font-black tracking-wider text-[10px]">
+                          <th className="pb-2">Action</th>
+                          <th className="pb-2">Admin Actor</th>
+                          <th className="pb-2">Details</th>
+                          <th className="pb-2 text-right">Timestamp</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {domainAuditHistory.map((item) => (
+                          <tr key={item.id} className="hover:bg-slate-50/50">
+                            <td className="py-2.5 font-bold font-mono text-emerald-800">
+                              {item.action}
+                            </td>
+                            <td className="py-2.5 font-semibold text-slate-700">
+                              {item.actor?.name || "System Administrator"}
+                            </td>
+                            <td className="py-2.5 font-mono text-[11px] text-slate-600 max-w-xs truncate">
+                              {item.metadata || "—"}
+                            </td>
+                            <td className="py-2.5 text-right text-slate-400 font-mono text-[11px]">
+                              {new Date(item.createdAt).toLocaleString()}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
             </div>
           )}

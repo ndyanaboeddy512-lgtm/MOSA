@@ -66,6 +66,9 @@ class HeartbeatWorker(
 
                 // Apply dynamic backend remote configuration
                 body?.configuration?.let { cfg ->
+                    cfg.approvedDomains?.let { domains ->
+                        keystoreManager.updateApprovedDomains(domains)
+                    }
                     cfg.deviceName?.let { if (it.isNotBlank()) keystoreManager.deviceName = it }
                     cfg.carrier?.let { if (it.isNotBlank()) keystoreManager.carrier = it }
                     cfg.simPhoneNumber?.let { if (it.isNotBlank()) keystoreManager.simPhoneNumber = it }

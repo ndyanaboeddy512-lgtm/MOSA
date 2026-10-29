@@ -257,6 +257,9 @@ class MainActivity : AppCompatActivity() {
                             simPhone = deviceData.simPhoneNumber,
                             carrier = deviceData.carrier
                         )
+                        deviceData.approvedDomains?.let { domains ->
+                            keystoreManager.updateApprovedDomains(domains)
+                        }
                         deviceData.serverUrl?.let { sUrl ->
                             if (sUrl.isNotBlank()) keystoreManager.serverUrl = sUrl
                         }

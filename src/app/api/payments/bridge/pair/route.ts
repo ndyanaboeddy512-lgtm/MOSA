@@ -35,7 +35,8 @@ export async function POST(req: NextRequest) {
         carrier: result.carrier,
         simPhoneNumber: result.simPhoneNumber,
         enrolledAt: result.enrolledAt,
-        serverUrl: process.env.NEXT_PUBLIC_APP_URL || "https://mosa-one.vercel.app",
+        serverUrl: result.serverUrl,
+        approvedDomains: result.approvedDomains,
       },
     });
   } catch (error: any) {

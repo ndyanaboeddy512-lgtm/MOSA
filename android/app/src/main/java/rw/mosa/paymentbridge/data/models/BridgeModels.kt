@@ -26,7 +26,8 @@ data class PairDeviceData(
     @SerializedName("carrier") val carrier: String?,
     @SerializedName("simPhoneNumber") val simPhoneNumber: String?,
     @SerializedName("enrolledAt") val enrolledAt: String?,
-    @SerializedName("serverUrl") val serverUrl: String? = null
+    @SerializedName("serverUrl") val serverUrl: String? = null,
+    @SerializedName("approvedDomains") val approvedDomains: List<String>? = null
 )
 
 /**
@@ -44,6 +45,7 @@ data class HeartbeatRequest(
 
 data class TerminalRemoteConfig(
     @SerializedName("serverUrl") val serverUrl: String? = null,
+    @SerializedName("approvedDomains") val approvedDomains: List<String>? = null,
     @SerializedName("deviceName") val deviceName: String? = null,
     @SerializedName("carrier") val carrier: String? = null,
     @SerializedName("simPhoneNumber") val simPhoneNumber: String? = null,

@@ -8,6 +8,14 @@ import {
   rotateBridgeDeviceCredentials,
 } from "@/lib/payments/bridge-devices";
 import { updatePaymentProviderConfig, getPaymentProviders } from "@/lib/payments/engine";
+import {
+  getCanonicalServerUrl,
+  getDomainMigrationState,
+  submitCustomDomain,
+  verifyCustomDomain,
+  activateCustomDomain,
+  rollbackCustomDomain,
+} from "@/lib/domain-config";
 
 export async function GET(req: NextRequest) {
   try {
@@ -74,9 +82,14 @@ export async function GET(req: NextRequest) {
       take: 30,
     });
 
+    const canonicalUrl = await getCanonicalServerUrl();
+    const { state: domainConfig, auditHistory: domainAuditHistory } = await getDomainMigrationState();
+
     return NextResponse.json({
       success: true,
-      serverUrl: process.env.NEXT_PUBLIC_APP_URL || "https://mosa-one.vercel.app",
+      serverUrl: canonicalUrl,
+      domainConfig,
+      domainAuditHistory,
       devices: sanitizedDevices,
       totalCount: sanitizedDevices.length,
       activeCount: sanitizedDevices.filter((d) => d.status === "ACTIVE").length,
@@ -369,6 +382,71 @@ export async function POST(req: NextRequest) {
           simPhoneNumber: updated.simPhoneNumber,
         },
       });
+    }
+
+    // -----------------------------------------------------------------
+    // Custom Domain Migration & Verification Actions (SUPER_ADMIN only)
+    // -----------------------------------------------------------------
+    if (action === "SUBMIT_CUSTOM_DOMAIN") {
+      if (currentUser.role !== "SUPER_ADMIN") {
+        return NextResponse.json(
+          { success: false, error: "Unauthorized. Only SUPER_ADMIN can configure custom production domains." },
+          { status: 403 }
+        );
+      }
+      const { customDomain } = body;
+      const res = await submitCustomDomain({
+        customDomain,
+        actorId: currentUser.id,
+        actorName: currentUser.name,
+      });
+      return NextResponse.json(res);
+    }
+
+    if (action === "VERIFY_CUSTOM_DOMAIN") {
+      if (currentUser.role !== "SUPER_ADMIN") {
+        return NextResponse.json(
+          { success: false, error: "Unauthorized. Only SUPER_ADMIN can verify custom production domains." },
+          { status: 403 }
+        );
+      }
+      const { simulateSuccess } = body;
+      const res = await verifyCustomDomain({
+        actorId: currentUser.id,
+        actorName: currentUser.name,
+        simulateSuccess: Boolean(simulateSuccess),
+      });
+      return NextResponse.json(res);
+    }
+
+    if (action === "ACTIVATE_CUSTOM_DOMAIN") {
+      if (currentUser.role !== "SUPER_ADMIN") {
+        return NextResponse.json(
+          { success: false, error: "Unauthorized. Only SUPER_ADMIN can activate custom production domains." },
+          { status: 403 }
+        );
+      }
+      const res = await activateCustomDomain({
+        actorId: currentUser.id,
+        actorName: currentUser.name,
+      });
+      return NextResponse.json(res);
+    }
+
+    if (action === "ROLLBACK_CUSTOM_DOMAIN") {
+      if (currentUser.role !== "SUPER_ADMIN") {
+        return NextResponse.json(
+          { success: false, error: "Unauthorized. Only SUPER_ADMIN can rollback custom production domains." },
+          { status: 403 }
+        );
+      }
+      const { reason } = body;
+      const res = await rollbackCustomDomain({
+        actorId: currentUser.id,
+        actorName: currentUser.name,
+        reason,
+      });
+      return NextResponse.json(res);
     }
 
     return NextResponse.json(
