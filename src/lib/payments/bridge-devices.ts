@@ -306,7 +306,13 @@ export async function recordDeviceHeartbeat({
     status: updated.status,
     serverTime: new Date().toISOString(),
     configuration: {
-      serverUrl: process.env.NEXT_PUBLIC_APP_URL || "https://mosa-one.vercel.app",
+      serverUrl: (() => {
+        const configured = process.env.PAYMENT_BRIDGE_SERVER_URL || process.env.NEXT_PUBLIC_APP_URL;
+        if (!configured || configured.includes("localhost") || configured.includes("127.0.0.1")) {
+          return "https://mosa-one.vercel.app";
+        }
+        return configured;
+      })(),
       deviceName: updated.name,
       carrier: updated.carrier,
       simPhoneNumber: updated.simPhoneNumber,

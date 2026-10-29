@@ -220,6 +220,10 @@ class MainActivity : AppCompatActivity() {
         }
 
         if (!serverUrl.isNullOrBlank()) {
+            if (!keystoreManager.isTrustedServerUrl(serverUrl)) {
+                binding.inputServerUrl.error = "Untrusted server domain. Only official MOSA domains (https://*.vercel.app, https://*.mosa.rw) are permitted."
+                return
+            }
             keystoreManager.serverUrl = serverUrl
         }
 

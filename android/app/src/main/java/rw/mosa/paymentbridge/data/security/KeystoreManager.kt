@@ -26,7 +26,14 @@ class KeystoreManager(context: Context) {
 
     var serverUrl: String
         get() = sharedPreferences.getString(KEY_SERVER_URL, DEFAULT_SERVER_URL) ?: DEFAULT_SERVER_URL
-        set(value) = sharedPreferences.edit().putString(KEY_SERVER_URL, cleanUrl(value)).apply()
+        set(value) {
+            val cleaned = cleanUrl(value)
+            if (isTrustedServerUrl(cleaned)) {
+                sharedPreferences.edit().putString(KEY_SERVER_URL, cleaned).apply()
+            } else {
+                android.util.Log.w("KeystoreManager", "Blocked untrusted serverUrl redirection attempt: $value")
+            }
+        }
 
     var deviceId: String?
         get() = sharedPreferences.getString(KEY_DEVICE_ID, null)
@@ -104,6 +111,28 @@ class KeystoreManager(context: Context) {
         val token = deviceToken ?: return "Not Paired"
         if (token.length <= 8) return "***"
         return "${token.take(6)}...${token.takeLast(4)}"
+    }
+
+    fun isTrustedServerUrl(url: String): Boolean {
+        return try {
+            val uri = java.net.URI(cleanUrl(url))
+            val host = uri.host?.lowercase() ?: return false
+            val isHttps = uri.scheme.equals("https", ignoreCase = true)
+
+            val isTrustedDomain = host == "mosa-one.vercel.app" ||
+                    host.endsWith(".vercel.app") ||
+                    host == "mosa.rw" ||
+                    host.endsWith(".mosa.rw")
+
+            if (rw.mosa.paymentbridge.BuildConfig.DEBUG) {
+                val isLocalHost = host == "10.0.2.2" || host == "localhost" || host.startsWith("192.168.")
+                (isHttps && isTrustedDomain) || isLocalHost
+            } else {
+                isHttps && isTrustedDomain
+            }
+        } catch (_: Exception) {
+            false
+        }
     }
 
     private fun cleanUrl(url: String): String {

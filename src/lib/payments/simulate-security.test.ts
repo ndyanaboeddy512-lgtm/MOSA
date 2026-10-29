@@ -2,8 +2,10 @@ import { prisma } from "@/lib/prisma";
 import { POST as simulateActionPost } from "@/app/api/payments/simulate-action/route";
 import { POST as initiatePaymentPost } from "@/app/api/payments/initiate/route";
 import { GET as statusPaymentGet } from "@/app/api/payments/status/route";
+import { GET as bridgeDevicesGet, POST as bridgeDevicesPost } from "@/app/api/admin/payments/bridge/devices/route";
 import { simulateSandboxCustomerAction, checkAndReconcilePaymentStatus } from "@/lib/payments/push-gateway";
 import { checkPaymentRateLimit } from "@/lib/payments/rate-limiter";
+import { recordDeviceHeartbeat } from "@/lib/payments/bridge-devices";
 import { NextRequest } from "next/server";
 
 // Mock auth module dynamically for role testing
@@ -307,7 +309,123 @@ async function runSecurityAuditTests() {
   if (pollStatus.isConfirmed || pollStatus.status !== "PENDING") {
     throw new Error("TEST 8 FAILED: Polling prematurely confirmed payment without authoritative settlement!");
   }
-  console.log("✓ Test 8 Passed: Provider reconciliation strictly preserves PENDING state when unconfigured.");
+  // -------------------------------------------------------------
+  // TEST 9: Command Center Bridge Authorization & Secret Redaction
+  // -------------------------------------------------------------
+  console.log("\n--- TEST 9: Command Center Bridge Server-Side Authorization & Redaction ---");
+  // 9A: Anonymous call to GET bridge devices must fail with 403
+  const anonBridgeGetReq = new NextRequest("http://localhost:3000/api/admin/payments/bridge/devices");
+  const anonBridgeGetRes = await bridgeDevicesGet(anonBridgeGetReq);
+  if (anonBridgeGetRes.status !== 403) {
+    throw new Error(`TEST 9A FAILED: Anonymous call to bridge devices GET did not return 403! Got: ${anonBridgeGetRes.status}`);
+  }
+  console.log("✓ Test 9A Passed: Anonymous caller to bridge devices GET strictly received HTTP 403.");
+
+  // 9B: BUSINESS_OWNER call to GET bridge devices must fail with 403
+  const ownerToken = await createSessionToken({
+    userId: ownerA.id,
+    phone: ownerA.phone,
+    role: ownerA.role,
+    name: ownerA.name,
+  });
+  const ownerBridgeGetReq = new NextRequest("http://localhost:3000/api/admin/payments/bridge/devices", {
+    headers: {
+      Authorization: `Bearer ${ownerToken}`,
+      cookie: `mosa_session=${ownerToken}`,
+    },
+  });
+  const ownerBridgeGetRes = await bridgeDevicesGet(ownerBridgeGetReq);
+  if (ownerBridgeGetRes.status !== 403) {
+    throw new Error(`TEST 9B FAILED: BUSINESS_OWNER call to bridge devices GET did not return 403! Got: ${ownerBridgeGetRes.status}`);
+  }
+  console.log("✓ Test 9B Passed: BUSINESS_OWNER call to bridge devices GET strictly received HTTP 403.");
+
+  // 9C: BUSINESS_OWNER call to POST (CREATE_PAIRING) must fail with 403
+  const ownerBridgePostReq = new NextRequest("http://localhost:3000/api/admin/payments/bridge/devices", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${ownerToken}`,
+      cookie: `mosa_session=${ownerToken}`,
+    },
+    body: JSON.stringify({ action: "CREATE_PAIRING", name: "Malicious Terminal" }),
+  });
+  const ownerBridgePostRes = await bridgeDevicesPost(ownerBridgePostReq);
+  if (ownerBridgePostRes.status !== 403) {
+    throw new Error(`TEST 9C FAILED: BUSINESS_OWNER call to bridge devices POST did not return 403! Got: ${ownerBridgePostRes.status}`);
+  }
+  console.log("✓ Test 9C Passed: BUSINESS_OWNER call to bridge devices POST strictly received HTTP 403.");
+
+  // 9D: SUPER_ADMIN call succeeds and redacts sensitive HMAC secrets from listing
+  const adminToken = await createSessionToken({
+    userId: superAdminUser.id,
+    phone: superAdminUser.phone,
+    role: superAdminUser.role,
+    name: superAdminUser.name,
+  });
+  const adminBridgeGetReq = new NextRequest("http://localhost:3000/api/admin/payments/bridge/devices", {
+    headers: {
+      Authorization: `Bearer ${adminToken}`,
+      cookie: `mosa_session=${adminToken}`,
+    },
+  });
+  const adminBridgeGetRes = await bridgeDevicesGet(adminBridgeGetReq);
+  if (adminBridgeGetRes.status !== 200) {
+    throw new Error(`TEST 9D FAILED: SUPER_ADMIN call to bridge devices GET failed! Got: ${adminBridgeGetRes.status}`);
+  }
+  const adminBridgeData = await adminBridgeGetRes.json();
+  for (const dev of adminBridgeData.devices) {
+    if ((dev as any).hmacSecret !== undefined || (dev as any).deviceToken !== undefined) {
+      throw new Error(`TEST 9D FAILED: Bridge devices listing leaked sensitive credentials! dev: ${JSON.stringify(dev)}`);
+    }
+  }
+  console.log("✓ Test 9D Passed: SUPER_ADMIN authorized and sensitive deviceToken/hmacSecret strictly redacted from listing.");
+
+  // -------------------------------------------------------------
+  // TEST 10: Heartbeat Configuration Integrity & Zero Secret Leak
+  // -------------------------------------------------------------
+  console.log("\n--- TEST 10: Heartbeat Configuration Integrity & Zero Secret Leak ---");
+  const tempDeviceId = `bridge_test_${Date.now()}`;
+  const tempDeviceToken = `token_test_${Date.now()}`;
+  const tempHmacSecret = `hmac_secret_test_${Date.now()}`;
+  const tempDevice = await prisma.paymentBridgeDevice.create({
+    data: {
+      name: "Temporary Heartbeat Test Phone",
+      deviceId: tempDeviceId,
+      deviceToken: tempDeviceToken,
+      hmacSecret: tempHmacSecret,
+      carrier: "MTN Rwanda",
+      status: "ACTIVE",
+    },
+  });
+
+  const hbResult = await recordDeviceHeartbeat({
+    deviceId: tempDeviceId,
+    deviceToken: tempDeviceToken,
+    batteryLevel: 95,
+    isCharging: true,
+    networkType: "WIFI",
+    appVersion: "1.1.0",
+    pendingSyncCount: 2,
+  });
+
+  if (!hbResult.success || !hbResult.isDeviceActive) {
+    throw new Error("TEST 10 FAILED: Heartbeat failed for active device!");
+  }
+  const hbConfig = (hbResult as any).configuration;
+  if (!hbConfig) {
+    throw new Error("TEST 10 FAILED: Heartbeat did not return dynamic configuration!");
+  }
+  if ((hbConfig as any).hmacSecret !== undefined || (hbConfig as any).deviceToken !== undefined) {
+    throw new Error("TEST 10 FAILED: Heartbeat leaked hmacSecret or deviceToken!");
+  }
+  if (!hbConfig.serverUrl.startsWith("https://")) {
+    throw new Error(`TEST 10 FAILED: Heartbeat serverUrl is not secure HTTPS! Got: ${hbConfig.serverUrl}`);
+  }
+  console.log("✓ Test 10 Passed: Heartbeat dynamically delivered HTTPS serverUrl and safely excluded HMAC secrets.");
+
+  // Cleanup temp device
+  await prisma.paymentBridgeDevice.delete({ where: { id: tempDevice.id } });
 
   // Cleanup test records
   await prisma.registrationPayment.deleteMany({
@@ -319,7 +437,7 @@ async function runSecurityAuditTests() {
   });
 
   console.log("\n=================================================================");
-  console.log("ALL 8 CRITICAL SECURITY & REGRESSION TESTS PASSED SUCCESSFULLY!");
+  console.log("ALL 10 CRITICAL SECURITY & REGRESSION TESTS PASSED SUCCESSFULLY!");
   console.log("=================================================================");
 }
 
