@@ -30,6 +30,10 @@ async function runSecurityAuditTests() {
   console.log("55 MOSA — CRITICAL PAYMENT SECURITY & AUTHORIZATION REGRESSION SUITE");
   console.log("=================================================================\n");
 
+  // Snapshot initial platform settings to ensure tests restore clean production configuration
+  const initialSettings = await prisma.platformSettings.findUnique({ where: { id: "default" } });
+  const initialBrandAssets = initialSettings?.brandAssets || null;
+
   const testSuffix = Date.now().toString().slice(-6);
 
   // Setup test users
@@ -480,6 +484,52 @@ async function runSecurityAuditTests() {
   }
   console.log("✓ Test 11D Passed: Valid domain https://mosa.rw generated verification token.");
 
+  // 11E: Prohibit wildcards in custom domain input
+  const wildcardDomainRes = validateCustomDomainSyntax("https://*.mosa.rw");
+  if (wildcardDomainRes.isValid) {
+    throw new Error("TEST 11E FAILED: Wildcard in custom domain URL was accepted!");
+  }
+  console.log("✓ Test 11E Passed: Wildcard pattern in custom domain URL strictly rejected.");
+
+  // 11F: Prohibit non-standard ports in custom domain input
+  const portDomainRes = validateCustomDomainSyntax("https://mosa.rw:8443");
+  if (portDomainRes.isValid) {
+    throw new Error("TEST 11F FAILED: Non-standard port was accepted!");
+  }
+  console.log("✓ Test 11F Passed: Non-standard port strictly rejected.");
+
+  // 11G: Verify simulateSuccess is strictly blocked without server-side test harness flag
+  delete process.env.ALLOW_TEST_DOMAIN_VERIFICATION;
+  try {
+    await verifyCustomDomain({
+      actorId: superAdminUser.id,
+      actorName: superAdminUser.name,
+      simulateSuccess: true,
+    });
+    throw new Error("TEST 11G FAILED: simulateSuccess without server flag was allowed!");
+  } catch (err: any) {
+    if (!err.message.includes("simulation is strictly forbidden without explicit server-side test harness authorization")) {
+      throw err;
+    }
+  }
+  console.log("✓ Test 11G Passed: Verification simulation is strictly blocked without explicit server-side test authorization.");
+
+  // 11H: Client API call with simulateSuccess cannot bypass DNS/HTTPS verification
+  const fakeVerifyReq = new NextRequest("http://localhost:3000/api/admin/payments/bridge/devices", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      cookie: `mosa_session=${adminToken}`,
+    },
+    body: JSON.stringify({ action: "VERIFY_CUSTOM_DOMAIN", simulateSuccess: true }),
+  });
+  const fakeVerifyRes = await bridgeDevicesPost(fakeVerifyReq);
+  const fakeVerifyData = await fakeVerifyRes.json();
+  if (fakeVerifyData.verified === true) {
+    throw new Error("TEST 11H FAILED: Client API call with simulateSuccess bypassed domain verification!");
+  }
+  console.log("✓ Test 11H Passed: Client API call cannot bypass DNS/HTTPS domain verification.");
+
   // -------------------------------------------------------------
   // TEST 12: Custom Domain Verification & Strict Activation Invariant
   // -------------------------------------------------------------
@@ -495,16 +545,18 @@ async function runSecurityAuditTests() {
   }
   console.log("✓ Test 12A Passed: Activation of unverified custom domain was strictly rejected.");
 
-  // 12B: Verify domain using controlled simulation probe
+  // 12B: Verify domain using controlled test harness probe
+  process.env.ALLOW_TEST_DOMAIN_VERIFICATION = "true";
   const verifyRes = await verifyCustomDomain({
     actorId: superAdminUser.id,
     actorName: superAdminUser.name,
     simulateSuccess: true,
   });
+  delete process.env.ALLOW_TEST_DOMAIN_VERIFICATION;
   if (!verifyRes.success || !verifyRes.verified) {
     throw new Error("TEST 12B FAILED: verifyCustomDomain failed!");
   }
-  console.log("✓ Test 12B Passed: Domain verification check succeeded.");
+  console.log("✓ Test 12B Passed: Domain verification check succeeded under authorized test harness.");
 
   // 12C: Activate verified domain
   const activateRes = await activateCustomDomain({
@@ -593,6 +645,29 @@ async function runSecurityAuditTests() {
   await prisma.business.delete({ where: { id: testBizA.id } });
   await prisma.user.deleteMany({
     where: { id: { in: [ownerA.id, ownerB.id, customerUser.id, agentUser.id, superAdminUser.id] } },
+  });
+
+  // Strictly restore clean production domain configuration so test domain operations never leak into production
+  const cleanDomainConfig = {
+    canonicalUrl: "https://mosa-one.vercel.app",
+    status: "ACTIVE",
+    pendingCustomDomain: null,
+    verificationToken: null,
+    verificationMethod: null,
+    verifiedAt: null,
+    rollbackUrl: "https://mosa-one.vercel.app",
+    approvedDomains: ["mosa-one.vercel.app", "mosa.rw", "*.mosa.rw"],
+    diagnostics: null,
+  };
+  const currentSettings = await prisma.platformSettings.findUnique({ where: { id: "default" } });
+  let assets = currentSettings?.brandAssets ? JSON.parse(currentSettings.brandAssets) : {};
+  assets.domainConfig = cleanDomainConfig;
+  await prisma.platformSettings.update({
+    where: { id: "default" },
+    data: { brandAssets: JSON.stringify(assets) },
+  });
+  await prisma.auditLog.deleteMany({
+    where: { entityType: "PLATFORM_DOMAIN_CONFIG", actorId: superAdminUser.id },
   });
 
   console.log("\n=================================================================");

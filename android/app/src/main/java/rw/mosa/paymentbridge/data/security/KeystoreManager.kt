@@ -29,11 +29,36 @@ class KeystoreManager(context: Context) {
         set(value) {
             val cleaned = cleanUrl(value)
             if (isTrustedServerUrl(cleaned)) {
+                val current = sharedPreferences.getString(KEY_SERVER_URL, DEFAULT_SERVER_URL) ?: DEFAULT_SERVER_URL
+                if (current != cleaned && isTrustedServerUrl(current)) {
+                    // Record verified current URL as fallback before transitioning
+                    sharedPreferences.edit().putString(KEY_FALLBACK_SERVER_URL, current).apply()
+                }
                 sharedPreferences.edit().putString(KEY_SERVER_URL, cleaned).apply()
             } else {
                 android.util.Log.w("KeystoreManager", "Blocked untrusted serverUrl redirection attempt: $value")
             }
         }
+
+    val fallbackServerUrl: String
+        get() = sharedPreferences.getString(KEY_FALLBACK_SERVER_URL, DEFAULT_SERVER_URL) ?: DEFAULT_SERVER_URL
+
+    var consecutiveHeartbeatFailures: Int
+        get() = sharedPreferences.getInt(KEY_CONSECUTIVE_HB_FAILURES, 0)
+        set(value) = sharedPreferences.edit().putInt(KEY_CONSECUTIVE_HB_FAILURES, value).apply()
+
+    fun restoreFallbackServerUrl(): Boolean {
+        val fallback = fallbackServerUrl
+        if (isTrustedServerUrl(fallback)) {
+            android.util.Log.i("KeystoreManager", "Terminal recovering: restoring serverUrl to verified fallback: $fallback")
+            sharedPreferences.edit()
+                .putString(KEY_SERVER_URL, fallback)
+                .putInt(KEY_CONSECUTIVE_HB_FAILURES, 0)
+                .apply()
+            return true
+        }
+        return false
+    }
 
     var deviceId: String?
         get() = sharedPreferences.getString(KEY_DEVICE_ID, null)
@@ -125,6 +150,29 @@ class KeystoreManager(context: Context) {
         for (raw in domains) {
             val clean = raw.trim().lowercase().removePrefix("https://").removePrefix("http://").trimEnd('/')
             if (clean.isBlank()) continue
+
+            // Prohibit invalid characters, ports, and whitespace
+            if (clean.contains("/") || clean.contains(":") || clean.contains(" ")) {
+                android.util.Log.w("KeystoreManager", "Rejected malformed domain: $clean")
+                continue
+            }
+
+            // Prohibit raw IP addresses in approved production domains
+            if (clean.matches(Regex("^(\\d{1,3}\\.){3}\\d{1,3}$"))) {
+                android.util.Log.w("KeystoreManager", "Rejected raw IP domain: $clean")
+                continue
+            }
+
+            // Strictly prohibit broad wildcards (e.g. *, *.com, *.net, *.org, *.rw)
+            if (clean.startsWith("*.")) {
+                val suffix = clean.removePrefix("*.")
+                val isOfficialMosaWildcard = suffix == "mosa.rw" || suffix.endsWith(".mosa.rw") || suffix == "55mosa.rw"
+                if (!isOfficialMosaWildcard) {
+                    android.util.Log.w("KeystoreManager", "Rejected non-official wildcard domain: $clean")
+                    continue
+                }
+            }
+
             // Disallow arbitrary *.vercel.app subdomains. Only official mosa-one.vercel.app is permitted.
             if (clean.endsWith(".vercel.app") && clean != "mosa-one.vercel.app") {
                 android.util.Log.w("KeystoreManager", "Rejected untrusted vercel subdomain: $clean")
@@ -183,6 +231,8 @@ class KeystoreManager(context: Context) {
         private const val DEFAULT_SERVER_URL = "https://mosa-one.vercel.app"
 
         private const val KEY_SERVER_URL = "server_url"
+        private const val KEY_FALLBACK_SERVER_URL = "fallback_server_url"
+        private const val KEY_CONSECUTIVE_HB_FAILURES = "consecutive_hb_failures"
         private const val KEY_APPROVED_DOMAINS = "approved_domains"
         private const val KEY_DEVICE_ID = "device_id"
         private const val KEY_DEVICE_TOKEN = "device_token"

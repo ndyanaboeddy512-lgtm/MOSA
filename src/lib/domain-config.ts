@@ -135,6 +135,16 @@ export function validateCustomDomainSyntax(rawUrl: string): { isValid: boolean; 
       return { isValid: false, error: "Invalid hostname format." };
     }
 
+    // Prohibit wildcards in custom domain URLs
+    if (rawUrl.includes("*") || host.includes("*")) {
+      return { isValid: false, error: "Wildcard patterns are prohibited in custom domain URLs." };
+    }
+
+    // Prohibit custom non-standard ports for production domains
+    if (parsed.port && parsed.port !== "443") {
+      return { isValid: false, error: "Non-standard ports are prohibited for production domains." };
+    }
+
     // Disallow IP addresses in production domains
     if (/^(\d{1,3}\.){3}\d{1,3}$/.test(host)) {
       return { isValid: false, error: "Raw IP addresses cannot be configured as custom production domains." };
@@ -146,7 +156,7 @@ export function validateCustomDomainSyntax(rawUrl: string): { isValid: boolean; 
     }
 
     // Require standard FQDN with valid TLD
-    if (!host.includes(".")) {
+    if (!host.includes(".") || host.split(".").some((part) => part.length === 0)) {
       return { isValid: false, error: "Hostname must be a fully qualified domain name (e.g., mosa.rw)." };
     }
 
@@ -371,8 +381,13 @@ export async function verifyCustomDomain({
     }
   }
 
-  // Allow controlled test simulation for automated integration verification
+  // Allow controlled test simulation ONLY when explicitly permitted by server-side test harness flag
   if (!isVerified && simulateSuccess) {
+    if (process.env.ALLOW_TEST_DOMAIN_VERIFICATION !== "true") {
+      throw new Error(
+        "[SECURITY VIOLATION]: Domain verification simulation is strictly forbidden without explicit server-side test harness authorization (ALLOW_TEST_DOMAIN_VERIFICATION)."
+      );
+    }
     isVerified = true;
     diagnosticDetail = `Simulated automated test verification confirmed for ${hostname}`;
   }

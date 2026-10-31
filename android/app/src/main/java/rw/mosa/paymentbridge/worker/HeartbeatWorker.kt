@@ -62,6 +62,7 @@ class HeartbeatWorker(
             if (response.isSuccessful && response.body()?.success == true) {
                 val body = response.body()
                 keystoreManager.lastHeartbeatTimestamp = System.currentTimeMillis()
+                keystoreManager.consecutiveHeartbeatFailures = 0
                 Log.d(TAG, "Heartbeat successful. Status: ${body?.status ?: "ACTIVE"}")
 
                 // Apply dynamic backend remote configuration
@@ -85,6 +86,12 @@ class HeartbeatWorker(
                 val error = response.errorBody()?.string() ?: response.message()
                 Log.w(TAG, "Heartbeat rejected ($code): $error")
 
+                keystoreManager.consecutiveHeartbeatFailures += 1
+                if (keystoreManager.consecutiveHeartbeatFailures >= 3 && keystoreManager.serverUrl != keystoreManager.fallbackServerUrl) {
+                    Log.w(TAG, "Active serverUrl (${keystoreManager.serverUrl}) rejected after ${keystoreManager.consecutiveHeartbeatFailures} attempts. Restoring fallback server (${keystoreManager.fallbackServerUrl}) for administrative rollback...")
+                    keystoreManager.restoreFallbackServerUrl()
+                }
+
                 if (code == 401 || code == 403) {
                     if (error.contains("REVOKED", ignoreCase = true)) {
                         keystoreManager.isRevoked = true
@@ -94,6 +101,11 @@ class HeartbeatWorker(
             }
         } catch (e: Exception) {
             Log.w(TAG, "Heartbeat failed due to network exception: ${e.message}")
+            keystoreManager.consecutiveHeartbeatFailures += 1
+            if (keystoreManager.consecutiveHeartbeatFailures >= 3 && keystoreManager.serverUrl != keystoreManager.fallbackServerUrl) {
+                Log.w(TAG, "Active serverUrl (${keystoreManager.serverUrl}) unreachable after ${keystoreManager.consecutiveHeartbeatFailures} attempts. Restoring fallback server (${keystoreManager.fallbackServerUrl}) for administrative rollback...")
+                keystoreManager.restoreFallbackServerUrl()
+            }
             Result.retry()
         }
     }

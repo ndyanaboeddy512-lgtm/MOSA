@@ -410,11 +410,10 @@ export async function POST(req: NextRequest) {
           { status: 403 }
         );
       }
-      const { simulateSuccess } = body;
+      // Genuine DNS TXT / HTTPS well-known probe verification only. Client payloads cannot trigger simulated bypass.
       const res = await verifyCustomDomain({
         actorId: currentUser.id,
         actorName: currentUser.name,
-        simulateSuccess: Boolean(simulateSuccess),
       });
       return NextResponse.json(res);
     }
